@@ -129,7 +129,7 @@ oo::class create m2::node {
 		if {![dict exists $svcs $svc]} {
 			error "Service ($svc) not available"
 		}
-		set tmp			[tlc::intersect3 [dict get $svcs $svc] $excl]
+		set tmp			[m2::intersect3 [dict get $svcs $svc] $excl]
 		set remaining	[lindex $tmp 0]
 		if {[llength $remaining] == 0} {
 			error "Service ($svc) not available"
@@ -168,7 +168,7 @@ oo::class create m2::node {
 
 	#>>>
 	method all_ports {args} { #<<<
-		set tmp	[tlc::intersect3 [dict keys $ports] $args]
+		set tmp	[m2::intersect3 [dict keys $ports] $args]
 		return [lindex $tmp 0]
 	}
 
@@ -262,7 +262,7 @@ oo::class create m2::node {
 					[namespace code [list my _attempt_outbound_connection $addr]]]
 		} on ok {res options} {
 			set params	{}		;# !?
-			set p	[m2::Port ::#auto $contype [list \
+			set p	[m2::port new $contype [list \
 						-server [self] \
 						-use_keepalive $use_keepalive \
 					] \
@@ -277,7 +277,7 @@ oo::class create m2::node {
 	method _accept_inbound {con cl_ip cl_port} { #<<<
 		set queue [netdgram::queue new]
 		$queue attach $con
-		m2::Port #auto inbound \
+		m2::port new inbound \
 				[list -server [self]] $queue [list $cl_ip $cl_port]
 	}
 

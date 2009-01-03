@@ -1,620 +1,600 @@
-# vim: foldmarker=<<<,>>>
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> foldmarker=<<<,>>>
 
 # TODO: handle connection collapse
 
 # Signals:
 #	onclose()		- fired when socket is closed and object is dieing
 
-class m2::Port {
-	inherit tlc::Handlers tlc::Baselog
+oo::class create m2::port {
+	superclass m2::handlers m2::baselog
 
-	constructor {mode parms a_queue a_params} {}
-	destructor {}
+	constructor {mode parms a_queue a_params} { #<<<
+		next
+		set use_keepalive		0
+		set advertise			0
+		set dieing				0
 
-	public {
-		variable server
-		variable use_keepalive		0
+		array set signals	{}
 
-		method send {srcport msg}
-		method about {}
-		method downstream_jmid {seq}
-		method type {}
-	}
-	
-	private {
-		variable req
-		variable jm
-		variable jm_prev
-		variable jm_ports
-		variable jm_sport
-
-		variable mysvcs
-		variable outbound
-		variable signals
-		variable queue
-		variable advertise		0
-		variable neighbour_info
-		variable dieing			0
-
-		method receive {raw_msg}
-		method got_msg {msg}
-		method send_all_svcs {}
-		method remove_jm_dport {dport upstream_jmid prev_seq}
-		method dispatch {msg}
-		method send_dport {dport msg}
-		method queue_assign {data msg}
-		method closed {}
-
-		method t_not_connected {}
-		method t_got_msg_sdata {msg_sdata}
-
-		method puts {args}
-		method parray {args}
-
-		method die {}
-	}
-}
-
-
-body m2::Port::constructor {mode parms a_queue a_params} { #<<<
-	array set jm		{}
-	array set jm_prev	{}
-	array set req		{}
-	array set jm_ports	{}
-	array set jm_sport	{}
-	array set mysvcs	{}
-	array set signals	{}
-	array set neighbour_info {
-		type	node
-	}
-
-	tlc::Signal #auto signals(connected) -name "$this ($a_params) ($a_queue) connected"
-
-	configure {*}$parms
-
-	switch -- $mode {
-		inbound				{set outbound	0; set advertise	1}
-		outbound			{set outbound	1; set advertise	0}
-		outbound_advertise	{set outbound	1; set advertise	1}
-		default		{error "Invalid mode: ($mode)"}
-	}
-
-	if {![info exists server]} {
-		error "Must set -server"
-	}
-
-	set queue	$a_queue
-
-	$server register_port $this $outbound $advertise
-
-	oo::objdefine $queue forward assign {*}[code $this queue_assign]
-	# Use the default netdgram::queue::pick code for round-robin
-	#oo::objdefine $queue forward pick {*}[code $this queue_pick]
-	oo::objdefine $queue forward receive {*}[code $this receive]
-	oo::objdefine $queue forward closed {*}[code $this closed]
-
-	$signals(connected) set_state 1
-	log debug "m2::Port::constructor ($queue) connection from ($a_params)"
-
-	send_all_svcs
-}
-
-#>>>
-body m2::Port::destructor {} { #<<<
-	try {
-		catch {
-			if {[info exists queue] && [info object is object $queue]} {
-				set con	[$queue con]
-				# $queue dies when $con does, close_con unsets $con
-				$con destroy
-				unset queue
-			}
-		} res options
-		if {[dict get $options -code] ni {0 2}} {
-			log error "Error closing queue / con: $res\n[dict get $options -errorinfo]"
-		}
-		#log debug "m2::Port::destructor: ($con)"
-		foreach svc [array names mysvcs] {
-			$server revoke_svc $svc $this
-			array unset mysvcs $svc
-		}
-
-		# nack all msgs / fragments queued for us
-
-		# jm_can and dismantle all jm originating with us
-		set msg		[m2::msg new new \
-			type	jm_can \
-			svc		sys \
+		set jm				[dict create]
+		set jm_prev			[dict create]
+		set req				[dict create]
+		set jm_ports		[dict create]
+		set jm_sport		[dict create]
+		set mysvcs			[dict create]
+		set neighbour_info	[dict create \
+			type	node \
 		]
-		foreach {upid jmid} [array get jm] {
-			# Send the jm_can along to all recipients
-			$msg seq		$jmid
-			puts stderr "jm_can: [$msg display]"
-			foreach dport $jm_ports($jmid) {
-				$msg prev_seq	$jm_prev($dport,$jmid)
-				send_dport $dport $msg
-			}
 
-			# Dismantle our state for this jm channel
-			array unset jm $upid
-			array unset jm_prev $dport,$jmid
-			array unset jm_ports $jmid
+		set connected		0
+
+		#configure {*}$parms
+		if {[dict exists $parms -server]} {
+			set server	[dict get $parms -server]
+		} else {
+			error "Must set -server"
 		}
-		
-		$server unregister_port $this
-		#invoke_handlers onclose
-		foreach {type cbs} [dump_handlers] {
-			if {$type eq "onclose"} {
-				foreach cb $cbs {
-					try {
-						uplevel #0 $cb
-					} on error {errmsg options} {
-						puts stderr "m2::Port($this)::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
-					}
-				}
-			}
+
+		switch -- $mode {
+			inbound				{set outbound	0; set advertise	1}
+			outbound			{set outbound	1; set advertise	0}
+			outbound_advertise	{set outbound	1; set advertise	1}
+			default		{error "Invalid mode: ($mode)"}
 		}
-		set end_sample	[lf sample]
-	} on error {errmsg options} {
-		puts stderr "Error destructing port: $errmsg\n[dict get $options -errorinfo]"
+
+		set queue	$a_queue
+
+		$server register_port [self] $outbound $advertise
+
+		oo::objdefine $queue forward assign {*}[namespace code {my _queue_assign}]
+		# Use the default netdgram::queue::pick code for round-robin
+		#oo::objdefine $queue forward pick {*}[namespace code {my _queue_pick}]
+		oo::objdefine $queue forward receive {*}[namespace code {my _receive}]
+		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
+
+		set connected	1
+		log debug "m2::Port::constructor ($queue) connection from ($a_params)"
+
+		my _send_all_svcs
 	}
-}
 
-#>>>
-body m2::Port::receive {raw_msg} { #<<<
-	set msg		[m2::msg new deserialize $raw_msg]
-	got_msg $msg
-}
-
-#>>>
-body m2::Port::got_msg {msg} { #<<<
-	array set mc	[$msg get_data]
-
-	switch -- $mc(type) {
-		svc_avail { #<<<
-			foreach svc $mc(data) {
-				set mysvcs($svc)	1
-				$server announce_svc $svc $this
+	#>>>
+	destructor { #<<<
+		try {
+			try {
+				if {[info exists queue] && [info object is object $queue]} {
+					set con	[$queue con]
+					# $queue dies when $con does, close_con unsets $con
+					$con destroy
+					unset queue
+				}
+			} on error {errmsg options} {
+				log error "Error closing queue / con: $errmsg\n[dict get $options -errorinfo]"
 			}
-			#>>>
-		}
-
-		svc_revoke { #<<<
-			foreach svc $mc(data) {
-				$server revoke_svc $svc $this
-				array unset mysvcs $svc
+			#log debug "m2::Port::destructor: ($con)"
+			foreach svc [dict keys $mysvcs] {
+				$server revoke_svc $svc [self]
+				dict unset mysvcs $svc
 			}
-			#>>>
-		}
 
-		neighbour_info { #<<<
-			array set neighbour_info	[$msg data]
-			#>>>
-		}
+			# nack all msgs / fragments queued for us
 
-		req { #<<<
-			set dport	[$server port_for_svc $mc(svc) $this]
-			send_dport $dport $msg
-			#>>>
-		}
-
-		ack { #<<<
-			set pseq	$mc(prev_seq)
-			set tmp		$req($pseq)
-			set oldmsg	[lindex $tmp 0]
-			set dport	[lindex $tmp 1]
-			$msg prev_seq	[$oldmsg seq]
-			$msg seq		[$server unique_id]
-
-			puts stderr "m2::Port::got_msg: passing ack along"
-			send_dport $dport $msg
-			array unset req $pseq
-			$oldmsg decref
-			#>>>
-		}
-
-		nack { #<<<
-			set pseq	$mc(prev_seq)
-			set tmp		$req($pseq)
-			set oldmsg	[lindex $tmp 0]
-			set dport	[lindex $tmp 1]
-			$msg prev_seq	[$oldmsg seq]
-			$msg seq		[$server unique_id]
-
-			# TODO: roll back any pr_jm setups in progress
-
-			puts stderr "m2::Port::got_msg: passing nack along"
-			send_dport $dport $msg
-			array unset req $pseq
-			$oldmsg decref
-			#>>>
-		}
-
-		pr_jm -
-		jm { #<<<
-			set pseq	$mc(prev_seq)
-			if {[info exists req($pseq)]} {
-				$msg type		pr_jm
-				set tmp			$req($pseq)
-				set oldmsgseq	[[lindex $tmp 0] seq]
-				set dport		[lindex $tmp 1]
-
-				if {![info exists jm($mc(seq))]} {
-					set jm($mc(seq))	[$server unique_id]
-				}
-				set jmid	$jm($mc(seq))
-				if {[$dport type] == "application"} {
-					if {
-						![info exists jm_prev($dport,$jmid)] || 
-						$oldmsgseq ni $jm_prev($dport,$jmid)
-					} {
-						lappend jm_prev($dport,$jmid)	$oldmsgseq
-					}
-				} else {
-					set jm_prev($dport,$jmid)		""
-				}
-				if {
-					![info exists jm_ports($jmid)] ||
-					$dport ni $jm_ports($jmid)
-				} {
-					lappend jm_ports($jmid)	$dport
-					$dport register_handler onclose [code $this remove_jm_dport $dport $mc(seq) ""]
-					# TODO: need to arrange for this onclose handler to be
-					# deregistered if we die
-				}
-
-				$msg prev_seq	[list $oldmsgseq]
+			# jm_can and dismantle all jm originating with us
+			set msg		[m2::msg new new \
+				type	jm_can \
+				svc		sys \
+			]
+			dict for {upid jmid} $jm {
+				# Send the jm_can along to all recipients
 				$msg seq		$jmid
-
-				puts stderr "pr_jm: [$msg display]"
-
-				send_dport $dport $msg
-			} else {
-				if {![info exists jm($mc(seq))]} {
-					log error "No junkmail: ($mc(seq))"
-					if {[array exists jm]} {
-						parray jm
-					}
-					return
-				}
-				set jmid		$jm($mc(seq))
-
-				$msg type		jm
-				$msg seq		$jmid
-
-				puts stderr "jm: [$msg display]"
-
-				foreach dport $jm_ports($jmid) {
-					$msg prev_seq	$jm_prev($dport,$jmid)
+				puts stderr "jm_can: [$msg display]"
+				foreach dport [dict get $jm_ports $jmid] {
+					$msg prev_seq	[dict get $jm_prev $dport,$jmid]
 					send_dport $dport $msg
 				}
-			}
-			#>>>
-		}
 
-		rsj_req { #<<<
-			if {![info exists jm_sport($mc(prev_seq))]} {
-				error "No such junkmail for rsj_req: [$msg display]"
+				# Dismantle our state for this jm channel
+				dict unset jm $upid
+				dict unset jm_prev $dport,$jmid
+				dict unset jm_ports $jmid
 			}
 			
-			$jm_sport($mc(prev_seq)) send $this $msg
-			#>>>
-		}
-
-		jm_req { #<<<
-			if {![info exists jm($mc(prev_seq))]} {
-				log error "No junkmail: ($mc(prev_seq)) mc:"
-				parray mc
-				log error "jm:"
-				parray jm
-				return
-			}
-			set jmid	$jm($mc(prev_seq))
-
-			set rand_dest	[expr {round(rand() * ([llength $jm_ports($jmid)] - 1))}]
-			set dport		[lindex $jm_ports($jmid) $rand_dest]
-			puts "randomly picked idx $rand_dest of [llength $jm_ports($jmid)]: ($dport)"
-
-			#$msg seq	$jmid
-			#$msg prev_seq	$jm_prev($dport,$jmid)
-			send_dport $dport $msg
-			#>>>
-		}
-
-		jm_can { #<<<
-			if {![info exists jm($mc(seq))]} {
-				parray jm
-				error "No such junkmail channel ($mc(seq))"
-			}
-			set jmid		$jm($mc(seq))
-			
-			# Send the jm_can along to all recipients
-			$msg seq		$jmid
-			puts stderr "jm_can: [$msg display]"
-			foreach dport $jm_ports($jmid) {
-				$msg prev_seq	$jm_prev($dport,$jmid)
-				$dport deregister_handler onclose [code $this remove_jm_dport $dport $mc(seq) ""]
-				send_dport $dport $msg
-			}
-
-			# Dismantle our state for this jm channel
-			array unset jm $mc(seq)
-			array unset jm_prev $dport,$jmid
-			array unset jm_ports $jmid
-			#>>>
-		}
-
-		jm_disconnect { #<<<
-			if {![info exists jm_sport($mc(seq))]} {
-				error "No such junkmail for jm_disconnect: [$msg display]"
-			}
-			
-			if {[$jm_sport($mc(seq)) send $this $msg]} {
-				# The above returns true if we don't receive this channel any more
-				array unset jm_sport $mc(seq)
-			}
-			#>>>
-		}
-
-		default { #<<<
-			error "Invalid msg type: ($mc(type))"
-			#>>>
-		}
-	}
-}
-
-#>>>
-body m2::Port::send {srcport msg} { #<<<
-	puts "Port::send: ($srcport) -> ($this)"
-	array set mc	[$msg get_data]
-
-	switch -- $mc(type) {
-		req {
-			set newid	[$server unique_id]
-
-			set newmsg	[m2::msg new clone $msg]
-			$newmsg shift_seqs $newid
-
-			$msg incref
-			set req([$newmsg seq])		[list $msg $srcport]
-
-			dispatch $newmsg
-		}
-
-		nack -
-		ack {
-			dispatch $msg
-		}
-
-		svc_avail -
-		svc_revoke {
-			puts stderr "$mc(type) writing"
-			dispatch $msg
-		}
-		
-		pr_jm -
-		jm {
-			puts stderr "$mc(type) writing"
-			if {![info exists jm_sport($mc(seq))]} {
-				set jm_sport($mc(seq))	$srcport
-			}
-			dispatch $msg
-		}
-		
-		jm_can {
-			array unset jm_sport $mc(seq)
-			puts stderr "$mc(type) writing"
-			dispatch $msg
-		}
-
-		jm_disconnect {
-			# TODO: more efficiently
-			foreach {up down} [array get jm] {
-				if {$down == $mc(seq)} {
-					return [remove_jm_dport	$srcport $up $mc(prev_seq)]
+			$server unregister_port [self]
+			#invoke_handlers onclose
+			dict for {type cbs} [my dump_handlers] {
+				if {$type eq "onclose"} {
+					foreach cb $cbs {
+						try {
+							uplevel #0 $cb
+						} on error {errmsg options} {
+							puts stderr "m2::Port([self])::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
+						}
+					}
 				}
 			}
-			parray jm
-			error "No upstream path found for jm_disconnect: [$msg display]"
+			#set end_sample	[lf sample]
+		} on error {errmsg options} {
+			puts stderr "Error destructing port: $errmsg\n[dict get $options -errorinfo]"
 		}
+	}
 
-		rsj_req {
-			# TODO: more efficiently
-			foreach {up down} [array get jm] {
-				if {$down == $mc(prev_seq)} {
-					set newmsg	[m2::msg new clone $msg]
-					$newmsg prev_seq	$up
-					$newmsg seq			[$server unique_id]
+	#>>>
 
-					$msg incref
-					set req([$newmsg seq])		[list $msg $srcport]
+	variable {*}{
+		server
+		use_keepalive
+		req
+		jm
+		jm_prev
+		jm_ports
+		jm_sport
 
-					dispatch $newmsg
+		mysvcs
+		outbound
+		signals
+		queue
+		advertise
+		neighbour_info
+		dieing
+		connected
+	}
 
+	method send {srcport msg} { #<<<
+		puts "Port::send: ($srcport) -> ([self])"
+		set mc	[$msg get_data]
+
+		switch -- [dict get $mc type] {
+			req { #<<<
+				set newid	[$server unique_id]
+
+				set newmsg	[m2::msg new clone $msg]
+				$newmsg shift_seqs $newid
+
+				$msg incref
+				dict set req [$newmsg seq]		[list $msg $srcport]
+
+				my _dispatch $newmsg
+				#>>>
+			}
+
+			nack -
+			ack { #<<<
+				my _dispatch $msg
+				#>>>
+			}
+
+			svc_avail -
+			svc_revoke { #<<<
+				puts stderr "[dict get $mc type] writing"
+				my _dispatch $msg
+				#>>>
+			}
+			
+			pr_jm -
+			jm { #<<<
+				puts stderr "[dict get $mc type] writing"
+				if {![dict exists $jm_sport [dict get $mc seq]]]} {
+					dict set jm_sport [dict get $mc seq]	$srcport
+				}
+				my _dispatch $msg
+				#>>>
+			}
+			
+			jm_can { #<<<
+				dict unset jm_sport [dict get $mc seq]
+				puts stderr "[dict get $mc type] writing"
+				my _dispatch $msg
+				#>>>
+			}
+
+			jm_disconnect { #<<<
+				# TODO: more efficiently
+				dict for {up down} $jm {
+					if {$down == [dict get $mc seq]} {
+						return [my _remove_jm_dport	$srcport $up [dict get $mc prev_seq]]
+					}
+				}
+				#parray jm
+				error "No upstream path found for jm_disconnect: [$msg display]"
+				#>>>
+			}
+
+			rsj_req { #<<<
+				# TODO: more efficiently
+				dict for {up down} $jm {
+					if {$down == [dict get $mc prev_seq]} {
+						set newmsg	[m2::msg new clone $msg]
+						$newmsg prev_seq	$up
+						$newmsg seq			[$server unique_id]
+
+						$msg incref
+						dict set req [$newmsg seq]		[list $msg $srcport]
+
+						my _dispatch $newmsg
+
+						return
+					}
+				}
+				error "No upstream path found for rsj_req: [$msg display]"
+				#>>>
+			}
+
+			jm_req { #<<<
+				set newid	[$server unique_id]
+
+				#if {![dict exists $jm [dict get $mc prev_seq]]]} {
+				#	log error "No jm([$msg prev_seq]) mc:"
+				#	parray mc
+				#	log error "jm:"
+				#	parray jm
+				#	error "No jm"
+				#}
+				#set jmid	[dict get $jm [dict get $mc prev_seq]]
+				set jmid	[$srcport downstream_jmid [dict get $mc prev_seq]]
+				set newmsg	[m2::msg new clone $msg]
+				$newmsg prev_seq	$jmid
+				$newmsg seq			$newid
+
+				$msg incref
+				dict set req $newid		[list $msg $srcport]
+
+				my _dispatch $newmsg
+				#>>>
+			}
+
+			default { #<<<
+				error "Invalid msg type: ([dict get $mc type])"
+				#>>>
+			}
+		}
+	}
+
+	#>>>
+	method about {} { #<<<
+	}
+
+	#>>>
+	method _downstream_jmid {seq} { #<<<
+		dict get $jm $seq
+	}
+
+	#>>>
+	method _type {} { #<<<
+		dict get $neighbour_info type
+	}
+
+	#>>>
+
+	method _receive {raw_msg} { #<<<
+		set msg		[m2::msg new deserialize $raw_msg]
+		got_msg $msg
+	}
+
+	#>>>
+	method _got_msg {msg} { #<<<
+		set mc	[$msg get_data]
+
+		switch -- [dict get $mc type] {
+			svc_avail { #<<<
+				foreach svc [dict get $mc data] {
+					dict set mysvcs $svc	1
+					$server announce_svc $svc [self]
+				}
+				#>>>
+			}
+
+			svc_revoke { #<<<
+				foreach svc [dict get $mc data] {
+					$server revoke_svc $svc [self]
+					dict unset mysvcs $svc
+				}
+				#>>>
+			}
+
+			neighbour_info { #<<<
+				set neighbour_info \
+						[dict merge $neighbour_info [dict get $mc data]]
+				#>>>
+			}
+
+			req { #<<<
+				set dport	[$server port_for_svc [dict get $mc svc] [self]]
+				my _send_dport $dport $msg
+				#>>>
+			}
+
+			ack { #<<<
+				set pseq	[dict get $mc prev_seq]
+				set tmp		[dict get $req $pseq]
+				lassign $tmp oldmsg dport
+				$msg prev_seq	[$oldmsg seq]
+				$msg seq		[$server unique_id]
+
+				puts stderr "m2::Port::got_msg: passing ack along"
+				send_dport $dport $msg
+				dict unset req $pseq
+				$oldmsg decref
+				#>>>
+			}
+
+			nack { #<<<
+				set pseq	[dict get $mc prev_seq]
+				set tmp		[dict get $req $pseq]
+				lassign $tmp oldmsg dport
+				$msg prev_seq	[$oldmsg seq]
+				$msg seq		[$server unique_id]
+
+				# TODO: roll back any pr_jm setups in progress
+
+				puts stderr "m2::Port::got_msg: passing nack along"
+				my _send_dport $dport $msg
+				dict unset req $pseq
+				$oldmsg decref
+				#>>>
+			}
+
+			pr_jm -
+			jm { #<<<
+				set pseq	[dict get $mc prev_seq]
+				if {[dict exists $req $pseq]} {
+					$msg type		pr_jm
+					set tmp			[dict get $req $pseq]
+					set oldmsgseq	[[lindex $tmp 0] seq]
+					set dport		[lindex $tmp 1]
+
+					if {![dict exists $jm [dict get $mc seq]]]} {
+						dict set jm [dict get $mc seq]	[$server unique_id]
+					}
+					set jmid	[dict get $jm [dict get $mc seq]]
+					if {[$dport type] eq "application"} {
+						if {
+							![dict exists $jm_prev $dport,$jmid]] || 
+							$oldmsgseq ni [dict get $jm_prev $dport,$jmid]
+						} {
+							dict lappend jm_prev $dport,$jmid	$oldmsgseq
+						}
+					} else {
+						dict set jm_prev $dport,$jmid		{}
+					}
+					if {
+						![dict exists $jm_ports $jmid]] ||
+						$dport ni [dict get $jm_ports $jmid]
+					} {
+						dict lappend jm_ports $jmid	$dport
+						$dport register_handler onclose [code [self] remove_jm_dport $dport [dict get $mc seq] ""]
+						# TODO: need to arrange for this onclose handler to be
+						# deregistered if we die
+					}
+
+					$msg prev_seq	[list $oldmsgseq]
+					$msg seq		$jmid
+
+					puts stderr "pr_jm: [$msg display]"
+
+					my _send_dport $dport $msg
+				} else {
+					if {![dict exists $jm [dict get $mc seq]]]} {
+						log error "No junkmail: ([dict get $mc seq])"
+						#if {[array exists jm]} {
+						#	parray jm
+						#}
+						return
+					}
+					set jmid		[dict get $jm [dict get $mc seq]]
+
+					$msg type		jm
+					$msg seq		$jmid
+
+					puts stderr "jm: [$msg display]"
+
+					foreach dport [dict get $jm_ports $jmid] {
+						$msg prev_seq	[dict get $jm_prev $dport,$jmid]
+						my _send_dport $dport $msg
+					}
+				}
+				#>>>
+			}
+
+			rsj_req { #<<<
+				if {![dict exists $jm_sport [dict get $mc prev_seq]]]} {
+					error "No such junkmail for rsj_req: [$msg display]"
+				}
+				
+				[dict get $jm_sport [dict get $mc prev_seq]] send [self] $msg
+				#>>>
+			}
+
+			jm_req { #<<<
+				if {![dict exists $jm [dict get $mc prev_seq]]]} {
+					log error "No junkmail: ([dict get $mc prev_seq]):"
+					#parray mc
+					#log error "jm:"
+					#parray jm
 					return
 				}
+				set jmid	[dict get $jm [dict get $mc prev_seq]]
+
+				set rand_dest	[expr {round(rand() * ([llength [dict get $jm_ports $jmid]] - 1))}]
+				set dport		[lindex [dict get $jm_ports $jmid] $rand_dest]
+				puts "randomly picked idx $rand_dest of [llength [dict get $jm_ports $jmid]]: ($dport)"
+
+				#$msg seq	$jmid
+				#$msg prev_seq	[dict get $jm_prev $dport,$jmid]
+				my _send_dport $dport $msg
+				#>>>
 			}
-			error "No upstream path found for rsj_req: [$msg display]"
-		}
 
-		jm_req {
-			set newid	[$server unique_id]
+			jm_can { #<<<
+				if {![dict exists $jm [dict get $mc seq]]]} {
+					#parray jm
+					error "No such junkmail channel ([$msg seq])"
+				}
+				set jmid		[dict get $jm [dict get $mc seq]]
+				
+				# Send the jm_can along to all recipients
+				$msg seq		$jmid
+				puts stderr "jm_can: [$msg display]"
+				foreach dport [dict get $jm_ports $jmid] {
+					$msg prev_seq	[dict get $jm_prev $dport,$jmid]
+					$dport deregister_handler onclose [namespace code [list my remove_jm_dport $dport [dict get $mc seq] ""]]
+					my _send_dport $dport $msg
+				}
 
-			#if {![info exists jm($mc(prev_seq))]} {
-			#	log error "No jm($mc(prev_seq)) mc:"
-			#	parray mc
-			#	log error "jm:"
-			#	parray jm
-			#	error "No jm"
-			#}
-			#set jmid	$jm($mc(prev_seq))
-			set jmid	[$srcport downstream_jmid $mc(prev_seq)]
-			set newmsg	[m2::msg new clone $msg]
-			$newmsg prev_seq	$jmid
-			$newmsg seq			$newid
+				# Dismantle our state for this jm channel
+				dict unset jm [dict get $mc seq]
+				dict unset jm_prev $dport,$jmid
+				dict unset jm_ports $jmid
+				#>>>
+			}
 
-			$msg incref
-			set req($newid)		[list $msg $srcport]
+			jm_disconnect { #<<<
+				if {![dict exists $jm_sport [dict get $mc seq]]]} {
+					error "No such junkmail for jm_disconnect: [$msg display]"
+				}
+				
+				if {[[dict get $jm_sport [dict get $mc seq]] send [self] $msg]} {
+					# The above returns true if we don't receive this channel any more
+					dict unset jm_sport [dict get $mc seq]
+				}
+				#>>>
+			}
 
-			dispatch $newmsg
-		}
-
-		default {
-			error "Invalid msg type: ($mc(type))"
+			default { #<<<
+				error "Invalid msg type: ([dict get $mc type])"
+				#>>>
+			}
 		}
 	}
-}
 
-#>>>
-body m2::Port::send_all_svcs {} { #<<<
-	set msg		[m2::msg new new \
-		type	svc_avail \
-		seq		[$server unique_id] \
-		data	[$server all_svcs] \
-	]
+	#>>>
+	method _send_all_svcs {} { #<<<
+		set msg		[m2::msg new new \
+			type	svc_avail \
+			seq		[$server unique_id] \
+			data	[$server all_svcs] \
+		]
 
-	send $this $msg
-}
+		my send [self] $msg
+	}
 
-#>>>
-body m2::Port::remove_jm_dport {dport upstream_jmid prev_seq} { #<<<
-	set jmid	$jm($upstream_jmid)
-	if {$prev_seq == "" || $prev_seq == 0} {
-		array unset jm_prev		$dport,$jmid
-	} else {
-		if {[info exists jm_prev($dport,$jmid)]} {
-			set idx		[lsearch $jm_prev($dport,$jmid) $prev_seq]
-			if {$idx == -1} {
-				log warning "Asked to remove an invalid jm_prev: ($prev_seq)"
-			} else {
-				set jm_prev($dport,$jmid)	[lreplace $jm_prev($dport,$jmid) $idx $idx]
-				if {[llength $jm_prev($dport,$jmid)] == 0} {
-					array unset jm_prev	$dport,$jmid
+	#>>>
+	method _remove_jm_dport {dport upstream_jmid prev_seq} { #<<<
+		set jmid	[dict get $jm $upstream_jmid]
+		if {$prev_seq == "" || $prev_seq == 0} {
+			dict unset jm_prev		$dport,$jmid
+		} else {
+			if {[dict exists $jm_prev $dport,$jmid]]} {
+				set idx		[lsearch [dict get $jm_prev $dport,$jmid] $prev_seq]
+				if {$idx == -1} {
+					log warning "Asked to remove an invalid jm_prev: ($prev_seq)"
+				} else {
+					dict set jm_prev $dport,$jmid	[lreplace [dict get $jm_prev $dport,$jmid] $idx $idx]
+					if {[llength [dict get $jm_prev $dport,$jmid]] == 0} {
+						dict unset jm_prev	$dport,$jmid
+					}
 				}
 			}
 		}
-	}
-	if {[info exists jm_prev($dport,$jmid)]} {
-		return 0
-	}
-	$dport deregister_handler onclose [code $this remove_jm_dport $dport $upstream_jmid ""]
+		if {[dict exists $jm_prev $dport,$jmid]]} {
+			return 0
+		}
+		$dport deregister_handler onclose [code [self] remove_jm_dport $dport $upstream_jmid ""]
 
-	set idx		[lsearch $jm_ports($jmid) $dport]
-	if {$idx == -1} return
-	set jm_ports($jmid)		[lreplace $jm_ports($jmid) $idx $idx]
-	puts stderr "m2::Port::remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"
-	if {[llength $jm_ports($jmid)] == 0} {
-		puts stderr "m2::Port::remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_can upstream"
-		
-		set msg		[m2::msg new new \
-			type	jm_disconnect \
-			seq		$upstream_jmid \
-		]
-		dispatch $msg
+		set idx		[lsearch [dict get $jm_ports $jmid] $dport]
+		if {$idx == -1} return
+		dict set jm_ports $jmid		[lreplace [dict get $jm_ports $jmid] $idx $idx]
+		puts stderr "m2::Port::remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"
+		if {[llength [dict get $jm_ports $jmid]] == 0} {
+			puts stderr "m2::Port::remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_can upstream"
+			
+			set msg		[m2::msg new new \
+				type	jm_disconnect \
+				seq		$upstream_jmid \
+			]
+			dispatch $msg
 
-		array unset jm			$upstream_jmid
-		array unset jm_ports	$jmid
-		if {[catch {
-			puts stderr "m2::Port::remove_jm_dport: jm:"
-			parray jm
-			puts stderr "m2::Port::remove_jm_dport: jm_ports:"
-			parray jm_ports
-			puts stderr "m2::Port::remove_jm_dport: jm_prev:"
-			parray jm_prev
-		}]} {
-			puts stderr "m2::Port::remove_jm_dport: $::errorInfo"
+			dict unset jm			$upstream_jmid
+			dict unset jm_ports	$jmid
+			#if {[catch {
+			#	puts stderr "m2::Port::remove_jm_dport: jm:"
+			#	parray jm
+			#	puts stderr "m2::Port::remove_jm_dport: jm_ports:"
+			#	parray jm_ports
+			#	puts stderr "m2::Port::remove_jm_dport: jm_prev:"
+			#	parray jm_prev
+			#}]} {
+			#	puts stderr "m2::Port::remove_jm_dport: $::errorInfo"
+			#}
+		}
+		return 1
+	}
+
+	#>>>
+	method _dispatch {msg} { #<<<
+		if {!$connected} {
+			::puts "PANIC: not connected"
+			return
+		}
+		try {
+			$queue enqueue [$msg serialize] $msg
+		} on error {errmsg options} {
+			log error "Error queueing message [$msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
+			my _die
 		}
 	}
-	return 1
-}
 
-#>>>
-body m2::Port::about {} { #<<<
-}
-
-#>>>
-body m2::Port::dispatch {msg} { #<<<
-	if {![$signals(connected) state]} {
-		::puts "PANIC: ([$signals(connected) name]) not connected"
-		return
-	}
-	catch {
-		$queue enqueue [$msg serialize] $msg
-	} res options
-
-	if {[dict get $options -code] ni {0 2}} {
-		log error "Error queueing message [$msg type] for port ($this): $res\n[dict get $options -errorinfo]"
-		die
-	}
-}
-
-#>>>
-body m2::Port::send_dport {dport msg} { #<<<
-	if {[catch {
-		$dport send $this $msg
-	} errmsg]} {
-		puts stderr "m2::Port::send_dport($dport,$msg): this: ($this) error sending ([$msg svc]):\n$::errorInfo"
-	}
-}
-
-#>>>
-body m2::Port::queue_assign {data msg} { #<<<
-	set m	[$msg get_data]
-	switch -- [dict get $m type] {
-		"rsj_req" -
-		"req" -
-		"jm" {
-			return [dict get $m seq]
-		}
-
-		default {
-			return [dict get $m prev_seq]
+	#>>>
+	method _send_dport {dport msg} { #<<<
+		try {
+			$dport send [self] $msg
+		} on error {errmsg options} {
+			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) error sending ([$msg svc]): $errmsg\n[dict get $options -errorinfo]"
 		}
 	}
+
+	#>>>
+	method _queue_assign {data msg} { #<<<
+		set m	[$msg get_data]
+		switch -- [dict get $m type] {
+			"rsj_req" -
+			"req" -
+			"jm" {
+				return [dict get $m seq]
+			}
+
+			default {
+				return [dict get $m prev_seq]
+			}
+		}
+	}
+
+	#>>>
+	method _closed {} { #<<<
+		my _die
+	}
+
+	#>>>
+	method _t_not_connected {} { #<<<
+		my _die
+	}
+
+	#>>>
+	method _t_got_msg_sdata {msg_sdata} { #<<<
+		set msg		[m2::msg new deserialize $msg_sdata]
+		my _got_msg $msg
+	}
+
+	#>>>
+	method _die {} { #<<<
+		if {$dieing} return
+
+		set connected	0
+		set dieing	1
+		my destroy
+		return -code return
+	}
+
+	#>>>
 }
 
-#>>>
-body m2::Port::closed {} { #<<<
-	die
-}
 
-#>>>
-body m2::Port::t_not_connected {} { #<<<
-	die
-}
-
-#>>>
-body m2::Port::t_got_msg_sdata {msg_sdata} { #<<<
-	set msg		[m2::msg new deserialize $msg_sdata]
-	got_msg $msg
-}
-
-#>>>
-body m2::Port::downstream_jmid {seq} { #<<<
-	return $jm($seq)
-}
-
-#>>>
-body m2::Port::type {} { #<<<
-	return $neighbour_info(type)
-}
-
-#>>>
-body m2::Port::puts {args} { #<<<
-}
-
-#>>>
-body m2::Port::parray {args} { #<<<
-}
-
-#>>>
-body m2::Port::die {} { #<<<
-	if {$dieing} return
-
-	$signals(connected) set_state 0
-	set dieing	1
-	delete object $this
-	return -code return
-}
-
-#>>>

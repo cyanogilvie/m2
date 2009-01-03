@@ -2,13 +2,15 @@ VER=0.20
 
 BASESCRIPTS = \
 			  init.tcl \
-			  scripts/api.itcl \
-			  scripts/api2.itcl \
-			  scripts/chans.itcl \
+			  scripts/intersect3.tcl \
 			  scripts/refcounted.tcl \
 			  scripts/msg.tcl \
 			  scripts/node.tcl \
-			  scripts/port.itcl
+			  scripts/handlers.tcl \
+			  scripts/baselog.tcl \
+			  scripts/port.tcl
+#			  scripts/api.itcl \
+			  scripts/api2.itcl \
 
 all: tm
 

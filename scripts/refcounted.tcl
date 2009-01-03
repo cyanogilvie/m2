@@ -52,7 +52,7 @@ oo::class create m2::refcounted {
 	method log_cmd {lvl msg args} {}
 	method autoscoperef {} { #<<<
 		my log_cmd debug "[self class]::[self method] callstack: (callstack dump broken)"
-		upvar 2 _tlc_refcounted_scoperef_[string map {:: //} [self]] scopevar
+		upvar 2 _m2_refcounted_scoperef_[string map {:: //} [self]] scopevar
 		set scopevar	[self]
 		trace variable scopevar u [namespace code {my decref "scopevar unset"}]
 	}
