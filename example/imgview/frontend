@@ -1,0 +1,176 @@
+#!/usr/bin/env tclsh8.6
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+package require Tcl 8.6
+
+tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
+package require m2
+package require TLC 0.99
+wm withdraw .
+
+class Config {
+	inherit tlc::Baseconfig
+
+	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
+
+	public {
+		variable uri	"tcp_coroutine://localhost:5307"
+	}
+}
+
+Config cfg {*}$argv
+set cfg	[cfg dump_config]
+
+array set signals	{}
+tlc::Gate #auto signals(ready) -name "ready" -mode and
+tlc::Signal #auto signals(list_files_available) -name "list_files_available"
+tlc::Signal #auto signals(get_file) -name "get_file"
+$signals(ready) attach_input $signals(list_files_available)
+$signals(ready) attach_input $signals(get_file)
+
+m2::API2 m2 -uri [dict get $cfg uri]
+$signals(ready) attach_input [m2 signal_ref connected]
+
+proc svc_avail_changed {} {
+	puts "svc_avail_changed"
+	$::signals(list_files_available) set_state [m2 svc_avail "list_files"]
+	$::signals(get_file) set_state [m2 svc_avail "get_file"]
+}
+m2 register_handler svc_avail_changed svc_avail_changed
+
+[m2 signal_ref connected] attach_output [list apply {
+	{newstate} {
+		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
+	}
+}]
+
+
+set coro_seq	1
+$signals(ready) attach_output [list apply {
+	{newstate} {
+		puts [expr {$newstate ? "ready" : "not ready"}]
+	}
+}]
+
+# GUI <<<
+source [file join [file dirname [info script]] "imagedisplay.itk"]
+
+class Main {
+	inherit tlc::Application
+
+	constructor {args} {tlc::Application::constructor {*}$args} {}
+	destructor {}
+
+	private {
+		variable ds		{}
+
+		method ready_changed {newstate}
+		method refresh_filelist {type svc data seq prev_seq}
+		method image_selected {arr}
+	}
+}
+
+
+body Main::constructor {args} { #<<<
+	set armed	1
+
+	package require Pixel_tkphoto
+	package require Pixel_devil
+
+	itk_initialize {*}$args
+
+	configure -geometry "1280x900"
+
+	ttk::panedwindow $w.p -orient vertical
+
+	$w.p add [ttk::frame $w.p.top]
+	$w.p add [ttk::frame $w.p.bot]
+
+	# View <<<
+	Imagedisplay $w.p.top.display
+	blt::table $w.p.top \
+			$w.p.top.display	-fill both
+	# View >>>
+
+	# List <<<
+	dict set ds files	[tlc::DSlist ::#auto -headers {filename} -list {}]
+	tlc::Browse_tktreectrl $w.p.bot.list -datasource [dict get $ds files]
+
+	$w.p.bot.list register_handler onselect_arr [code $this image_selected]
+
+	blt::table $w.p.bot \
+			$w.p.bot.list	1,1 -fill both
+	# List >>>
+
+	blt::table $w \
+			$w.p		-fill both
+
+	$::signals(ready) attach_output [code $this ready_changed]
+
+	set armed	0
+}
+
+#>>>
+body Main::destructor {} { #<<<
+	tlc::try {
+		dict for {name obj} $ds {
+			if {[itcl::is object $obj]} {
+				delete object $obj
+			}
+			dict unset ds $name
+		}
+	} onerr {
+		default {STDMSG}
+	}
+}
+
+#>>>
+body Main::ready_changed {newstate} { #<<<
+	if {$newstate} {
+		#coroutine ::req_[incr ::coro_seq] {*}[code $this refresh_filelist]
+		m2 req "list_files" "hello" [code $this refresh_filelist]
+	} else {
+		[dict get $ds files] configure -list {}
+	}
+}
+
+#>>>
+body Main::refresh_filelist {type svc data seq prev_seq} { #<<<
+	log notice
+	#m2 req "list_files" "hello" [list apply {
+	#	{coro args} {
+	#		return [$coro $args]
+	#	}
+	#} [info coroutine]]
+	#
+	#lassign [yield] \
+	#		type svc data seq prev_seq
+
+	switch -- $type {
+		"ack" {
+			puts "got ack: ($data)"
+			[dict get $ds files] configure -list $data
+		}
+
+		"nack" {
+			puts "got nack: ($data)"
+		}
+
+		default {
+			puts "got something we weren't expecting ($type): ($data)"
+		}
+	}
+}
+
+#>>>
+body Main::image_selected {arr} { #<<<
+	log notice "Image selected: \"[dict get $arr filename]\""
+	$w.p.top.display load_image [dict get $arr filename]
+}
+
+#>>>
+
+Main .main -title "M2 Test: Image Viewer"
+.main show
+# GUI >>>

@@ -1,0 +1,796 @@
+# vim: foldmarker=<<<,>>>
+
+# Handlers fired:
+#	outstanding_reqs(count)			- fired when the count of outstanding
+#									  requests changes
+
+class m2::API2 {
+	inherit m2::API
+
+	constructor {args} {}
+	destructor {}
+
+	public {
+		method ack {prev_seq data}
+		method nack {prev_seq data}
+		method jm {seq data}
+		method pr_jm {seq prev_seq data}
+		method jm_can {seq data}
+		method req {svc data cb {withkey ""}}
+		method rsj_req {jm_seq data cb}
+		method jm_req {jm_seq data cb}
+		method jm_disconnect {jm_seq {prev_seq ""}}
+		method register_jm_key {jm_seq key}
+		method register_pending_encrypted {seq session_id}
+		method handle_svc {svc cb}
+		method encrypt {key data}
+		method decrypt {key data}
+		method generate_key {{bytes 56}}
+		method pseudo_bytes {{bytes 56}}
+		method crypto {op args}
+		method mungekey {key}
+		method chans {op args}
+		method answered {seq}
+	}
+
+	private {
+		variable queue		{}
+		variable e_pending
+		variable sent_key
+		variable svc_handlers
+		variable pending
+		variable jm
+		variable jm_prev_seq
+		variable jm_keys
+		variable ack_pend
+		variable session_keys
+		variable pending_keys
+		variable chans
+		variable outstanding_reqs
+
+		method incoming {msg}
+		method connected {isconnected}
+		method outstanding_reqs_changed {}
+	}
+}
+
+
+body m2::API2::constructor {args} { #<<<1
+	array set e_pending			{}
+	array set sent_key			{}
+	array set svc_handlers		{}
+	array set pending			{}
+	array set jm				{}
+	array set jm_prev_seq		{}
+	array set jm_keys			{}
+	array set ack_pend			{}
+	array set session_keys		{}
+	array set pending_keys		{}
+	array set chans				{}
+	array set outstanding_reqs	{}
+
+	tlc::Vardomino #auto dominos(outstanding_reqs_changed) \
+			-textvariable	[scope outstanding_reqs] \
+			-name			"$this outstanding_reqs_changed"
+
+	configure {*}$args
+
+	set tmp	[split $ip :]
+
+	switch -- [llength $tmp] {
+		1 {
+			set ip		[lindex $tmp 0]
+			set port	5307
+		}
+
+		2 {
+			set ip		[lindex $tmp 0]
+			set port	[lindex $tmp 1]
+		}
+
+		default {
+			error "Invalid address: ($::cfg(ip))"
+		}
+	}
+	
+	register_handler incoming [code $this incoming]
+
+	$dominos(outstanding_reqs_changed) attach_output \
+			[code $this outstanding_reqs_changed]
+}
+
+
+body m2::API2::destructor {} { #<<<1
+}
+
+
+body m2::API2::incoming {msg} { #<<<1
+	log debug [$msg type]
+	array set m	[$msg get_data]
+
+	# Decrypt any encrypted data, store jm_keys for new jm channels <<<
+	switch -- $m(type) {
+		ack {
+			array unset ack_pend($m(prev_seq))
+			if {[info exists pending_keys($m(prev_seq))]} {
+				log debug "Decrypting ack with [mungekey $pending_keys($m(prev_seq))]" -suppress {data}
+				$msg data [decrypt $pending_keys($m(prev_seq)) $m(data)]
+				set m(data)	[$msg data]
+			}
+			array unset pending_keys $m(prev_seq)
+		}
+
+		nack {
+			array unset ack_pend $m(prev_seq)
+			array unset pending_keys $m(prev_seq)
+		}
+
+		pr_jm {
+			incr jm($m(prev_seq))	1
+
+			if {
+				![info exists jm_prev_seq($m(seq))] ||
+				[lsearch $jm_prev_seq($m(seq)) $m(prev_seq)] == -1
+			} {
+				lappend jm_prev_seq($m(seq))	$m(prev_seq)
+			}
+
+			if {[info exists pending_keys($m(prev_seq))]} {
+				$msg data [decrypt $pending_keys($m(prev_seq)) $m(data)]
+				set m(data)	[$msg data]
+				if {![info exists jm_keys($m(seq))]} {
+					if {[string length $m(data)] != 56} {
+						log debug "pr_jm: dubious looking key: ($m(data))"
+					}
+					log debug "pr_jm: registering key for ($m(seq)): ([mungekey $m(data)])"
+					register_jm_key $m(seq)	$m(data)
+					return
+				} else {
+					if {[string length $m(data)] == 56} {
+						if {$m(data) == $jm_keys($m(seq))} {
+							log error "pr_jm: jm($m(seq)) got channel key setup twice!"
+							return
+						} else {
+							log warning "pr_jm: got what may be another key on this jm ($m(seq)), that differs from the first"
+						}
+					} else {
+						log debug "pr_jm: already have key for ($m(seq)): ([mungekey $jm_keys($m(seq))])"
+					}
+				}
+			} else {
+				log debug "pr_jm: no pending_keys($m(prev_seq))"
+			}
+		}
+
+		jm {
+			if {[info exists jm_keys($m(seq))]} {
+				$msg data [decrypt $jm_keys($m(seq)) $m(data)]
+				set m(data)	[$msg data]
+			}
+		}
+
+		jm_req {
+			log debug "Got jm_req: seq: ($m(seq)) prev_seq: ($m(prev_seq))" -suppress {data}
+			if {[info exists jm_keys($m(prev_seq))]} {
+				log debug "Decrypting data with [mungekey $jm_keys($m(prev_seq))]" -suppress data
+				$msg data [decrypt $jm_keys($m(prev_seq)) $m(data)]
+				set m(data)	[$msg data]
+			}
+		}
+	}
+	# Decrypt any encrypted data, store jm_keys for new jm channels >>>
+
+	switch -- $m(type) {
+		req {
+			if {[info exists svc_handlers($m(svc))]} {
+				set outstanding_reqs($m(seq))	1
+				if {[catch {
+					uplevel #0 $svc_handlers($m(svc)) [list $m(seq) $m(data)]
+				}]} {
+				log error "req: error handling svc: ($m(svc)):\n$::errorInfo"
+					nack $m(seq) "Internal error"
+				}
+			} else {
+				log error "req: no handlers for svc: ($m(svc))"
+				nack $seq "Internal error"
+			}
+		}
+
+		jm_can {
+			array unset jm_prev_seq	$m(seq)
+			array unset jm_keys		$m(seq)
+			foreach prev_seq $m(prev_seq) {
+				incr jm($prev_seq)	-1
+				if {[info exists pending($prev_seq)]} {
+					set cb		$pending($prev_seq)
+					if {$cb != {}} {
+						if {[catch {
+							uplevel #0 $cb [list \
+									$m(type) \
+									$m(svc) \
+									$m(data) \
+									$m(seq) \
+									$prev_seq]
+						} errmsg]} {
+							#log error "API2::incoming/jm_can: error invoking handler: ($cb)\n$::errorInfo"
+							log error "\njm_can: error invoking handler: $errmsg\n$::errorInfo"
+						}
+					}
+				} else {
+					#log debug "API2::incoming/jm_can: unknown jm: prev_seq: ($prev_seq), seq: ($m(seq))"
+				}
+				if {$jm($prev_seq) <= 0} {
+					array unset pending $prev_seq
+					array unset jm $prev_seq
+				}
+			}
+		}
+
+		jm_disconnect {
+			if {[catch {
+				#log trivia "API2::incoming: got jm_disconnect:\nseq: ($m(seq))\nprev_seq: ($m(prev_seq))"
+				chans cancel $m(seq)
+			} errmsg]} {
+				log error "\nerror processing jm_disconnect: $errmsg\n$::errorInfo"
+			}
+		}
+
+		rsj_req {
+			if {[catch {
+				set outstanding_reqs($m(seq))	1
+				#log trivia "API2::incoming: got [$msg svc]: ([$msg seq]) ([$msg prev_seq]) ([$msg data])"
+				#log debug "API2::incoming: channel request"
+				if {[crypto registered_chan $m(prev_seq)]} {
+					$msg data	[crypto decrypt $m(prev_seq) $m(data)] 
+					set m(data)	[$msg data]
+					register_pending_encrypted $m(seq) $m(prev_seq)
+				}
+				chans chanreq $m(seq) $m(prev_seq) $m(data)
+			} errmsg]} {
+				log error "\nerror processing $m(svc) rsj_req: $errmsg\n$::errorInfo"
+				nack $m(seq) "internal error"
+			}
+		}
+
+		jm_req {
+			tlc::try {
+				set outstanding_reqs($m(seq))	1
+				# FIXME: this leaks session_keys (not unset on ack/nack)
+				set session_keys($m(prev_seq))	$jm_keys($m(prev_seq))
+				register_pending_encrypted $m(seq) $m(prev_seq)
+				if {![info exists jm_prev_seq($m(prev_seq))]} {
+					error "Cannot find jm_prev_seq($m(prev_seq))"
+				}
+				set jm_prev	$jm_prev_seq($m(prev_seq))
+				if {
+					[info exists pending($jm_prev)]
+					&& $pending($jm_prev) != ""
+				} {
+					set cb	$pending($jm_prev)
+					uplevel #0 $cb [list \
+							$m(type) \
+							$m(svc) \
+							$m(data) \
+							$m(seq) \
+							$m(prev_seq)]
+				} else {
+					log debug "no handler for seq: ($m(seq)), prev_seq: ($m(prev_seq))"
+				}
+			} onerr {
+				default {
+					log error "\nerror processing jm_req: $errmsg\n$::errorInfo"
+					if {![answered $m(seq)]} {
+						nack $m(seq) "internal error"
+					}
+				}
+			}
+		}
+
+		ack -
+		nack -
+		jm -
+		pr_jm {
+			# m(prev_seq) is a list of previous sequences for junkmails (there
+			# may be more than one of our requests that were subscribed to
+			# this junkmail)
+			foreach prev_seq $m(prev_seq) {
+				if {[info exists pending($prev_seq)]} {
+					set cb		$pending($prev_seq)
+					if {$cb != {}} {
+						if {[catch {
+							#log debug "API2::incoming/($m(type)): invoking callback ($cb) for seq: ($m(seq)) prev_seq: ($prev_seq)"
+							#log debug "API2::incoming/($m(type)): invoking callback for seq: ($m(seq)) prev_seq: ($prev_seq)"
+							uplevel #0 $cb [list \
+									$m(type) \
+									$m(svc) \
+									$m(data) \
+									$m(seq) \
+									$prev_seq]
+						} errmsg]} {
+							#log debug "API2::incoming/($m(type)): error invoking callback ($cb):\n$::errorInfo" 
+							log error "\nerror invoking callback: $errmsg\n$::errorInfo" 
+						}
+					} else {
+						log debug "no handler for seq: ($m(seq)), prev_seq: ($prev_seq)"
+					}
+				} else {
+					#log debug "API2::incoming/($m(type)): unexpected response: $m(svc) $m(type) prev_seq: ($prev_seq) seq: ($m(seq))"
+				}
+				if {![info exists jm($prev_seq)]} {
+					#log debug "API2::incoming/($m(type)): lost jm($prev_seq):\n[$msg display]"
+					return
+				}
+				if {$jm($prev_seq) <= 0 && ![info exists ack_pend($prev_seq)]} {
+					array unset pending	$prev_seq
+					array unset jm		$prev_seq
+				}
+			}
+		}
+
+		svc_avail -
+		svc_revoke	{}
+
+		default {
+			log warning "API2::incoming/default: unhandled type: ($m(type))"
+		}
+	}
+	#log debug "API2::incoming: leaving incoming"
+}
+
+
+body m2::API2::ack {prev_seq data} { #<<<1
+	log debug "request pending? [info exists outstanding_reqs($prev_seq)]" -suppress {data}
+	if {![info exists outstanding_reqs($prev_seq)]} {
+		log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
+		return
+	}
+	if {[info exists e_pending($prev_seq)]} {
+		log debug "encrypting ack with [mungekey $session_keys($e_pending($prev_seq))] from $prev_seq" -suppress {data}
+		set e_data	[crypto encrypt $e_pending($prev_seq) $data]
+	} else {
+		set e_data	$data
+	}
+	set msg		[m2::Msg ::#auto new \
+			svc			"" \
+			type		ack \
+			seq			[unique_id] \
+			prev_seq	$prev_seq \
+			data		$e_data \
+	]
+	array unset e_pending $prev_seq
+	array unset sent_key $prev_seq,*
+	array unset outstanding_reqs $prev_seq
+
+	send $msg
+}
+
+
+body m2::API2::nack {prev_seq data} { #<<<1
+	log debug "request pending? [info exists outstanding_reqs($prev_seq)]" -suppress data
+	if {![info exists outstanding_reqs($prev_seq)]} {
+		log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
+		return
+	}
+	set msg		[m2::Msg ::#auto new \
+			svc			"" \
+			type		nack \
+			seq			[unique_id] \
+			prev_seq	$prev_seq \
+			data		$data \
+	]
+	array unset e_pending $prev_seq
+	array unset sent_key $prev_seq,*
+	array unset outstanding_reqs $prev_seq
+
+	send $msg
+}
+
+
+body m2::API2::jm {seq data} { #<<<1
+	if {[crypto registered_chan $seq]} {
+		set e_data	[crypto encrypt $seq $data]
+	} else {
+		set e_data	$data
+	}
+	send [m2::Msg ::#auto new \
+			svc			"" \
+			type		jm \
+			seq			$seq \
+			prev_seq	0 \
+			data		$e_data \
+	]
+}
+
+
+body m2::API2::pr_jm {seq prev_seq data} { #<<<1
+	if {[info exists e_pending($prev_seq)]} {
+		set e_data	[crypto encrypt $e_pending($prev_seq) $data]
+		# Send jm key if applicable <<<
+		if {![info exists sent_key($prev_seq,$seq)]} {
+			set key     	[crypto register_or_get_chan $seq]
+			log debug "sending chan key: ([mungekey $key])"
+			send [m2::Msg ::#auto new \
+					svc			"" \
+					type		jm \
+					seq			$seq \
+					prev_seq	$prev_seq \
+					data		[crypto encrypt $e_pending($prev_seq) $key] \
+			]
+			set sent_key($prev_seq,$seq)	1
+		}
+		# Send jm key if applicable >>>
+	} else {
+		if {[crypto registered_chan $seq]} {
+			set e_data	[crypto encrypt $seq $data]
+		} else {
+			set e_data	$data
+		}
+	}
+	send [m2::Msg ::#auto new \
+			svc			"" \
+			type		jm \
+			seq			$seq \
+			prev_seq	$prev_seq \
+			data		$e_data \
+	]
+}
+
+
+body m2::API2::jm_can {seq data} { #<<<1
+	send [m2::Msg ::#auto new \
+			svc			"" \
+			type		jm_can \
+			seq			$seq \
+			prev_seq	0 \
+			data		$data \
+	]
+}
+
+
+body m2::API2::req {svc data cb {withkey ""}} { #<<<1
+	set seq		[unique_id]
+	if {$withkey != ""} {
+		set data	[encrypt $withkey $data]
+	}
+	set msg		[m2::Msg ::#auto new \
+			svc			$svc \
+			type		req \
+			seq			$seq \
+			data		$data \
+	]
+	send $msg
+
+	set pending($seq)		$cb
+	set ack_pend($seq)		1
+	set jm($seq)			0
+
+	return $seq
+}
+
+
+body m2::API2::rsj_req {jm_seq data cb} { #<<<1
+	set seq		[unique_id]
+	log debug "key: ([expr {[info exists jm_keys($jm_seq)] ? [mungekey $jm_keys($jm_seq)] : "none"}])"
+	if {[info exists jm_keys($jm_seq)]} {
+		log debug "([mungekey $jm_keys($jm_seq)])"
+		set pending_keys($seq)	$jm_keys($jm_seq)
+		set data	[encrypt $jm_keys($jm_seq) $data]
+	}
+
+	set msg		[m2::Msg ::#auto new \
+			svc			"" \
+			type		rsj_req \
+			seq			$seq \
+			prev_seq	$jm_seq \
+			data		$data \
+	]
+	send $msg
+	
+	set pending($seq)		$cb
+	set ack_pend($seq)		1
+	set jm($seq)			0
+
+	return $seq
+}
+
+
+body m2::API2::jm_req {jm_seq data cb} { #<<<1
+	log debug
+	set seq		[unique_id]
+	if {[crypto registered_chan $jm_seq]} {
+		set e_data	[crypto encrypt $jm_seq $data]
+		log debug "Encrypted data with key [mungekey $session_keys($jm_seq)]"
+		set pending_keys($seq)	$session_keys($jm_seq)
+	} else {
+		set e_data	$data
+	}
+	send [m2::Msg ::#auto new \
+			svc			"" \
+			type		jm_req \
+			seq			$seq \
+			prev_seq	$jm_seq \
+			data		$e_data \
+	]
+
+	set pending($seq)		$cb
+	set ack_pend($seq)		1
+	set jm($seq)			0
+
+	return $seq
+}
+
+
+body m2::API2::jm_disconnect {jm_seq {prev_seq ""}} { #<<<1
+	# TODO: handle case where jm_prev_seq($jm_seq) is a list of > 1 element
+	log debug "key: ([expr {[info exists jm_keys($jm_seq)] ? [mungekey $jm_keys($jm_seq)] : "none"}])"
+	if {$prev_seq == ""} {
+		log warning "Called without a prev_seq.  Not good\n[tlc::stackdump]"
+	}
+	if {![info exists jm_prev_seq($jm_seq)]} {
+		log warning "No jm found to disconnect"
+		return
+	}
+	set msg		[m2::Msg ::#auto new \
+			type		jm_disconnect \
+			svc			"" \
+			seq			$jm_seq \
+			prev_seq	[expr {($prev_seq == "") ? 0 : $prev_seq}] \
+	]
+	send $msg
+
+	array unset jm_keys		$jm_seq
+	if {[info exists jm_prev_seq($jm_seq)]} {
+		if {$prev_seq != ""} {
+			set idx		[lsearch $jm_prev_seq($jm_seq) $prev_seq]
+			if {$idx == -1} {
+				log warning "supplied prev_seq ($prev_seq) is invalid"
+			} else {
+				incr jm($prev_seq)	-1
+				if {$jm($prev_seq) <= 0} {
+					array unset pending $prev_seq
+					array unset jm $prev_seq
+				}
+				set jm_prev_seq($jm_seq)	[lreplace $jm_prev_seq($jm_seq) $idx $idx]
+				if {[llength $jm_prev_seq($jm_seq)] == 0} {
+					array unset jm_prev_seq	$jm_seq
+				}
+			}
+		} else {
+			if {[llength $jm_prev_seq($jm_seq)] > 1} {
+				log error "Cancelling all channels because prev_seq is unspecified\n[tlc::stackdump]"
+			}
+			foreach jm_prev $jm_prev_seq($jm_seq) {
+				#log warning "removing pending($jm_prev): exists? [info exists pending($jm_prev)]: \"[expr {[info exists pending($jm_prev)]?$pending($jm_prev):""}]\""
+				incr jm($jm_prev)	-1
+				if {$jm($jm_prev) <= 0} {
+					array unset pending $jm_prev
+					array unset jm $jm_prev
+				}
+			}
+			array unset jm_prev_seq	$jm_seq
+		}
+	} else {
+		log warning "can't find jm_prev_seq($jm_seq), pending:"
+		parray pending
+		log warning "jm_prev_seq:"
+		parray jm_prev_seq
+	}
+}
+
+
+body m2::API2::register_jm_key {jm_seq key} { #<<<1
+	log debug "([mungekey $key])" -suppress key
+	set jm_keys($jm_seq)	$key
+}
+
+
+body m2::API2::register_pending_encrypted {seq session_id} { #<<<1
+	log debug "Registering [mungekey $session_keys($session_id))] for seq: $seq"
+	set e_pending($seq)		$session_id
+}
+
+
+body m2::API2::handle_svc {svc cb} { #<<<1
+	if {$cb != ""} {
+		set svc_handlers($svc)	$cb
+		new_svcs $svc
+	} else {
+		revoke_svcs $svc
+		array unset svc_handlers $svc
+	}
+}
+
+
+body m2::API2::encrypt {key data} { #<<<1
+	return [crypto::encrypt bf_cbc $key [crypto::compress $data]]
+}
+
+
+body m2::API2::decrypt {key data} { #<<<1
+	return [crypto::uncompress [crypto::decrypt bf_cbc $key $data]]
+}
+
+
+body m2::API2::crypto {op args} { #<<<1
+	switch -- $op {
+		register_or_get_chan {
+			set session_id	[lindex $args 0]
+
+			if {![info exists session_keys($session_id)]} {
+				set session_keys($session_id)	[generate_key]
+			}
+
+			return $session_keys($session_id)
+		}
+
+		register_chan {
+			set session_id	[lindex $args 0]
+			set key			[lindex $args 1]
+
+			if {[info exists session_keys($session_id)]} {
+				error "Already registered with key: ([mungekey $session_keys($session_id)]), refusing to override with ([mungekey $key])"
+			}
+
+			return [set session_keys($session_id) $key]
+		}
+
+		encrypt {
+			set session_id	[lindex $args 0]
+			set msg			[lindex $args 1]
+
+			log debug "encrypting with session_id: $session_id, key [mungekey $session_keys($session_id)]" -suppress {args}
+			return [crypto::encrypt bf_cbc $session_keys($session_id) [crypto::compress $msg]]
+		}
+
+		decrypt {
+			set session_id	[lindex $args 0]
+			set msg			[lindex $args 1]
+
+			return [crypto::uncompress [crypto::decrypt bf_cbc $session_keys($session_id) $msg]]
+		}
+
+		registered_chan {
+			set session_id	[lindex $args 0]
+
+			return [info exists session_keys($session_id)]
+		}
+
+		default {
+			error "Not implemented: ($op)"
+		}
+	}
+}
+
+
+body m2::API2::generate_key {{bytes 56}} { #<<<1
+	return [crypto::rand_bytes $bytes]
+}
+
+
+body m2::API2::pseudo_bytes {{bytes 56}} { #<<<1
+	return [crypto::rand_pseudo_bytes $bytes]
+}
+
+
+body m2::API2::mungekey {key} { #<<<1
+	set build	0
+	binary scan $key c* bytes
+	foreach byte $bytes {
+		incr build	$byte
+	}
+	return [format "%i" $build] 
+}
+
+
+body m2::API2::chans {op args} { #<<<1
+	switch -- $op {
+		cancel {
+			set seq			[lindex $args 0]
+
+			if {![info exists chans($seq)]} {
+				log error "cancel: Unrecognised channel cancelled: ($seq)"
+				return
+			}
+
+			switch -- [lindex $chans($seq) 0] {
+				custom {
+					set cb			[lindex $chans($seq) 1]
+					if {$cb != {}} {
+						uplevel #0 $cb [list cancelled {}]
+					}
+				}
+
+				default {
+					log error "cancel: Unexpected type of channel cancelled: ([lindex $chans($seq) 0])"
+				}
+			}
+
+			array unset chans $seq
+		}
+
+		is_chanreq {
+			set prev_seq	[lindex $args 0]
+
+			return [info exists chans($prev_seq)]
+		}
+
+		chanreq {
+			set seq			[lindex $args 0]
+			set prev_seq	[lindex $args 1]
+			set data		[lindex $args 2]
+
+			if {![info exists chans($prev_seq)]} {
+				log error "chanreq: Unrecognised channel for chanreq: ($prev_seq)"
+				return
+			}
+
+			switch -- [lindex $chans($prev_seq) 0] {
+				custom {
+					set cb			[lindex $chans($prev_seq) 1]
+					if {$cb != {}} {
+						tlc::try {
+							uplevel #0 $cb [list req [list $seq $prev_seq $data $this]]
+						} onerr {
+							default {
+								log error "Error in chan_cb ($cb): $errmsg\n$::errorInfo"
+								if {[info exists options]} {
+									return -options $options $errmsg
+								} else {
+									return -code error -errorcode $::errorCode -errorinfo $::errorInfo $errmsg
+								}
+							}
+						}
+					}
+				}
+
+				default {
+					log error "chanreq: Unexpected type of channel in chanreq: ([lindex $chans($prev_seq) 0]) ($data)"
+					main nack $seq "Unexpected type of channel in chanreq: ([lindex $chans($prev_seq) 0])"
+				}
+			}
+		}
+
+		register_chan {
+			set seq			[lindex $args 0]
+			set cb			[lindex $args 1]
+
+			if {[info exists chans($seq)]} {
+				log error "register_chan: chan already exists: ($seq)"
+				return
+			}
+			log debug "register_chan: Registering chan: ($seq) ($cb)"
+			set chans($seq)	[list custom $cb]
+		}
+
+		deregister_chan {
+			set seq			[lindex $args 0]
+
+			if {![info exists chans($seq)]} {
+				log error "deregister_chan: unrecognised chan: ($seq)"
+				return
+			}
+			if {[lindex $chans($seq) 0] != "custom"} {
+				log error "deregister_chan: not custom chan: ($seq) ([lindex $chans($seq)])"
+				return
+			}
+			log debug "deregister_chan: Deregistering chan: ($seq)"
+			unset chans($seq)
+		}
+
+		default {
+			error "Not implemented"
+		}
+	}
+}
+
+
+body m2::API2::answered {seq} { #<<<1
+	return [expr {![info exists outstanding_reqs($seq)]}]
+}
+
+
+body m2::API2::outstanding_reqs_changed {} { #<<<1
+	invoke_handlers outstanding_reqs [llength [array names outstanding_reqs]]
+}
+
+

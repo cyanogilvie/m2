@@ -1,0 +1,279 @@
+# vim: foldmarker=<<<,>>>
+
+class m2::Node {
+	constructor {args} {}
+	destructor {}
+
+	public {
+		variable listen_on			{"tcp_coroutine://:5307"}
+		variable connection_retry	10
+		variable upstream			{}
+
+		method announce_svc {svc port}
+		method revoke_svc {svc port}
+		method port_for_svc {svc {excl {}}}
+		method unique_id {}
+		method register_port {port outbound {advertise "default"}}
+		method unregister_port {port}
+		method all_ports {args}
+		method all_svcs {}
+	}
+
+	private {
+		variable listens	{}
+		variable svcs
+		variable id			0
+		variable ports
+		variable outbound_ports
+		variable advertise_ports
+		variable outbound_connection_afterids
+
+		method bind {}
+		method attempt_outbound_connection {addr}
+		method accept_inbound {con cl_ip cl_port}
+		method puts {args}
+	}
+}
+
+
+body m2::Node::constructor {args} { #<<<
+	array set svcs				{}
+	array set ports				{}
+	array set outbound_ports	{}
+	array set advertise_ports	{}
+	array set outbound_connection_afterids	{}
+
+	configure {*}$args
+	bind
+
+	foreach upstream $upstream {
+		attempt_outbound_connection $upstream
+	}
+}
+
+#>>>
+body m2::Node::destructor {} { #<<<
+	foreach listen $listens {
+		if {[info object is object $listen]} {
+			$listen destroy
+		}
+	}
+	set listens	{}
+	foreach id $outbound_connection_afterids {
+		after cancel $id; set $outbound_connection_afterids($id)	""
+	}
+}
+
+#>>>
+body m2::Node::bind {} { #<<<
+	foreach address $listen_on {
+		set listen	[netdgram::listen_uri $address]
+		oo::objdefine $listen forward accept {*}[code $this accept_inbound]
+		lappend listens	$listen
+		log notice "Ready on ($address), version [package require m2]"
+	}
+}
+
+#>>>
+body m2::Node::announce_svc {svc port} { #<<<
+	set new		[expr {![info exists svcs($svc)]}]
+	if {!$new && [lsearch $svcs($svc) $port] != -1} return
+	lappend svcs($svc)	$port
+	puts stderr "m2::Node::announce_svc: ($svc) ($port)"
+
+	if {$new} {
+		set msg		[m2::Msg ::#auto new \
+			type	svc_avail \
+			seq		[unique_id] \
+			data	[list $svc] \
+		]
+
+		foreach dport [all_ports $port] {
+			# Prune out outbound connections, ala, "orange links" pan in IML
+			if {$advertise_ports($dport) == 0} continue
+			puts stderr "sending msg: ($msg)"
+			if {[catch {
+				$dport send $port $msg
+			} errmsg]} {
+				::puts stderr "m2::Node::announce_svc: Error sending svc_avail to dport: ($dport):\n$::errorInfo"
+			}
+		}
+	}
+}
+
+#>>>
+body m2::Node::revoke_svc {svc port} { #<<<
+	if {![info exists svcs($svc)] || [set idx [lsearch $svcs($svc) $port]] == -1} return
+	set svcs($svc)	[lreplace $svcs($svc) $idx $idx]
+	puts stderr "m2::Node::revoke_svc: ($svc) ($port)"
+
+	if {[llength $svcs($svc)] == 0} {
+		array unset svcs $svc
+
+		set msg		[m2::Msg ::#auto new \
+			type	svc_revoke \
+			seq		[unique_id] \
+			data	[list $svc] \
+		]
+
+		foreach dport [all_ports $port] {
+			# Prune out outbound connections, ala, "orange links" pan in IML
+			if {$advertise_ports($dport) == 0} continue
+			puts stderr "sending msg: ($msg)"
+			if {[catch {
+				$dport send $port $msg
+			} errmsg]} {
+				::puts stderr "m2::Node::announce_svc: Error sending svc_revoke to dport: ($dport):\n$::errorInfo"
+			}
+		}
+	}
+}
+
+#>>>
+body m2::Node::port_for_svc {svc {excl {}}} { #<<<
+	if {![info exists svcs($svc)]} {
+		error "Service ($svc) not available"
+	}
+	set tmp			[tlc::intersect3 $svcs($svc) $excl]
+	set remaining	[lindex $tmp 0]
+	if {[llength $remaining] == 0} {
+		error "Service ($svc) not available"
+	}
+	set idx			[expr {round(rand() * ([llength $remaining] - 1))}]
+	puts stderr "m2::Node::port_for_svc: ($svc) ($svcs($svc)) idx: ($idx)"
+	return [lindex $remaining $idx]
+}
+
+#>>>
+body m2::Node::unique_id {} { #<<<
+	incr id
+	if {$id == 0} {incr id}
+	return $id
+}
+
+#>>>
+body m2::Node::register_port {port outbound {advertise "default"}} { #<<<
+	set ports($port)	$outbound
+	if {$outbound} {
+		set outbound_ports($port)	1
+	}
+	if {$advertise == "default"} {
+		set advertise_ports($port)	[expr {![info exists outbound_ports($port)]}]
+	} else {
+		set advertise_ports($port)	$advertise
+	}
+}
+
+#>>>
+body m2::Node::unregister_port {port} { #<<<
+	array unset ports 			$port
+	array unset outbound_ports	$port
+	array unset advertise_ports	$port
+}
+
+#>>>
+body m2::Node::all_ports {args} { #<<<
+	set tmp		[tlc::intersect3 [array names ports] $args]
+	return [lindex $tmp 0]
+}
+
+#>>>
+body m2::Node::all_svcs {} { #<<<
+	return [array names svcs]
+}
+
+#>>>
+body m2::Node::attempt_outbound_connection {addr} { #<<<
+	set flags	"N"
+
+	if {[string first "//" $addr] == -1} {
+		set tmp		[split $addr :]
+		switch -- [llength $tmp] {
+			1 {
+				set upip	[lindex $tmp 0]
+				set upport	5307
+			}
+
+			2 {
+				set upip	[lindex $tmp 0]
+				set upport	[lindex $tmp 1]
+			}
+
+			3 {
+				set upip	[lindex $tmp 0]
+				set upport	[lindex $tmp 1]
+				set flags	[lindex $tmp 2]
+			}
+
+			default {
+				error "Invalid upstream address specification: ($addr)"
+			}
+		}
+
+		set addr	"tcp_coroutine://$upip:$upport/?flags=$flags"
+	}
+
+	if {$flags == "NA"} {
+		set flags	"N"
+	}
+
+	set use_keepalive	0
+	foreach flag [split $flags {}] {
+		switch -- $flag {
+			"N" {
+				set contype	"outbound"
+			}
+
+			"A" {
+				set contype	"outbound_advertise"
+			}
+
+			"K" {
+				set use_keepalive	1
+			}
+			
+			default {
+				log warning "Node::attempt_outbound_connection: invalid flag: ($flag)"
+			}
+		}
+	}
+	if {![info exists contype]} {
+		set contype	"outbound"
+	}
+
+	if {[catch {
+		set con		[netdgram::connect_uri $addr]
+		set queue	[netdgram::queue new]
+		$queue attach $con
+	} errmsg]} {
+		log notice "m2::Node::constructor: error connecting to upstream: ($addr): $errmsg"
+
+		set outbound_connection_afterids($addr)	[after \
+				[expr {int($connection_retry * 1000)}] \
+				[code $this attempt_outbound_connection $addr]]
+	} else {
+		set params	{}		;# !?
+		set p	[m2::Port ::#auto $contype [list \
+					-server $this \
+					-use_keepalive $use_keepalive \
+				] \
+				$queue $params]
+		$p register_handler onclose \
+				[code $this attempt_outbound_connection $addr]
+		$con activate
+	}
+}
+
+#>>>
+body m2::Node::accept_inbound {con cl_ip cl_port} { #<<<
+	set queue [netdgram::queue new]
+	$queue attach $con
+	m2::Port #auto inbound \
+			[list -server $this] $queue [list $cl_ip $cl_port]
+}
+
+#>>>
+body m2::Node::puts {args} { #<<<
+}
+
+#>>>

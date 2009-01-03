@@ -1,0 +1,31 @@
+#!/usr/bin/env tclsh8.6
+
+package require Tcl 8.6
+
+tcl::tm::path add [file normalize [file join [file dirname [info script]] .. tm]]
+package require m2
+package require TLC-base 0.99
+
+class Config {
+	inherit tlc::Baseconfig
+
+	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
+
+	public {
+		variable uri	"tcp_coroutine://localhost:5307"
+	}
+}
+
+Config cfg {*}$argv
+set cfg	[cfg dump_config]
+
+m2::API m2 -uri [dict get $cfg uri]
+
+[m2 signal_ref connected] attach_output [list apply {
+	{newstate} {
+		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
+	}
+}]
+
+
+tlc::fake_mainloop

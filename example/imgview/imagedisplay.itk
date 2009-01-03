@@ -1,0 +1,505 @@
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+class Imagedisplay {
+	inherit tlc::Mywidget tlc::Baselog tlc::Signalsource
+
+	constructor {args} {}
+	destructor {}
+
+	public {
+		variable mode				"resized"
+		variable loading_bar_width	80
+
+		method load_image {fn}
+	}
+
+	private {
+		variable view_size	{width 1 height 1}
+		variable dominos
+		variable pmap
+		variable pmap_display
+		variable img
+		variable ofs		{x 0 y 0}
+		variable zoom		1.0
+		variable drag_last
+
+		method canv_configured {width height}
+		method view_size_changed {}
+		method full_toggle_changed {newstate}
+		method zoom {dir x y}
+		method mousewheel {amount x y}
+		method set_drag {x y}
+		method drag {x y}
+		method percent_update {perc}
+		method build_loading_feedback {}
+		method rotate {dir}
+		method _load_image_data_resp {type svc data seq prev_seq}
+	}
+}
+
+
+body Imagedisplay::constructor {args} { #<<<
+	package require Pixel
+	package require Pixel_tkphoto
+	package require Img
+
+	namespace path {::tcl::mathop}
+
+	array set dominos	{}
+
+	tlc::Domino #auto dominos(view_resized) -name "$w view_resized"
+	tlc::Signal #auto signals(full_toggle) -name "$w full_toggle"
+
+	tlc::Tools $w.toolbar -buttonwidth 11
+	$w.toolbar add "Rotate Left" [code $this rotate -1]
+	$w.toolbar add "Rotate Right" [code $this rotate 1]
+	$w.toolbar add "Zoom In" [code $this zoom in "" ""]
+	$w.toolbar add "Zoom Out" [code $this zoom out "" ""]
+
+	canvas $w.canv -background black -borderwidth 0 \
+			-yscrollcommand [list $w.vsb set] \
+			-xscrollcommand [list $w.hsb set] \
+			-highlightthickness 0 -takefocus 1
+	ttk::scrollbar $w.vsb -orient v -command [list $w.canv yview]
+	ttk::scrollbar $w.hsb -orient h -command [list $w.canv xview]
+
+	itk_initialize {*}$args
+
+	blt::table $w \
+			$w.toolbar	1,1 -cspan 2 -fill x \
+			$w.canv		2,1 -fill both \
+			$w.vsb		2,2 -fill y \
+			$w.hsb		3,1 -fill x
+	blt::table configure $w c2 r1 r3 -resize none
+
+	bind $w.canv <Configure> [code $this canv_configured %w %h]
+	bind $w.canv <ButtonPress-1> [code $this set_drag %x %y]
+	bind $w.canv <Motion> [code $this drag %x %y]
+	bind $w.canv <ButtonRelease> [code $this set_drag "" ""]
+	bind $w.canv <Button-2> [list $signals(full_toggle) toggle_state]
+	bind $w.canv <Button-4> [code $this zoom in %x %y]
+	bind $w.canv <Button-5> [code $this zoom out %x %y]
+	bind $w.canv <MouseWheel> [code $this mousewheel %D %x %y]
+
+	$dominos(view_resized) attach_output [code $this view_size_changed]
+	$signals(full_toggle) attach_output [code $this full_toggle_changed]
+
+	set img	[image create photo]
+}
+
+#>>>
+body Imagedisplay::destructor {} { #<<<
+	tlc::try {
+		if {[winfo exists $w.canv]} {
+			$w.canv delete all
+		}
+		if {[info exists img]} {
+			image delete $img
+			unset img
+		}
+	} onerr {
+		default {STDMSG}
+	}
+}
+
+#>>>
+body Imagedisplay::canv_configured {width height} { #<<<
+	dict set view_size	width	$width
+	dict set view_size	height	$height
+
+	$dominos(view_resized) tip
+}
+
+#>>>
+body Imagedisplay::view_size_changed {} { #<<<
+	log debug "resized to: [dict get $view_size width],[dict get $view_size height]"
+	if {![info exists pmap]} return
+
+	lassign [pixel::pmap_info $pmap] pwidth pheight
+	set vwidth	[dict get $view_size width]
+	set vheight	[dict get $view_size height]
+	switch -- $mode {
+		"resized" {
+			set odw	[expr {double($pwidth) / $vwidth}]
+			set odh	[expr {double($pheight) / $vheight}]
+			log debug "odw: ($odw) odh: ($odh)"
+			if {$odw > $odh} {
+				# width constrained
+				log debug "width constrained"
+				set tow	$vwidth
+				set toh	[expr {round(double($pheight) / $odw)}]
+			} else {
+				# height constrained
+				log debug "height constrained"
+				set tow	[expr {round(double($pwidth) / $odh)}]
+				set toh	$vheight
+			}
+		}
+
+		"full" {
+			set tow				$pwidth
+			set toh				$pheight
+		}
+
+		"zoomed" {
+			set tow		[expr {round(double($zoom) * $pwidth)}]
+			set toh		[expr {round(double($zoom) * $pheight)}]
+		}
+
+		default {
+			error "Invalid mode: ($mode)"
+		}
+	}
+
+	if {[info exists pmap_display]} {
+		lassign [pixel::pmap_info $pmap_display] \
+				dwidth dheight
+		if {$dwidth != $tow || $dheight != $toh} {
+			unset pmap_display
+		}
+	}
+
+	set cx	[expr {
+		([dict get $view_size width] / 2.0) + [dict get $ofs x]
+	}]
+	set cy	[expr {
+		([dict get $view_size height] / 2.0) + [dict get $ofs y]
+	}]
+
+	set tx	[expr {round($cx - ($tow / 2))}]
+	set ty	[expr {round($cy - ($toh / 2))}]
+	set bx	[expr {$tx + $tow}]
+	set by	[expr {$ty + $toh}]
+
+	# Clamp <<<
+	if {$tow <= [dict get $view_size width]} {
+		if {$tx < 0} {
+			log debug "minified, x underflow"
+			set diffx	[expr {0 - $tx}]
+		} elseif {$bx > [dict get $view_size width]} {
+			log debug "minified, x overflow"
+			set diffx	[expr {[dict get $view_size width] - $bx}]
+		}
+	} else {
+		if {$tx > 0} {
+			log debug "magnified, x underflow"
+			set diffx	[expr {0 - $tx}]
+		} elseif {$bx < [dict get $view_size width]} {
+			log debug "magnified, x overflow"
+			set diffx	[expr {[dict get $view_size width] - $bx}]
+		}
+	}
+	if {$toh <= [dict get $view_size height]} {
+		if {$ty < 0} {
+			log debug "minified, y underflow"
+			set diffy	[expr {0 - $ty}]
+		} elseif {$by > [dict get $view_size height]} {
+			log debug "minified, y overflow"
+			set diffy	[expr {[dict get $view_size height] - $by}]
+		}
+	} else {
+		if {$ty > 0} {
+			log debug "magnified, y underflow"
+			set diffy	[expr {0 - $ty}]
+		} elseif {$by < [dict get $view_size height]} {
+			log debug "magnified, y overflow"
+			set diffy	[expr {[dict get $view_size height] - $by}]
+		}
+	}
+	if {[info exists diffx]} {
+		set diffx	[expr {round($diffx)}]
+		log debug "Adjusting *x by ($diffx)"
+		incr tx	$diffx
+		incr bx $diffx
+		set cx	[expr {$cx + $diffx}]
+		dict incr ofs x $diffx
+	}
+	if {[info exists diffy]} {
+		set diffy	[expr {round($diffy)}]
+		log debug "Adjusting *y by ($diffy)"
+		incr ty	$diffy
+		incr by $diffy
+		set cy	[expr {$cy + $diffy}]
+		dict incr ofs y $diffy
+	}
+	if {[info exists diffx] || [info exists diffy]} {
+		log debug "topleft: ($tx,$ty), botright: ($bx,$by) ofs: ([dict get $ofs x],[dict get $ofs y]) center: ($cx,$cy)"
+	}
+	# Clamp >>>
+
+	set zoom			[expr {double($tow) / $pwidth}]
+
+	if {![info exists pmap_display]} {
+		if {$tow != $pwidth || $toh != $pheight} {
+			log debug "Resizing to ($tow,$toh) from ($pwidth,$pheight)"
+			set pmap_display	[pixel::scale_pmap $pmap $tow $toh]
+		} else {
+			set pmap_display	$pmap
+		}
+
+		$w.canv delete all
+		if {[info exists img]} {
+			#log notice "Deleting $img, unuse? ([image inuse $img])"
+			#image delete $img
+			#unset img
+
+			#$img put $pmap_display -format "pmap"
+			#$img configure -format "pmap" -data $pmap_display
+		} else {
+			#set img	[image create photo -format "pmap" -data $pmap_display]
+		}
+		#set img	[image create photo -format "pmap" -data $pmap_display]
+		#set img	[image create photo -format "pmap" -data $pmap_display]
+		pixel::tkphoto::violate_photo $img $pmap_display
+		$w.canv create image $tx $ty -anchor nw -image $img -tags {image}
+
+	} else {
+		$w.canv coords image $tx $ty
+	}
+
+	$w.canv configure -scrollregion [list $tx $ty $bx $by]
+	update idletasks
+}
+
+#>>>
+body Imagedisplay::load_image {fn} { #<<<
+	if {[info exists pmap_display]} {
+		unset pmap_display
+	}
+	if {[info exists pmap]} {
+		unset pmap
+	}
+	set ofs			[dict create x 0 y 0]
+	set zoom		1.0
+	set mode		"resized"
+	$signals(full_toggle) set_state 0
+	$w.canv delete all
+	build_loading_feedback
+
+	m2 req "get_file" $fn [code $this _load_image_data_resp]
+}
+
+#>>>
+body Imagedisplay::_load_image_data_resp {type svc data seq prev_seq} { #<<<
+	switch -- $type {
+		"ack" {}
+
+		"nack" {
+			log error "Could not load \"$fn\": $data"
+			return
+		}
+
+		default {
+			log error "Unexpected response type: \"$type\""
+			return
+		}
+	}
+
+	tlc::try {
+		set tmpimg	[image create photo -data $data]
+		set pmap	[pixel::tkphoto::image2pmap $tmpimg] 
+	} onerr {
+		default {
+			if {[info exists tmpimg] && $tmpimg in [image names]} {
+				image delete $tmpimg
+				unset tmpimg
+			}
+			return -options $options $errmsg
+		}
+	} onok {
+		if {[info exists tmpimg] && $tmpimg in [image names]} {
+			image delete $tmpimg
+			unset tmpimg
+		}
+	}
+
+	$dominos(view_resized) tip
+}
+
+#>>>
+body Imagedisplay::full_toggle_changed {newstate} { #<<<
+	if {$newstate} {
+		set mode	"full"
+	} else {
+		set mode	"resized"
+	}
+	set ofs		[dict create x 0 y 0]
+
+	$dominos(view_resized) tip
+}
+
+#>>>
+body Imagedisplay::zoom {dir x y} { #<<<
+	if {![info exists pmap]} return
+	if {$x eq ""} {set x [expr {round([dict get $view_size width] / 2.0)}]}
+	if {$y eq ""} {set y [expr {round([dict get $view_size height] / 2.0)}]}
+
+	set canvx	[$w.canv canvasx $x]
+	set canvy	[$w.canv canvasy $y]
+
+	log debug "x: ($x) canvx: ($canvx) ofs(x): ([dict get $ofs x])"
+	log debug "y: ($y) canvx: ($canvy) ofs(y): ([dict get $ofs y])"
+
+	set old_zoom	$zoom
+	switch -- $dir {
+		in	{
+			set fact	1.10
+		}
+
+		out {
+			set fact	[expr {1.0 / 1.10}]
+		}
+
+		default {
+			error "Invalid zoom direction: ($dir)"
+		}
+	}
+	set zoom	[expr {$zoom * $fact}]
+
+	# Clamp zoom to reasonable values <<<
+	set max_mpx	[expr {(6000 * 4500) / 1000000.0}]
+	set min_mpx	[expr {(64 * 48) / 1000000.0}]
+
+	set v_mpx	[expr {
+		([dict get $view_size width] * [dict get $view_size height])
+		/ 1000000.0
+	}]
+	if {$v_mpx > $max_mpx} {
+		set max_mpx	$v_mpx
+	} elseif {$v_mpx < $min_mpx} {
+		set min_mpx	$v_mpx
+	}
+
+	lassign [pixel::pmap_info $pmap] pwidth pheight
+	set p_mpx	[expr {($pwidth * $pheight) / 1000000.0}]
+
+	set sq_zoom	[expr {$zoom * $zoom}]
+	if {($p_mpx * $sq_zoom) > $max_mpx} {
+		set zoom	[expr {sqrt($max_mpx / $p_mpx)}]
+		log debug "Clamping zoom at ($zoom)"
+	} elseif {($p_mpx * $sq_zoom) < $min_mpx} {
+		set zoom	[expr {sqrt($min_mpx / $p_mpx)}]
+		log debug "Clamping zoom at ($zoom)"
+	}
+	# Clamp zoom to reasonable values >>>
+
+	dict set ofs x	[expr {round([dict get $ofs x] * ($zoom / $old_zoom))}]
+	dict set ofs y	[expr {round([dict get $ofs y] * ($zoom / $old_zoom))}]
+	log debug "Zooming ($dir), was: ($old_zoom), now: ($zoom)"
+
+	set mode	"zoomed"
+	$dominos(view_resized) tip
+}
+
+#>>>
+body Imagedisplay::mousewheel {amount x y} { #<<<
+	set norm	[expr {round($amount / 120.0)}]
+
+	if {$norm < 0} {
+		set dir	"out"
+	} else {
+		set dir	"in"
+	}
+
+	set norm	[expr {abs($norm)}]
+
+	while {$norm > 0} {
+		zoom $dir $x $y
+
+		incr norm -1
+	}
+}
+
+#>>>
+body Imagedisplay::set_drag {x y} { #<<<
+	focus $w.canv
+	if {$x eq ""} {
+		if {[info exists drag_last]} {
+			unset drag_last
+		}
+	} else {
+		set drag_last	[dict create x $x y $y]
+	}
+}
+
+#>>>
+body Imagedisplay::drag {x y} { #<<<
+	if {[info exists drag_last]} {
+		set dx	[expr {$x - [dict get $drag_last x]}]
+		set dy	[expr {$y - [dict get $drag_last y]}]
+
+		dict incr ofs x $dx
+		dict incr ofs y $dy
+
+		set drag_last	[dict create x $x y $y]
+
+		$dominos(view_resized) tip
+	}
+}
+
+#>>>
+body Imagedisplay::percent_update {perc} { #<<<
+	log notice [format "loading... %.2f %%" $perc]
+
+	lassign [$w.canv bbox box_inner] x1 y1 x2 y2
+
+	# The bounding box seems to be 1 larger than the coords specified
+	set x1	[+ $x1 1]
+	set y1	[+ $y1 1]
+	set x2	[- $x2 1]
+	set y2	[- $y2 1]
+
+	set x2	[expr {$x1 + $loading_bar_width * ($perc / 100.0)}]
+	$w.canv coords box_inner $x1 $y1 $x2 $y2
+	log debug "tl ($x1,$y1) br ($x2,$y2)"
+
+	$w.canv itemconfigure perc_text -text [format "%.2f %%" $perc]
+}
+
+#>>>
+body Imagedisplay::build_loading_feedback {} { #<<<
+	set pen_x	0
+	set pen_y	0
+
+	$w.canv create text $pen_x $pen_y -anchor nw -text "Loading... " \
+			-fill #a0a0a0 -tags {loading label}
+
+	lassign [$w.canv bbox label] x1 y1 x2 y2
+	set width	[- $x2 $x1]
+	set height	[- $y2 $y1]
+	set pen_x	[+ $pen_x $width 2]
+
+	set box_right	[+ $pen_x $loading_bar_width 2]
+
+	$w.canv create rectangle \
+			[+ $pen_x 1] $pen_y [+ $pen_x 1] [+ $pen_y $height] \
+			-fill #686868 -tags {loading box_inner}
+
+	$w.canv create rectangle \
+			$pen_x [- $pen_y 1] $box_right [+ $pen_y $height 1] \
+			-outline #f0f0f0 -tags {loading box_outline}
+
+	$w.canv create text [+ $pen_x 2] $pen_y -anchor nw -text "" \
+			-fill #c8c8c8 -tags {loading perc_text}
+
+	lassign [$w.canv bbox loading] x1 y1 x2 y2
+	set twidth	[- $x2 $x1]
+	set theight	[- $y2 $y1]
+
+	set cx		[/ [dict get $view_size width] 2.0]
+	set cy		[/ [dict get $view_size height] 2.0]
+	set dx		[- $cx [/ $twidth 2.0]]
+	set dy		[- $cy [/ $theight 2.0]]
+
+	$w.canv move loading $dx $dy
+}
+
+#>>>
+body Imagedisplay::rotate {dir} { #<<<
+	if {![info exists pmap]} return
+
+	set pmap	[pixel::pmap_rotate $pmap $dir]
+	$dominos(view_resized) tip
+}
+
+#>>>

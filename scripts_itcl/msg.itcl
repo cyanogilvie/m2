@@ -1,0 +1,137 @@
+# vim: foldmarker=<<<,>>>
+
+class m2::Msg {
+	inherit tlc::Refcounted
+
+	constructor {mode args} {}
+	
+	public {
+		method serialize {}
+		method shift_seqs {newseq}
+		method display {}
+		method get_data {}
+
+		foreach attr {svc type seq prev_seq sell_by part of data} {
+			method $attr {args} "return \[eval \[list set [list dat($attr)]\] \$args\]"
+		}
+	}
+
+	private {
+		variable dat
+
+		method deserialize {sdata}
+	}
+}
+
+
+body m2::Msg::constructor {mode args} { #<<<1
+	array set dat	{
+		svc			"sys"
+		type		"req"
+		seq			""
+		prev_seq	0
+		sell_by		""
+		part		1
+		of			1
+		data		""
+	}
+
+	# Bind an automatic scopvar in our caller's stack frame to decref us when
+	# it goes out of scope
+	autoscoperef
+
+	switch -- $mode {
+		new {
+			array set dat $args
+		}
+		
+		deserialize {
+			deserialize [lindex $args 0]
+		}
+		
+		clone {
+			array set dat	[[lindex $args 0] get_data]
+		}
+
+		raw {}
+
+		default {
+			error "Invalid mode: ($mode)"
+		}
+	}
+}
+
+body m2::Msg::deserialize {sdata} { #<<<1
+	set idx		[string first "\n" $sdata]
+	if {$idx == -1} {
+		error "Invalid serialized msg format"
+	}
+	set preend		[expr {$idx - 1}]
+	set hdrstart	[expr {$idx + 1}]
+	set pre			[string range $sdata 0 $preend]
+	set fmt			[lindex $pre 0]
+	switch -- $fmt {
+		1 {
+			set hdr_len		[lindex $pre 1]
+			set data_len	[lindex $pre 2]
+			set hdrend		[expr {$hdrstart + $hdr_len - 1}]
+			set datastart	[expr {$hdrend + 1}]
+			set dataend		[expr {$datastart + $data_len - 1}]
+			set hdr			[string range $sdata $hdrstart $hdrend]
+			set dat(data)	[string range $sdata $datastart $dataend]
+			foreach h {svc type seq prev_seq sell_by part of} v $hdr {
+				set dat($h)	$v
+			}
+		}
+
+		default {
+			error "Don't know what to do with format: ($fmt)"
+		}
+	}
+}
+
+
+body m2::Msg::serialize {} { #<<<1
+	set hdr			[list \
+			$dat(svc) \
+			$dat(type) \
+			$dat(seq) \
+			$dat(prev_seq) \
+			$dat(sell_by) \
+			$dat(part) \
+			$dat(of)]
+	set sdata		[list 1 [string length $hdr] [string length $dat(data)]]
+	append sdata	"\n"
+	append sdata	$hdr
+	append sdata	$dat(data)
+
+	return $sdata
+}
+
+
+body m2::Msg::shift_seqs {newseq} { #<<<1
+	set dat(prev_seq)	$dat(seq)
+	set dat(seq)		$newseq
+}
+
+
+body m2::Msg::display {} { #<<<1
+	set display	""
+	append display "Msg ($this):\n"
+	foreach attr {svc type seq prev_seq sell_by part of data} {
+		if {$attr == "data"} {
+			append display "  $attr: \[[string length $dat($attr)]\]\n"
+		} else {
+			append display "  $attr: ($dat($attr))\n"
+		}
+	}
+
+	return $display
+}
+
+
+body m2::Msg::get_data {} { #<<<1
+	return [array get dat]
+}
+
+

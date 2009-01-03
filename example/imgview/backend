@@ -1,0 +1,56 @@
+#!/usr/bin/env tclsh8.6
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+package require Tcl 8.6
+
+tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
+package require m2
+package require TLC-base 0.99
+
+class Config {
+	inherit tlc::Baseconfig
+
+	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
+
+	public {
+		variable uri	"tcp_coroutine://localhost:5307"
+		variable images	"images"
+	}
+}
+
+Config cfg {*}$argv
+set cfg	[cfg dump_config]
+
+m2::API2 m2 -uri [dict get $cfg uri]
+
+proc list_files {seq data} {
+	puts "got list_files request #$seq: $data"
+	set files	[glob -nocomplain -type f [file join [cfg get images] *]]
+	m2 ack $seq $files
+}
+
+proc get_file {seq data} {
+	if {![file exists $data]} {
+		m2 nack $seq "No such file"
+		return
+	}
+	set dat	[tlc::readfile $data binary]
+	m2 ack $seq $dat
+}
+
+[m2 signal_ref connected] attach_output [list apply {
+	{newstate} {
+		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
+		if {$newstate} {
+			m2 handle_svc "list_files" list_files
+			m2 handle_svc "get_file" get_file
+		} else {
+			m2 handle_svc "list_files" ""
+			m2 handle_svc "get_file" ""
+		}
+	}
+}]
+
+
+tlc::fake_mainloop

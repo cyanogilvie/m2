@@ -1,0 +1,74 @@
+#!/usr/bin/env tclsh8.6
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+tcl::tm::path add [file normalize [file join [file dirname [info script]] .. tm]]
+
+package require Tcl 8.6
+package require m2
+
+package require TLC-base 0.93.0
+cd [file normalize [file dirname [info script]]]
+
+class Config {
+	inherit tlc::Baseconfig
+
+	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
+
+	public {
+		variable listen_on		{"tcp_coroutine://:5307"}
+		variable log_threshold	"debug"
+		variable upstream		{}
+		variable enable_console	0
+		variable heartbeat		0
+		variable as_user		"codeforge"
+		variable as_group		"codeforge"
+	}
+}
+
+if {[file exists /etc/codeforge/config/mware-node]} {
+	set argv	[linsert $argv 0 -configfile /etc/codeforge/config/mware-node]
+}
+Config cfg {*}$argv
+array set cfg	[cfg dump_config]
+
+tlc::Log log -threshold [cfg get log_threshold]
+
+proc bgerror {args} {
+	log error $::errorInfo
+}
+
+m2::node create server \
+		-listen_on	[cfg get listen_on] \
+		-upstream	[cfg get upstream]
+
+if {[cfg get enable_console]} {
+	tlc::Console console -enable [cfg get enable_console] -appname m2_node
+}
+
+proc bleep {} {
+	set sample	[lf sample]
+	if {[info exists ::lastsample]} {
+		set diff	[lf diff $::lastsample $sample]
+		if {$diff ne {Change in variables: ----------------------
+                             Net variables change: 0 bytes
+
+Change in objects: ----------------------
+}} {
+			puts "Leak check"
+			puts $diff
+		}
+	}
+	set ::lastsample	$sample
+	#puts stderr "bleep [clock seconds]\n\t[join [thread::names] \n\t]"
+	#puts stderr [join [itcl::find objects] "\n\t"]
+	after 1000 bleep
+}
+
+if {[cfg get heartbeat]} {
+	tlc::Leakfinder lf
+	bleep
+}
+
+vwait ::forever
+

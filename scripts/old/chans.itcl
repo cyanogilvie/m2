@@ -1,0 +1,103 @@
+# vim: foldmarker=<<<,>>>
+
+class m2::Chans {
+	inherit tlc::Handlers
+
+	constructor {args} {}
+
+	public {
+		method cancel {seq}
+		method is_chanreq {prev_seq}
+		method chanreq {seq prev_seq data}
+		method register_chan {seq cb}
+		method deregister_chan {seq}
+	}
+
+	private {
+		variable chans
+		variable topic
+	}
+}
+
+
+body m2::Chans::constructor {args} { #<<<1
+	configure {*}$args
+
+	array set chans {}
+}
+
+
+body m2::Chans::cancel {seq} { #<<<1
+	if {![info exists chans($seq)]} {
+		log error "m2::Chans::cancel: Unrecognised channel cancelled: ($seq)"
+		return
+	}
+	
+	switch -- [lindex $chans($seq) 0] {
+		custom {
+			set cb			[lindex $chans($seq) 1]
+			if {$cb != {}} {
+				uplevel #0 $cb [list cancelled {}]
+			}
+		}
+
+		default {
+			log error "m2::Chans::cancel: Unexpected type of channel cancelled: ([lindex $chans($seq) 0])"
+		}
+	}
+
+	catch {unset chans($seq)}
+}
+
+
+body m2::Chans::is_chanreq {prev_seq} { #<<<1
+	return [info exists chans($prev_seq)]
+}
+
+
+body m2::Chans::chanreq {seq prev_seq data} { #<<<1
+	if {![info exists chans($prev_seq)]} {
+		log error "m2::Chans::chanreq: Unrecognised channel for chanreq: ($prev_seq)"
+		return
+	}
+	
+	switch -- [lindex $chans($prev_seq) 0] {
+		custom {
+			set cb			[lindex $chans($prev_seq) 1]
+			if {$cb != {}} {
+				uplevel #0 $cb [list req [list $seq $prev_seq $data]]
+			}
+		}
+
+		default {
+			log error "m2::Chans::chanreq: Unexpected type of channel in chanreq: ([lindex $chans($prev_seq) 0]) ($data)"
+			main nack $seq "Unexpected type of channel in chanreq: ([lindex $chans($prev_seq) 0])"
+		}
+	}
+}
+
+
+body m2::Chans::register_chan {seq cb} { #<<<1
+	if {[info exists chans($seq)]} {
+		log error "Chan::register_chan: chan already exists: ($seq)"
+		return
+	}
+	log debug "m2::Chans::register_chan: Registering chan: ($seq) ($cb)"
+	set chans($seq)	[list custom $cb]
+}
+
+
+body m2::Chans::deregister_chan {seq} { #<<<1
+	if {![info exists chans($seq)]} {
+		log error "m2::Chans::deregister_chan: unrecognised chan: ($seq)"
+		return
+	}
+	if {[lindex $chans($seq) 0] != "custom"} {
+		log error "m2::Chans::deregister_chan: not custom chan: ($seq) ([lindex $chans($seq)])"
+		return
+	}
+	log debug "m2::Chans::deregister_chan: Deregistering chan: ($seq)"
+	unset chans($seq)
+}
+
+
