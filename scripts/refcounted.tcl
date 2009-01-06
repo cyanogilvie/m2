@@ -2,11 +2,13 @@
 
 oo::class create m2::refcounted {
 	constructor {} {
+		if {[self next] ne {}} {next}
 		set refcount	1
 	}
 
 	destructor {
 		my _clear_registry
+		if {[self next] ne {}} {next}
 	}
 
 	variable {*}{

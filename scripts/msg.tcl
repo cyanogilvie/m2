@@ -12,8 +12,8 @@ oo::class create m2::msg {
 			seq			""
 			prev_seq	0
 			sell_by		""
-			part		1
-			of			1
+			oob_type	1
+			oob_data	1
 			data		""
 		}
 
@@ -55,8 +55,8 @@ oo::class create m2::msg {
 				[dict get $dat seq] \
 				[dict get $dat prev_seq] \
 				[dict get $dat sell_by] \
-				[dict get $dat part] \
-				[dict get $dat of]]
+				[dict get $dat oob_type] \
+				[dict get $dat oob_data]]
 		set sdata		[list 1 [string length $hdr] [string length [dict get $dat data]]]
 		append sdata	"\n"
 		append sdata	$hdr
@@ -75,7 +75,7 @@ oo::class create m2::msg {
 	method display {} { #<<<
 		set display	""
 		append display "Msg ([self]):\n"
-		foreach attr {svc type seq prev_seq sell_by part of data} {
+		foreach attr {svc type seq prev_seq sell_by oob_type oob_data data} {
 			if {$attr eq "data"} {
 				append display "  $attr: \[[string length [dict get $dat $attr]]\]\n"
 			} else {
@@ -93,25 +93,24 @@ oo::class create m2::msg {
 
 	#>>>
 	method get {attr} { #<<<
-		return [dict get $dat $attr]
+		dict get $dat $attr
 	}
 
 	#>>>
 	method set {attr newval} { #<<<
-		return [dict set dat $attr $newval]
+		dict set dat $attr $newval
 	}
 
 	#>>>
 	method _accessor {attr args} { #<<<
 		if {[llength $args] == 0} {
-			return [my get $attr]
+			return [dict get $dat $attr]
 		} else {
-			return [my set $attr {*}$args]
+			dict set dat $attr [lindex $args 0]
 		}
 	}
 
 	#>>>
-
 	method _deserialize {sdata} { #<<<
 		set idx		[string first "\n" $sdata]
 		if {$idx == -1} {
@@ -130,7 +129,7 @@ oo::class create m2::msg {
 				set dataend		[expr {$datastart + $data_len - 1}]
 				set hdr			[string range $sdata $hdrstart $hdrend]
 				dict set dat data	[string range $sdata $datastart $dataend]
-				foreach h {svc type seq prev_seq sell_by part of} v $hdr {
+				foreach h {svc type seq prev_seq sell_by oob_type oob_data} v $hdr {
 					dict set dat $h	$v
 				}
 			}
@@ -150,7 +149,7 @@ oo::define m2::msg method type {args}		{my _accessor [self method] {*}$args}
 oo::define m2::msg method seq {args}		{my _accessor [self method] {*}$args}
 oo::define m2::msg method prev_seq {args}	{my _accessor [self method] {*}$args}
 oo::define m2::msg method sell_by {args}	{my _accessor [self method] {*}$args}
-oo::define m2::msg method part {args}		{my _accessor [self method] {*}$args}
-oo::define m2::msg method of {args}			{my _accessor [self method] {*}$args}
+oo::define m2::msg method oob_type {args}	{my _accessor [self method] {*}$args}
+oo::define m2::msg method oob_data {args}	{my _accessor [self method] {*}$args}
 oo::define m2::msg method data {args}		{my _accessor [self method] {*}$args}
 

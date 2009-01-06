@@ -1,0 +1,185 @@
+#!/usr/bin/env tclsh8.6
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+package require Tcl 8.6
+
+tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
+package require m2
+#package require TLC-base 0.99
+
+#class Config {
+#	inherit tlc::Baseconfig
+#
+#	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
+#
+#	public {
+#		variable uri	"tcp_coroutine://localhost:5307"
+#		variable images	"images"
+#	}
+#}
+#
+#Config cfg {*}$argv
+#set cfg	[cfg dump_config]
+set cfg	{
+	uri		"tcp_coroutine://localhost:5307"
+}
+
+
+interp bgerror {} [list apply {
+	{errmsg options} {
+		puts stderr "Background error: $errmsg"
+		array set o $options
+		parray o
+		exit 1
+	}
+}]
+
+array set signals	{}
+m2::gate new signals(ready) -name "ready" -mode "and"
+m2::signal new signals(ping) -name "ping"
+$signals(ready) attach_input $signals(ping)
+
+#m2::api2 create m2 -uri [dict get $cfg uri] -oob_type "profiling"
+m2::api2 create m2 -uri [dict get $cfg uri]
+oo::objdefine m2 method station_id {} {
+	return "pingpong frontend ([next])"
+}
+$signals(ready) attach_input [m2 signal_ref connected]
+
+proc svc_avail_changed {} {
+	puts stderr "svc_avail_changed"
+	puts stderr "ping available? ([m2 svc_avail ping])"
+	$::signals(ping) set_state [m2 svc_avail "ping"]
+}
+#m2 register_handler svc_avail_changed svc_avail_changed
+m2 register_handler svc_avail_changed [list apply {
+	{} {
+		puts stderr "svc_avail_changed: [m2 svc_avail ping]"
+		$::signals(ping) set_state [m2 svc_avail "ping"]
+	}
+}]
+
+[m2 signal_ref connected] attach_output [list apply {
+	{newstate} {
+		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
+	}
+}]
+
+proc ping {} {
+	set afterid	""
+	while {1} {
+		m2 req "ping" "hello, world" [list apply {
+			{coro args} {$coro $args}
+		} [info coroutine]]
+
+		lassign [yield] resp
+		dict with resp {}
+
+		switch -- $oob_type {
+			1 {}
+			profiling {
+				set profile	$oob_data
+			}
+		}
+
+		switch -- $type {
+			ack {
+				puts "got ack: ($data)"
+				incr ::received
+			}
+
+			nack {
+				puts "got nack: ($data)"
+			}
+
+			default {
+				puts "unexpected response type: \"$type\""
+			}
+		}
+		if {[info exists profile]} {
+			if {[info exists start_usec]} {
+				unset start_usec
+			}
+			if {[info exists last_usec]} {
+				unset last_usec
+			}
+			if {![info exists last_output]} {
+				set last_output	[clock microseconds]
+			}
+			set now	[clock microseconds]
+			if {$now - $last_output > 1000000} {
+				set last_output	$now
+				puts stderr "profiling info:"
+				foreach stamp $profile {
+					lassign $stamp usec_abs point station_id
+					if {![info exists start_usec]} {
+						set start_usec	$usec_abs
+					}
+					if {![info exists last_usec]} {
+						set last_usec	$usec_abs
+					}
+					set usec_from_start	[expr {$usec_abs - $start_usec}]
+					set usec_from_last	[expr {$usec_abs - $last_usec}]
+					set last_usec		$usec_abs
+
+					puts stderr [format "%11.4f %10.4f %7s %s" \
+							[expr {$usec_from_start / 1000.0}] \
+							[expr {$usec_from_last / 1000.0}] \
+							$point \
+							$station_id]
+				}
+			}
+		}
+		#after cancel $afterid; set afterid	""
+		#set afterid	[after 500 [info coroutine]]
+		##set afterid	[after idle [info coroutine]]
+		#yield
+	}
+}
+
+proc startping {} {
+	set ::received	0
+	coroutine stats apply {
+		{} {
+			set start_window	[clock microseconds]
+			while {1} {
+				set afterid	[after 1000 [info coroutine]]
+				yield
+				set end_window		[clock microseconds]
+				set window_usec		[expr {$end_window - $start_window}]
+				set start_window	$end_window
+				set received		$::received
+				set ::received		0
+
+				set persec		[expr {$received / ($window_usec / 1000000.0)}]
+				puts stderr [format "request round-trips per second: %.4f" \
+						$persec]
+			}
+		}
+	}
+	coroutine pinging ping
+}
+
+$signals(ready) attach_output [list apply {
+	{newstate} {
+		puts [expr {$newstate ? "ready" : "not ready"}]
+		if {$newstate} {
+			startping
+		} else {
+			if {[info commands stats] eq {stats}} {
+				rename stats {}
+			}
+			if {[info commands pinging] eq {pinging}} {
+				rename pinging {}
+			}
+		}
+	}
+}]
+
+set ::forever 0
+while {1} {
+	after 100000 {set ::forever 0}
+	vwait ::forever
+}
+

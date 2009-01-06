@@ -2,50 +2,30 @@
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
+
+#set auto_path	{}
 tcl::tm::path add [file normalize [file join [file dirname [info script]] .. tm]]
+set auto_path	{}
 
 package require Tcl 8.6
 package require m2
 
-#package require itcl 4.0
-#package require TLC-base 0.93.0
-cd [file normalize [file dirname [info script]]]
-
-#class Config {
-#	inherit tlc::Baseconfig
-#
-#	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
-#
-#	public {
-#		variable listen_on		{"tcp_coroutine://:5307"}
-#		variable log_threshold	"debug"
-#		variable upstream		{}
-#		variable enable_console	0
-#		variable heartbeat		0
-#		variable as_user		"codeforge"
-#		variable as_group		"codeforge"
-#	}
-#}
-#
-#if {[file exists /etc/codeforge/config/mware-node]} {
-#	set argv	[linsert $argv 0 -configfile /etc/codeforge/config/mware-node]
-#}
-#Config cfg {*}$argv
-#array set cfg	[cfg dump_config]
-
-set cfg {
+set cfg	[dict create {*}{
 	listen_on		{"tcp_coroutine://:5307"}
-	log_threshold	"debug"
 	upstream		{}
-}
+}]
 
 proc log {lvl msg} {
 	puts $msg
 }
 
-proc bgerror {args} {
-	log error $::errorInfo
-}
+interp bgerror {} [list apply {
+	{errmsg options} {
+		log error "$errmsg"
+		array set o	$options
+		parray o
+	}
+}]
 
 m2::node create server \
 		-listen_on	[dict get $cfg listen_on] \

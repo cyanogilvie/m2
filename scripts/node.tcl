@@ -39,19 +39,16 @@ oo::class create m2::node {
 
 	#>>>
 	destructor { #<<<
-		try {
-			foreach listen $listens {
-				if {[info object is object $listen]} {
-					$listen destroy
-				}
+		foreach listen $listens {
+			if {[info object is object $listen]} {
+				$listen destroy
 			}
-			set listens	{}
-			foreach id $outbound_connection_afterids {
-				after cancel $id; set $outbound_connection_afterids($id)	""
-			}
-		} on error {errmsg options} {
-			puts stderr "Error destroying [self class] [self]: $errmsg\n[dict get $options -errorinfo]"
 		}
+		set listens	{}
+		foreach id $outbound_connection_afterids {
+			after cancel $id; set $outbound_connection_afterids($id)	""
+		}
+		if {[self next] ne {}} {next}
 	}
 
 	#>>>
@@ -74,7 +71,7 @@ oo::class create m2::node {
 		set new		[expr {![dict exists $svcs $svc]}]
 		if {!$new && $port in [dict get $svcs $svc]} return
 		dict lappend svcs $svc	$port
-		my _puts stderr "m2::Node::announce_svc: ($svc) ($port)"
+		#my _puts stderr "m2::Node::announce_svc: ($svc) ($port)"
 
 		if {$new} {
 			set msg		[m2::msg new new \
@@ -86,7 +83,7 @@ oo::class create m2::node {
 			foreach dport [my all_ports $port] {
 				# Prune out outbound connections, ala, "orange links" pan in IML
 				if {[dict get $advertise_ports $dport] == 0} continue
-				puts stderr "sending msg: ($msg)"
+				#puts stderr "sending msg: ($msg)"
 				try {
 					$dport send $port $msg
 				} on error {errmsg options} {
@@ -98,9 +95,9 @@ oo::class create m2::node {
 
 	#>>>
 	method revoke_svc {svc port} { #<<<
-		if {![dict exists $svcs $svc] || [set idx [lsearch $svcs($svc) $port]] == -1} return
+		if {![dict exists $svcs $svc] || [set idx [lsearch [dict get $svcs $svc] $port]] == -1} return
 		dict set svcs $svc	[lreplace [dict get $svcs $svc] $idx $idx]
-		my _puts stderr "m2::Node::revoke_svc: ($svc) ($port)"
+		#my _puts stderr "m2::Node::revoke_svc: ($svc) ($port)"
 
 		if {[llength [dict get $svcs $svc]] == 0} {
 			dict unset svcs $svc
@@ -114,7 +111,7 @@ oo::class create m2::node {
 			foreach dport [my all_ports $port] {
 				# Prune out outbound connections, ala, "orange links" pan in IML
 				if {[dict get $advertise_ports $dport] == 0} continue
-				my _puts stderr "sending msg: ($msg)"
+				#my _puts stderr "sending msg: ($msg)"
 				try {
 					$dport send $port $msg
 				} on error {errmsg options} {
@@ -135,7 +132,7 @@ oo::class create m2::node {
 			error "Service ($svc) not available"
 		}
 		set idx			[expr {round(rand() * ([llength $remaining] - 1))}]
-		my _puts stderr "m2::Node::port_for_svc: ($svc) ([dict get $svcs $svc]) idx: ($idx)"
+		#my _puts stderr "m2::Node::port_for_svc: ($svc) ([dict get $svcs $svc]) idx: ($idx)"
 		return [lindex $remaining $idx]
 	}
 

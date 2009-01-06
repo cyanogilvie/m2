@@ -46,7 +46,13 @@ oo::class create m2::port {
 
 		$server register_port [self] $outbound $advertise
 
-		oo::objdefine $queue forward assign {*}[namespace code {my _queue_assign}]
+		#oo::objdefine $queue forward assign {*}[namespace code {my _queue_assign}]
+		oo::objdefine $queue method assign {rawmsg msg} {
+			switch -- [$msg get type] {
+				"rsj_req" - "req" - "jm"	{$msg get seq}
+				default						{$msg get prev_seq}
+			}
+		}
 		# Use the default netdgram::queue::pick code for round-robin
 		#oo::objdefine $queue forward pick {*}[namespace code {my _queue_pick}]
 		oo::objdefine $queue forward receive {*}[namespace code {my _receive}]
@@ -61,61 +67,58 @@ oo::class create m2::port {
 	#>>>
 	destructor { #<<<
 		try {
-			try {
-				if {[info exists queue] && [info object is object $queue]} {
-					set con	[$queue con]
-					# $queue dies when $con does, close_con unsets $con
-					$con destroy
-					unset queue
-				}
-			} on error {errmsg options} {
-				log error "Error closing queue / con: $errmsg\n[dict get $options -errorinfo]"
+			if {[info exists queue] && [info object is object $queue]} {
+				set con	[$queue con]
+				# $queue dies when $con does, close_con unsets $con
+				$con destroy
+				unset queue
 			}
-			#log debug "m2::Port::destructor: ($con)"
-			foreach svc [dict keys $mysvcs] {
-				$server revoke_svc $svc [self]
-				dict unset mysvcs $svc
+		} on error {errmsg options} {
+			log error "Error closing queue / con: $errmsg\n[dict get $options -errorinfo]"
+		}
+		#log debug "m2::Port::destructor: ($con)"
+		foreach svc [dict keys $mysvcs] {
+			$server revoke_svc $svc [self]
+			dict unset mysvcs $svc
+		}
+
+		# nack all msgs / fragments queued for us
+
+		# jm_can and dismantle all jm originating with us
+		set msg		[m2::msg new new \
+			type	jm_can \
+			svc		sys \
+		]
+		dict for {upid jmid} $jm {
+			# Send the jm_can along to all recipients
+			$msg seq		$jmid
+			#puts stderr "jm_can: [$msg display]"
+			foreach dport [dict get $jm_ports $jmid] {
+				$msg prev_seq	[dict get $jm_prev $dport,$jmid]
+				my _send_dport $dport $msg
 			}
 
-			# nack all msgs / fragments queued for us
-
-			# jm_can and dismantle all jm originating with us
-			set msg		[m2::msg new new \
-				type	jm_can \
-				svc		sys \
-			]
-			dict for {upid jmid} $jm {
-				# Send the jm_can along to all recipients
-				$msg seq		$jmid
-				puts stderr "jm_can: [$msg display]"
-				foreach dport [dict get $jm_ports $jmid] {
-					$msg prev_seq	[dict get $jm_prev $dport,$jmid]
-					send_dport $dport $msg
-				}
-
-				# Dismantle our state for this jm channel
-				dict unset jm $upid
-				dict unset jm_prev $dport,$jmid
-				dict unset jm_ports $jmid
-			}
-			
-			$server unregister_port [self]
-			#invoke_handlers onclose
-			dict for {type cbs} [my dump_handlers] {
-				if {$type eq "onclose"} {
-					foreach cb $cbs {
-						try {
-							uplevel #0 $cb
-						} on error {errmsg options} {
-							puts stderr "m2::Port([self])::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
-						}
+			# Dismantle our state for this jm channel
+			dict unset jm $upid
+			dict unset jm_prev $dport,$jmid
+			dict unset jm_ports $jmid
+		}
+		
+		$server unregister_port [self]
+		#invoke_handlers onclose
+		dict for {type cbs} [my dump_handlers] {
+			if {$type eq "onclose"} {
+				foreach cb $cbs {
+					try {
+						uplevel #0 $cb
+					} on error {errmsg options} {
+						puts stderr "m2::Port([self])::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
 					}
 				}
 			}
-			#set end_sample	[lf sample]
-		} on error {errmsg options} {
-			puts stderr "Error destructing port: $errmsg\n[dict get $options -errorinfo]"
 		}
+		#set end_sample	[lf sample]
+		if {[self next] ne {}} {next}
 	}
 
 	#>>>
@@ -140,7 +143,7 @@ oo::class create m2::port {
 	}
 
 	method send {srcport msg} { #<<<
-		puts "Port::send: ($srcport) -> ([self])"
+		#puts "Port::send: ($srcport) -> ([self])"
 		set mc	[$msg get_data]
 
 		switch -- [dict get $mc type] {
@@ -165,14 +168,14 @@ oo::class create m2::port {
 
 			svc_avail -
 			svc_revoke { #<<<
-				puts stderr "[dict get $mc type] writing"
+				#puts stderr "[dict get $mc type] writing"
 				my _dispatch $msg
 				#>>>
 			}
 			
 			pr_jm -
 			jm { #<<<
-				puts stderr "[dict get $mc type] writing"
+				#puts stderr "[dict get $mc type] writing"
 				if {![dict exists $jm_sport [dict get $mc seq]]]} {
 					dict set jm_sport [dict get $mc seq]	$srcport
 				}
@@ -182,7 +185,7 @@ oo::class create m2::port {
 			
 			jm_can { #<<<
 				dict unset jm_sport [dict get $mc seq]
-				puts stderr "[dict get $mc type] writing"
+				#puts stderr "[dict get $mc type] writing"
 				my _dispatch $msg
 				#>>>
 			}
@@ -254,25 +257,34 @@ oo::class create m2::port {
 	}
 
 	#>>>
-	method _downstream_jmid {seq} { #<<<
+	method downstream_jmid {seq} { #<<<
 		dict get $jm $seq
 	}
 
 	#>>>
+
 	method _type {} { #<<<
 		dict get $neighbour_info type
 	}
 
 	#>>>
-
 	method _receive {raw_msg} { #<<<
 		set msg		[m2::msg new deserialize $raw_msg]
-		got_msg $msg
+		my _got_msg $msg
 	}
 
 	#>>>
 	method _got_msg {msg} { #<<<
 		set mc	[$msg get_data]
+
+		# Add profiling stamp if requested <<<
+		if {[dict get $mc oob_type] eq "profiling"} {
+			$msg set oob_data [my _add_profile_stamp \
+					"[dict get $mc type]_in" \
+					[$msg get oob_data]]
+			dict set mc oob_data	[$msg get oob_data]
+		}
+		# Add profiling stamp if requested >>>
 
 		switch -- [dict get $mc type] {
 			svc_avail { #<<<
@@ -310,8 +322,8 @@ oo::class create m2::port {
 				$msg prev_seq	[$oldmsg seq]
 				$msg seq		[$server unique_id]
 
-				puts stderr "m2::Port::got_msg: passing ack along"
-				send_dport $dport $msg
+				#puts stderr "m2::Port::got_msg: passing ack along"
+				my _send_dport $dport $msg
 				dict unset req $pseq
 				$oldmsg decref
 				#>>>
@@ -326,7 +338,7 @@ oo::class create m2::port {
 
 				# TODO: roll back any pr_jm setups in progress
 
-				puts stderr "m2::Port::got_msg: passing nack along"
+				#puts stderr "m2::Port::got_msg: passing nack along"
 				my _send_dport $dport $msg
 				dict unset req $pseq
 				$oldmsg decref
@@ -361,7 +373,7 @@ oo::class create m2::port {
 						$dport ni [dict get $jm_ports $jmid]
 					} {
 						dict lappend jm_ports $jmid	$dport
-						$dport register_handler onclose [code [self] remove_jm_dport $dport [dict get $mc seq] ""]
+						$dport register_handler onclose [namespace code [list my _remove_jm_dport $dport [dict get $mc seq] ""]]
 						# TODO: need to arrange for this onclose handler to be
 						# deregistered if we die
 					}
@@ -369,7 +381,7 @@ oo::class create m2::port {
 					$msg prev_seq	[list $oldmsgseq]
 					$msg seq		$jmid
 
-					puts stderr "pr_jm: [$msg display]"
+					#puts stderr "pr_jm: [$msg display]"
 
 					my _send_dport $dport $msg
 				} else {
@@ -385,7 +397,7 @@ oo::class create m2::port {
 					$msg type		jm
 					$msg seq		$jmid
 
-					puts stderr "jm: [$msg display]"
+					#puts stderr "jm: [$msg display]"
 
 					foreach dport [dict get $jm_ports $jmid] {
 						$msg prev_seq	[dict get $jm_prev $dport,$jmid]
@@ -416,7 +428,7 @@ oo::class create m2::port {
 
 				set rand_dest	[expr {round(rand() * ([llength [dict get $jm_ports $jmid]] - 1))}]
 				set dport		[lindex [dict get $jm_ports $jmid] $rand_dest]
-				puts "randomly picked idx $rand_dest of [llength [dict get $jm_ports $jmid]]: ($dport)"
+				#puts "randomly picked idx $rand_dest of [llength [dict get $jm_ports $jmid]]: ($dport)"
 
 				#$msg seq	$jmid
 				#$msg prev_seq	[dict get $jm_prev $dport,$jmid]
@@ -433,10 +445,10 @@ oo::class create m2::port {
 				
 				# Send the jm_can along to all recipients
 				$msg seq		$jmid
-				puts stderr "jm_can: [$msg display]"
+				#puts stderr "jm_can: [$msg display]"
 				foreach dport [dict get $jm_ports $jmid] {
 					$msg prev_seq	[dict get $jm_prev $dport,$jmid]
-					$dport deregister_handler onclose [namespace code [list my remove_jm_dport $dport [dict get $mc seq] ""]]
+					$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport [dict get $mc seq] ""]]
 					my _send_dport $dport $msg
 				}
 
@@ -498,20 +510,20 @@ oo::class create m2::port {
 		if {[dict exists $jm_prev $dport,$jmid]]} {
 			return 0
 		}
-		$dport deregister_handler onclose [code [self] remove_jm_dport $dport $upstream_jmid ""]
+		$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport $upstream_jmid ""]]
 
 		set idx		[lsearch [dict get $jm_ports $jmid] $dport]
 		if {$idx == -1} return
 		dict set jm_ports $jmid		[lreplace [dict get $jm_ports $jmid] $idx $idx]
-		puts stderr "m2::Port::remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"
+		#puts stderr "m2::Port::remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"
 		if {[llength [dict get $jm_ports $jmid]] == 0} {
-			puts stderr "m2::Port::remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_can upstream"
+			#puts stderr "m2::Port::remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_can upstream"
 			
 			set msg		[m2::msg new new \
 				type	jm_disconnect \
 				seq		$upstream_jmid \
 			]
-			dispatch $msg
+			my _dispatch $msg
 
 			dict unset jm			$upstream_jmid
 			dict unset jm_ports	$jmid
@@ -536,6 +548,13 @@ oo::class create m2::port {
 			return
 		}
 		try {
+			# Add profiling stamp if requested <<<
+			if {[$msg get oob_type] eq "profiling"} {
+				$msg set oob_data [my _add_profile_stamp \
+						"[$msg get type]_out" \
+						[$msg get oob_data]]
+			}
+			# Add profiling stamp if requested >>>
 			$queue enqueue [$msg serialize] $msg
 		} on error {errmsg options} {
 			log error "Error queueing message [$msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
@@ -592,6 +611,29 @@ oo::class create m2::port {
 		set dieing	1
 		my destroy
 		return -code return
+	}
+
+	#>>>
+	method _add_profile_stamp {point so_far} { #<<<
+		lappend so_far [list \
+				[clock microseconds] \
+				$point \
+				[my cached_station_id]]
+		set so_far
+	}
+
+	#>>>
+	method cached_station_id {} { #<<<
+		my variable station_id
+		if {![info exists station_id]} {
+			set station_id	[my station_id]
+		}
+		return $station_id
+	}
+
+	#>>>
+	method station_id {} { #<<<
+		return "m2_node [[$queue con] human_id]"
 	}
 
 	#>>>
