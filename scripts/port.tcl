@@ -144,9 +144,9 @@ oo::class create m2::port {
 
 	method send {srcport msg} { #<<<
 		#puts "Port::send: ($srcport) -> ([self])"
-		set mc	[$msg get_data]
-
-		switch -- [dict get $mc type] {
+		set m_seq		[$msg get seq]
+		set m_prev_seq	[$msg get prev_seq]
+		switch -- [$msg get type] {
 			req { #<<<
 				set newid	[$server unique_id]
 
@@ -168,24 +168,24 @@ oo::class create m2::port {
 
 			svc_avail -
 			svc_revoke { #<<<
-				#puts stderr "[dict get $mc type] writing"
+				#puts stderr "[$msg get type] writing"
 				my _dispatch $msg
 				#>>>
 			}
 			
 			pr_jm -
 			jm { #<<<
-				#puts stderr "[dict get $mc type] writing"
-				if {![dict exists $jm_sport [dict get $mc seq]]]} {
-					dict set jm_sport [dict get $mc seq]	$srcport
+				#puts stderr "[$msg get type] writing"
+				if {![dict exists $jm_sport $m_seq]} {
+					dict set jm_sport $m_seq	$srcport
 				}
 				my _dispatch $msg
 				#>>>
 			}
 			
 			jm_can { #<<<
-				dict unset jm_sport [dict get $mc seq]
-				#puts stderr "[dict get $mc type] writing"
+				dict unset jm_sport $m_seq
+				#puts stderr "[$msg get type] writing"
 				my _dispatch $msg
 				#>>>
 			}
@@ -193,8 +193,8 @@ oo::class create m2::port {
 			jm_disconnect { #<<<
 				# TODO: more efficiently
 				dict for {up down} $jm {
-					if {$down == [dict get $mc seq]} {
-						return [my _remove_jm_dport	$srcport $up [dict get $mc prev_seq]]
+					if {$down == $m_seq} {
+						return [my _remove_jm_dport	$srcport $up $m_prev_seq]
 					}
 				}
 				#parray jm
@@ -205,7 +205,7 @@ oo::class create m2::port {
 			rsj_req { #<<<
 				# TODO: more efficiently
 				dict for {up down} $jm {
-					if {$down == [dict get $mc prev_seq]} {
+					if {$down == $m_prev_seq} {
 						set newmsg	[m2::msg new clone $msg]
 						$newmsg prev_seq	$up
 						$newmsg seq			[$server unique_id]
@@ -225,15 +225,15 @@ oo::class create m2::port {
 			jm_req { #<<<
 				set newid	[$server unique_id]
 
-				#if {![dict exists $jm [dict get $mc prev_seq]]]} {
+				#if {![dict exists $jm $m_prev_seq]} {
 				#	log error "No jm([$msg prev_seq]) mc:"
 				#	parray mc
 				#	log error "jm:"
 				#	parray jm
 				#	error "No jm"
 				#}
-				#set jmid	[dict get $jm [dict get $mc prev_seq]]
-				set jmid	[$srcport downstream_jmid [dict get $mc prev_seq]]
+				#set jmid	[dict get $jm $m_prev_seq]
+				set jmid	[$srcport downstream_jmid $m_prev_seq]
 				set newmsg	[m2::msg new clone $msg]
 				$newmsg prev_seq	$jmid
 				$newmsg seq			$newid
@@ -246,7 +246,7 @@ oo::class create m2::port {
 			}
 
 			default { #<<<
-				error "Invalid msg type: ([dict get $mc type])"
+				error "Invalid msg type: ([$msg get type])"
 				#>>>
 			}
 		}
@@ -275,20 +275,20 @@ oo::class create m2::port {
 
 	#>>>
 	method _got_msg {msg} { #<<<
-		set mc	[$msg get_data]
-
 		# Add profiling stamp if requested <<<
-		if {[dict get $mc oob_type] eq "profiling"} {
+		if {[$msg get oob_type] eq "profiling"} {
 			$msg set oob_data [my _add_profile_stamp \
-					"[dict get $mc type]_in" \
+					"[$msg get type]_in" \
 					[$msg get oob_data]]
-			dict set mc oob_data	[$msg get oob_data]
 		}
 		# Add profiling stamp if requested >>>
 
-		switch -- [dict get $mc type] {
+		set m_seq		[$msg get seq]
+		set m_prev_seq	[$msg get prev_seq]
+
+		switch -- [$msg get type] {
 			svc_avail { #<<<
-				foreach svc [dict get $mc data] {
+				foreach svc [$msg get data] {
 					dict set mysvcs $svc	1
 					$server announce_svc $svc [self]
 				}
@@ -296,7 +296,7 @@ oo::class create m2::port {
 			}
 
 			svc_revoke { #<<<
-				foreach svc [dict get $mc data] {
+				foreach svc [$msg get data] {
 					$server revoke_svc $svc [self]
 					dict unset mysvcs $svc
 				}
@@ -305,22 +305,22 @@ oo::class create m2::port {
 
 			neighbour_info { #<<<
 				set neighbour_info \
-						[dict merge $neighbour_info [dict get $mc data]]
+						[dict merge $neighbour_info [$msg get data]]
 				#>>>
 			}
 
 			req { #<<<
-				set dport	[$server port_for_svc [dict get $mc svc] [self]]
+				set dport	[$server port_for_svc [$msg get svc] [self]]
 				my _send_dport $dport $msg
 				#>>>
 			}
 
 			ack { #<<<
-				set pseq	[dict get $mc prev_seq]
+				set pseq	$m_prev_seq
 				set tmp		[dict get $req $pseq]
 				lassign $tmp oldmsg dport
-				$msg prev_seq	[$oldmsg seq]
-				$msg seq		[$server unique_id]
+				$msg set prev_seq	[$oldmsg get seq]
+				$msg set seq		[$server unique_id]
 
 				#puts stderr "m2::Port::got_msg: passing ack along"
 				my _send_dport $dport $msg
@@ -330,11 +330,11 @@ oo::class create m2::port {
 			}
 
 			nack { #<<<
-				set pseq	[dict get $mc prev_seq]
+				set pseq	$m_prev_seq
 				set tmp		[dict get $req $pseq]
 				lassign $tmp oldmsg dport
-				$msg prev_seq	[$oldmsg seq]
-				$msg seq		[$server unique_id]
+				$msg set prev_seq	[$oldmsg get seq]
+				$msg set seq		[$server unique_id]
 
 				# TODO: roll back any pr_jm setups in progress
 
@@ -347,20 +347,20 @@ oo::class create m2::port {
 
 			pr_jm -
 			jm { #<<<
-				set pseq	[dict get $mc prev_seq]
+				set pseq	$m_prev_seq
 				if {[dict exists $req $pseq]} {
 					$msg type		pr_jm
 					set tmp			[dict get $req $pseq]
 					set oldmsgseq	[[lindex $tmp 0] seq]
 					set dport		[lindex $tmp 1]
 
-					if {![dict exists $jm [dict get $mc seq]]]} {
-						dict set jm [dict get $mc seq]	[$server unique_id]
+					if {![dict exists $jm $m_seq]} {
+						dict set jm $m_seq	[$server unique_id]
 					}
-					set jmid	[dict get $jm [dict get $mc seq]]
+					set jmid	[dict get $jm $m_seq]
 					if {[$dport type] eq "application"} {
 						if {
-							![dict exists $jm_prev $dport,$jmid]] || 
+							![dict exists $jm_prev $dport,$jmid] || 
 							$oldmsgseq ni [dict get $jm_prev $dport,$jmid]
 						} {
 							dict lappend jm_prev $dport,$jmid	$oldmsgseq
@@ -369,38 +369,38 @@ oo::class create m2::port {
 						dict set jm_prev $dport,$jmid		{}
 					}
 					if {
-						![dict exists $jm_ports $jmid]] ||
+						![dict exists $jm_ports $jmid] ||
 						$dport ni [dict get $jm_ports $jmid]
 					} {
 						dict lappend jm_ports $jmid	$dport
-						$dport register_handler onclose [namespace code [list my _remove_jm_dport $dport [dict get $mc seq] ""]]
+						$dport register_handler onclose [namespace code [list my _remove_jm_dport $dport $m_seq ""]]
 						# TODO: need to arrange for this onclose handler to be
 						# deregistered if we die
 					}
 
-					$msg prev_seq	[list $oldmsgseq]
-					$msg seq		$jmid
+					$msg set prev_seq	[list $oldmsgseq]
+					$msg set seq		$jmid
 
 					#puts stderr "pr_jm: [$msg display]"
 
 					my _send_dport $dport $msg
 				} else {
-					if {![dict exists $jm [dict get $mc seq]]]} {
-						log error "No junkmail: ([dict get $mc seq])"
+					if {![dict exists $jm $m_seq]} {
+						log error "No junkmail: ($m_seq)"
 						#if {[array exists jm]} {
 						#	parray jm
 						#}
 						return
 					}
-					set jmid		[dict get $jm [dict get $mc seq]]
+					set jmid		[dict get $jm $m_seq]
 
-					$msg type		jm
-					$msg seq		$jmid
+					$msg set type		jm
+					$msg set seq		$jmid
 
 					#puts stderr "jm: [$msg display]"
 
 					foreach dport [dict get $jm_ports $jmid] {
-						$msg prev_seq	[dict get $jm_prev $dport,$jmid]
+						$msg set prev_seq	[dict get $jm_prev $dport,$jmid]
 						my _send_dport $dport $msg
 					}
 				}
@@ -408,23 +408,23 @@ oo::class create m2::port {
 			}
 
 			rsj_req { #<<<
-				if {![dict exists $jm_sport [dict get $mc prev_seq]]]} {
+				if {![dict exists $jm_sport $m_prev_seq]} {
 					error "No such junkmail for rsj_req: [$msg display]"
 				}
 				
-				[dict get $jm_sport [dict get $mc prev_seq]] send [self] $msg
+				[dict get $jm_sport $m_prev_seq] send [self] $msg
 				#>>>
 			}
 
 			jm_req { #<<<
-				if {![dict exists $jm [dict get $mc prev_seq]]]} {
-					log error "No junkmail: ([dict get $mc prev_seq]):"
+				if {![dict exists $jm $m_prev_seq]} {
+					log error "No junkmail: ($m_prev_seq):"
 					#parray mc
 					#log error "jm:"
 					#parray jm
 					return
 				}
-				set jmid	[dict get $jm [dict get $mc prev_seq]]
+				set jmid	[dict get $jm $m_prev_seq]
 
 				set rand_dest	[expr {round(rand() * ([llength [dict get $jm_ports $jmid]] - 1))}]
 				set dport		[lindex [dict get $jm_ports $jmid] $rand_dest]
@@ -437,42 +437,42 @@ oo::class create m2::port {
 			}
 
 			jm_can { #<<<
-				if {![dict exists $jm [dict get $mc seq]]]} {
+				if {![dict exists $jm $m_seq]} {
 					#parray jm
 					error "No such junkmail channel ([$msg seq])"
 				}
-				set jmid		[dict get $jm [dict get $mc seq]]
+				set jmid		[dict get $jm $m_seq]
 				
 				# Send the jm_can along to all recipients
-				$msg seq		$jmid
+				$msg set seq		$jmid
 				#puts stderr "jm_can: [$msg display]"
 				foreach dport [dict get $jm_ports $jmid] {
-					$msg prev_seq	[dict get $jm_prev $dport,$jmid]
-					$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport [dict get $mc seq] ""]]
+					$msg set prev_seq	[dict get $jm_prev $dport,$jmid]
+					$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport $m_seq ""]]
 					my _send_dport $dport $msg
 				}
 
 				# Dismantle our state for this jm channel
-				dict unset jm [dict get $mc seq]
+				dict unset jm $m_seq
 				dict unset jm_prev $dport,$jmid
 				dict unset jm_ports $jmid
 				#>>>
 			}
 
 			jm_disconnect { #<<<
-				if {![dict exists $jm_sport [dict get $mc seq]]]} {
+				if {![dict exists $jm_sport $m_seq]} {
 					error "No such junkmail for jm_disconnect: [$msg display]"
 				}
 				
-				if {[[dict get $jm_sport [dict get $mc seq]] send [self] $msg]} {
+				if {[[dict get $jm_sport $m_seq] send [self] $msg]} {
 					# The above returns true if we don't receive this channel any more
-					dict unset jm_sport [dict get $mc seq]
+					dict unset jm_sport $m_seq
 				}
 				#>>>
 			}
 
 			default { #<<<
-				error "Invalid msg type: ([dict get $mc type])"
+				error "Invalid msg type: ([$msg get type])"
 				#>>>
 			}
 		}
@@ -495,7 +495,7 @@ oo::class create m2::port {
 		if {$prev_seq == "" || $prev_seq == 0} {
 			dict unset jm_prev		$dport,$jmid
 		} else {
-			if {[dict exists $jm_prev $dport,$jmid]]} {
+			if {[dict exists $jm_prev $dport,$jmid]} {
 				set idx		[lsearch [dict get $jm_prev $dport,$jmid] $prev_seq]
 				if {$idx == -1} {
 					log warning "Asked to remove an invalid jm_prev: ($prev_seq)"
@@ -507,7 +507,7 @@ oo::class create m2::port {
 				}
 			}
 		}
-		if {[dict exists $jm_prev $dport,$jmid]]} {
+		if {[dict exists $jm_prev $dport,$jmid]} {
 			return 0
 		}
 		$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport $upstream_jmid ""]]
@@ -573,16 +573,16 @@ oo::class create m2::port {
 
 	#>>>
 	method _queue_assign {data msg} { #<<<
-		set m	[$msg get_data]
-		switch -- [dict get $m type] {
+		# !!! Not used - objdefine method is faster
+		switch -- [$msg get type] {
 			"rsj_req" -
 			"req" -
 			"jm" {
-				return [dict get $m seq]
+				return [$msg get seq]
 			}
 
 			default {
-				return [dict get $m prev_seq]
+				return [$msg get prev_seq]
 			}
 		}
 	}

@@ -54,79 +54,78 @@ m2::pclass create m2::api2 {
 	}
 
 	method _incoming {msg} { #<<<
-		set m	[$msg get_data]
-		#my log debug [dict get $m type]
+		#my log debug [$msg get type]
+
+		set m_seq		[$msg get seq]
+		set m_prev_seq	[$msg get prev_seq]
 
 		# Decrypt any encrypted data, store jm_keys for new jm channels <<<
-		switch -- [dict get $m type] {
+		switch -- [$msg get type] {
 			ack { #<<<
-				dict unset ack_pend [dict get $m prev_seq]
-				if {[dict exists $pending_keys [dict get $m prev_seq]]} {
-					#my log debug "Decrypting ack with [my mungekey [dict get $pending_keys [dict get $m prev_seq]]]" -suppress {data}
-					$msg data [decrypt [dict get $pending_keys [dict get $m prev_seq]] [dict get $m data]]
-					dict set m data 	[$msg data]
+				dict unset ack_pend $m_prev_seq
+				if {[dict exists $pending_keys $m_prev_seq]} {
+					#my log debug "Decrypting ack with [my mungekey [dict get $pending_keys $m_prev_seq]]" -suppress {data}
+					$msg data [decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
 				}
-				dict unset pending_keys [dict get $m prev_seq]
+				dict unset pending_keys $m_prev_seq
 				#>>>
 			}
 
 			nack { #<<<
-				dict unset ack_pend [dict get $m prev_seq]
-				dict unset pending_keys [dict get $m prev_seq]
+				dict unset ack_pend $m_prev_seq
+				dict unset pending_keys $m_prev_seq
 				#>>>
 			}
 
 			pr_jm { #<<<
-				dict incr jm [dict get $m prev_seq] 1
+				dict incr jm $m_prev_seq 1
 
 				if {
-					![dict exists $jm_prev_seq [dict get $m seq]] ||
-					[dict get $m prev_seq] ni [dict get $jm_prev_seq [dict get $m seq]]
+					![dict exists $jm_prev_seq $m_seq] ||
+					$m_prev_seq ni [dict get $jm_prev_seq $m_seq]
 				} {
-					dict lappend jm_prev_seq [dict get $m seq]	[dict get $m prev_seq]
+					dict lappend jm_prev_seq $m_seq	$m_prev_seq
 				}
 
-				if {[dict exists $pending_keys [dict get $m prev_seq]]} {
-					$msg data [decrypt [dict get $pending_keys [dict get $m prev_seq]] [dict get $m data]]
-					dict set m data	[$msg data]
-					if {![dict exists $jm_keys [dict get $m seq]]} {
-						if {[string length [dict get $m data]] != 56} {
-							#my log debug "pr_jm: dubious looking key: ([dict get $m data])"
+				if {[dict exists $pending_keys $m_prev_seq]} {
+					$msg data [decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
+					if {![dict exists $jm_keys $m_seq]} {
+						if {[string length [$msg get data]] != 56} {
+							#my log debug "pr_jm: dubious looking key: ([$msg get data])"
 						}
-						#my log debug "pr_jm: registering key for ([dict get $m seq]): ([my mungekey [dict get $m data]])"
-						register_jm_key [dict get $m seq]	[dict get $m data]
+						#my log debug "pr_jm: registering key for ($m_seq): ([my mungekey [$msg get data]])"
+						register_jm_key $m_seq	[$msg get data]
 						return
 					} else {
-						if {[string length [dict get $m data]] == 56} {
-							if {[dict get $m data] eq [dict get $jm_keys [dict get $m seq]]} {
-								my log error "pr_jm: jm([dict get $m seqs])) got channel key setup twice!"
+						if {[string length [$msg get data]] == 56} {
+							if {[$msg get data] eq [dict get $jm_keys $m_seq]} {
+								my log error "pr_jm: jm($m_seq)) got channel key setup twice!"
 								return
 							} else {
-								my log warning "pr_jm: got what may be another key on this jm ([dict get $m seq]), that differs from the first"
+								my log warning "pr_jm: got what may be another key on this jm ($m_seq), that differs from the first"
 							}
 						} else {
-							#my log debug "pr_jm: already have key for ([dict get $m seq]): ([my mungekey [dict get $jm_keys [dict get $m seq]]])"
+							#my log debug "pr_jm: already have key for ($m_seq): ([my mungekey [dict get $jm_keys $m_seq]])"
 						}
 					}
 				} else {
-					#my log debug "pr_jm: no pending_keys([dict get $m prev_seq])"
+					#my log debug "pr_jm: no pending_keys($m_prev_seq)"
 				}
 				#>>>
 			}
 
 			jm { #<<<
-				if {[dict exists $jm_keys [dict get $m seq]]} {
-					$msg data [decrypt [dict get $jm_keys [dict get $m seq]] [dict get $m data]]
-					dict set m data	[$msg data]
+				if {[dict exists $jm_keys $m_seq]} {
+					$msg data [decrypt [dict get $jm_keys $m_seq] [$msg get data]]
 				}
 				#>>>
 			}
 
 			jm_req { #<<<
-				#my log debug "Got jm_req: seq: ([dict get $m seq]) prev_seq: ([dict get $m prev_seq])" -suppress {data}
-				if {[dict exists $jm_keys [dict get $m prev_seq]]} {
-					#my log debug "Decrypting data with [my mungekey [dict get $jm_keys [dict get $m prev_seq]]]" -suppress data
-					$msg data [decrypt [dict get $jm_keys [dict get $m prev_seq]] [dict get $m data]]
+				#my log debug "Got jm_req: seq: ($m_seq) prev_seq: ($m_prev_seq)" -suppress {data}
+				if {[dict exists $jm_keys $m_prev_seq]} {
+					#my log debug "Decrypting data with [my mungekey [dict get $jm_keys $m_prev_seq]]" -suppress data
+					$msg data [decrypt [dict get $jm_keys $m_prev_seq] [$msg get data]]
 					dict set set m data	[$msg data]
 				}
 				#>>>
@@ -134,45 +133,45 @@ m2::pclass create m2::api2 {
 		}
 		# Decrypt any encrypted data, store jm_keys for new jm channels >>>
 
-		switch -- [dict get $m type] {
+		switch -- [$msg get type] {
 			req { #<<<
-				if {[dict exists $svc_handlers [dict get $m svc]]} {
-					dict set outstanding_reqs [dict get $m seq]	$msg
-					$msg incref "outstanding_reqs([dict get $m seq])"
+				if {[dict exists $svc_handlers [$msg get svc]]} {
+					dict set outstanding_reqs $m_seq	$msg
+					$msg incref "outstanding_reqs($m_seq)"
 					# Add profiling stamp if requested <<<
-					if {[dict get $m oob_type] eq "profiling"} {
+					if {[$msg get oob_type] eq "profiling"} {
 						$msg set oob_data [my _add_profile_stamp "req_in" \
 								[$msg get oob_data]]
 					}
 					# Add profiling stamp if requested >>>
 					try {
-						uplevel #0 [dict get $svc_handlers [dict get $m svc]] \
-								[list [dict get $m seq] [dict get $m data]]
+						uplevel #0 [dict get $svc_handlers [$msg get svc]] \
+								[list $m_seq [$msg get data]]
 					} on error {errmsg options} {
-						my log error "req: error handling svc: ([dict get $m svc]):$errmsg\n[dict get $options -errorinfo]"
-						nack [dict get $m seq] "Internal error"
+						my log error "req: error handling svc: ([$msg get svc]):$errmsg\n[dict get $options -errorinfo]"
+						nack $m_seq "Internal error"
 					}
 				} else {
-					my log error "req: no handlers for svc: ([dict get $m svc])"
-					nack [dict get $m seq] "Internal error"
+					my log error "req: no handlers for svc: ([$msg get svc])"
+					nack $m_seq "Internal error"
 				}
 				#>>>
 			}
 
 			jm_can { #<<<
-				dict unset jm_prev_seq	[dict get $m seq]
-				dict unset jm_keys		[dict get $m seq]
-				foreach prev_seq [dict get $m prev_seq] {
+				dict unset jm_prev_seq	$m_seq
+				dict unset jm_keys		$m_seq
+				foreach prev_seq $m_prev_seq {
 					dict incr jm $prev_seq	-1
 					if {[dict exists $pending $prev_seq]} {
 						set cb		[dict get $pending $prev_seq]
 						if {$cb ne {}} {
 							try {
 								uplevel #0 $cb [list \
-										[dict get $m type] \
-										[dict get $m svc] \
-										[dict get $m data] \
-										[dict get $m seq] \
+										[$msg get type] \
+										[$msg get svc] \
+										[$msg get data] \
+										$m_seq \
 										$prev_seq]
 							} on error {errmsg options} {
 								my log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
@@ -180,7 +179,7 @@ m2::pclass create m2::api2 {
 							}
 						}
 					} else {
-						#my log debug "API2::incoming/jm_can: unknown jm: prev_seq: ($prev_seq), seq: ([dict get $m seq])"
+						#my log debug "API2::incoming/jm_can: unknown jm: prev_seq: ($prev_seq), seq: ($m_seq)"
 					}
 					if {[dict get $jm $prev_seq] <= 0} {
 						dict unset pending $prev_seq
@@ -192,8 +191,8 @@ m2::pclass create m2::api2 {
 
 			jm_disconnect { #<<<
 				try {
-					#my log trivia "API2::incoming: got jm_disconnect:\nseq: ([dict get $m seq])\nprev_seq: ([dict get $m prev_seq])"
-					chans cancel [dict get $m seq]
+					#my log trivia "API2::incoming: got jm_disconnect:\nseq: ($m_seq)\nprev_seq: ($m_prev_seq)"
+					chans cancel $m_seq
 				} on error {errmsg options} {
 					my log error "\nerror processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
 				}
@@ -202,53 +201,52 @@ m2::pclass create m2::api2 {
 
 			rsj_req { #<<<
 				try {
-					dict set outstanding_reqs [dict get $m seq]	$msg
-					$msg incref "outstanding_reqs([dict get $m seq])"
+					dict set outstanding_reqs $m_seq	$msg
+					$msg incref "outstanding_reqs($m_seq)"
 					#my log trivia "API2::incoming: got [$msg svc]: ([$msg seq]) ([$msg prev_seq]) ([$msg data])"
 					#my log debug "API2::incoming: channel request"
-					if {[my crypto registered_chan [dict get $m prev_seq]]} {
-						$msg data	[crypto decrypt [dict get $m prev_seq] [dict get $m data]] 
-						dict set m data	[$msg data]
-						my register_pending_encrypted [dict get $m seq] [dict get $m prev_seq]
+					if {[my crypto registered_chan $m_prev_seq]} {
+						$msg data	[crypto decrypt $m_prev_seq [$msg get data]] 
+						my register_pending_encrypted $m_seq $m_prev_seq
 					}
-					my chans chanreq [dict get $m seq] [dict get $m prev_seq] [dict get $m data]
+					my chans chanreq $m_seq $m_prev_seq [$msg get data]
 				} on error {errmsg options} {
-					my log error "\nerror processing [dict get $m svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
-					nack [dict get $m seq] "internal error"
+					my log error "\nerror processing [$msg get svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
+					nack $m_seq "internal error"
 				}
 				#>>>
 			}
 
 			jm_req { #<<<
 				try {
-					dict set outstanding_reqs [dict get $m seq]	$msg
-					$msg incref "outstanding_reqs([dict get $m seq])"
+					dict set outstanding_reqs $m_seq	$msg
+					$msg incref "outstanding_reqs($m_seq)"
 					# FIXME: this leaks session_keys (not unset on ack/nack)
-					dict set session_keys [dict get $m prev_seq]	[dict get $jm_keys [dict get $m prev_seq]]
-					my register_pending_encrypted [dict get $m seq] [dict get $m prev_seq]
-					if {![dict exists $jm_prev_seq [dict get $m prev_seq]]} {
-						error "Cannot find jm_prev_seq([dict get $m prev_seq])"
+					dict set session_keys $m_prev_seq	[dict get $jm_keys $m_prev_seq]
+					my register_pending_encrypted $m_seq $m_prev_seq
+					if {![dict exists $jm_prev_seq $m_prev_seq]} {
+						error "Cannot find jm_prev_seq($m_prev_seq)"
 					}
-					set jm_prev	[dict get $jm_prev_seq [dict get $m prev_seq]]
+					set jm_prev	[dict get $jm_prev_seq $m_prev_seq]
 					if {
 						[dict exists $pending $jm_prev]
 						&& [dict get $pending $jm_prev] ne ""
 					} {
 						set cb	[dict get $pending $jm_prev]
 						uplevel #0 $cb [list \
-								[dict get $m type] \
-								[dict get $m svc] \
-								[dict get $m data] \
-								[dict get $m seq] \
-								[dict get $m prev_seq]]
+								[$msg get type] \
+								[$msg get svc] \
+								[$msg get data] \
+								$m_seq \
+								$m_prev_seq]
 					} else {
-						#my log debug "no handler for seq: ([dict get $m seq]), prev_seq: ([dict get $m prev_seq])"
+						#my log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
 					}
 				} on error {errmsg options} {
 					default {
 						my log error "\nerror processing jm_req: $errmsg\n[dict get $options -errorinfo]"
-						if {![my answered [dict get $m seq]]} {
-							nack [dict get $m seq] "internal error"
+						if {![my answered $m_seq]} {
+							nack $m_seq "internal error"
 						}
 					}
 				}
@@ -262,27 +260,27 @@ m2::pclass create m2::api2 {
 				# m(prev_seq) is a list of previous sequences for junkmails (there
 				# may be more than one of our requests that were subscribed to
 				# this junkmail)
-				foreach prev_seq [dict get $m prev_seq] {
+				foreach prev_seq $m_prev_seq {
 					if {[dict exists $pending $prev_seq]} {
 						set cb		[dict get $pending $prev_seq]
 						if {$cb ne {}} {
 							try {
-								#my log debug "API2::incoming/([dict get $m type]): invoking callback ($cb) for seq: ([dict get $m seq]) prev_seq: ([dict get $m prev_seq])"
-								#my log debug "API2::incoming/([dict get $m type]): invoking callback for seq: ([dict get $m seq]) prev_seq: ([dict get $m prev_seq])"
+								#my log debug "API2::incoming/([$msg get type]): invoking callback ($cb) for seq: ($m_seq) prev_seq: ($m_prev_seq)"
+								#my log debug "API2::incoming/([$msg get type]): invoking callback for seq: ($m_seq) prev_seq: ($m_prev_seq)"
 								# Add profiling stamp if requested <<<
-								if {[dict get $m oob_type] eq "profiling"} {
+								if {[$msg get oob_type] eq "profiling"} {
 									$msg set oob_data [my _add_profile_stamp \
-											"[dict get $m type]_in" \
+											"[$msg get type]_in" \
 											[$msg get oob_data]]
 								}
 								# Add profiling stamp if requested >>>
 								switch -- $cb_mode {
 									"separate_args" {
 										uplevel #0 $cb [list \
-												[dict get $m type] \
-												[dict get $m svc] \
-												[dict get $m data] \
-												[dict get $m seq] \
+												[$msg get type] \
+												[$msg get svc] \
+												[$msg get data] \
+												$m_seq \
 												$prev_seq]
 									}
 
@@ -295,17 +293,17 @@ m2::pclass create m2::api2 {
 									}
 								}
 							} on error {errmsg options} {
-								#my log debug "API2::incoming/([dict get $m type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
+								#my log debug "API2::incoming/([$msg get type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
 								my log error "\nerror invoking callback: $errmsg\n[dict get $options -errorinfo]" 
 							}
 						} else {
-							#my log debug "no handler for seq: ([dict get $m seq]), prev_seq: ($prev_seq)"
+							#my log debug "no handler for seq: ($m_seq), prev_seq: ($prev_seq)"
 						}
 					} else {
-						#my log debug "API2::incoming/([dict get $m type]): unexpected response: [dict get $m svc] [dict get $m type] prev_seq: ($prev_seq) seq: ([dict get $m seq])"
+						#my log debug "API2::incoming/([$msg get type]): unexpected response: [$msg get svc] [$msg get type] prev_seq: ($prev_seq) seq: ($m_seq)"
 					}
 					if {![dict exists $jm $prev_seq]} {
-						#my log debug "API2::incoming/([dict get $m type]): lost jm($prev_seq):\n[$msg display]"
+						#my log debug "API2::incoming/([$msg get type]): lost jm($prev_seq):\n[$msg display]"
 						return
 					}
 					if {
@@ -323,7 +321,7 @@ m2::pclass create m2::api2 {
 			svc_revoke	{}
 
 			default {
-				my log warning "API2::incoming/default: unhandled type: ([dict get $m type])"
+				my log warning "API2::incoming/default: unhandled type: ([$msg get type])"
 			}
 		}
 		#my log debug "API2::incoming: leaving incoming"
