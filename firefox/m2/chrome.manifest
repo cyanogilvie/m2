@@ -1,0 +1,2 @@
+content m2	chrome/chromeFiles/content/
+overlay chrome://browser/content/browser.xul	chrome://m2/content/m2.xul
