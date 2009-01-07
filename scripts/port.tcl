@@ -555,6 +555,7 @@ oo::class create m2::port {
 						[$msg get oob_data]]
 			}
 			# Add profiling stamp if requested >>>
+
 			$queue enqueue [$msg serialize] $msg
 		} on error {errmsg options} {
 			log error "Error queueing message [$msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
@@ -565,9 +566,14 @@ oo::class create m2::port {
 	#>>>
 	method _send_dport {dport msg} { #<<<
 		try {
+			if {![info object isa object $dport]} {
+				throw {CONNECTION DPORT_COLLAPSED} ""
+			}
 			$dport send [self] $msg
+		} trap {CONNECTION DPORT_COLLAPSED} {} {
+			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) dport collapsed before we could send it the msg (type: \"[$msg type]\", svc: \"[$msg svc]\", seq: \"[$msg seq]\", prev_seq: \"[$msg prev_seq]\"), dropping msg"
 		} on error {errmsg options} {
-			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) error sending ([$msg svc]): $errmsg\n[dict get $options -errorinfo]"
+			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) error sending ([$msg svc]): $errmsg {[dict get $options -errorcode]}\n[dict get $options -errorinfo]"
 		}
 	}
 
