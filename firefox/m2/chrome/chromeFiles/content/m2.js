@@ -57,9 +57,11 @@ function Hash() { //<<<
 }
 
 //>>>
-function mini_mware(host, port) { //<<<
+function m2_connect(host, port) { //<<<
+	alert('attempting to connect to m2_node on ('+host+') ('+port+')');
 	var reqsequence = 0;
 	var handlers = new Hash();
+	var event_handlers = new Hash();
 
 	/*
 	var transportService =
@@ -107,11 +109,14 @@ function mini_mware(host, port) { //<<<
 
 	var dataListener = {
 		buf: "",
-		onStartRequest: function(request, context){},
+		onStartRequest: function(request, context){
+			dispatch_event('connected', true);
+		},
 		onStopRequest: function(request, context, status){
 			instream.close();
 			outstream.close();
 			msg_handler.closed();
+			dispatch_event('connected', false);
 		},
 		onDataAvailable: function(request, context, inputStream, offset, count){
 			var chunk = instream.read(count);
@@ -189,7 +194,48 @@ function mini_mware(host, port) { //<<<
 		//console.log('writing: ('+out+')');
 		outstream.write(out,out.length);
 	};
+
+	this.listen_event = function(event, cb) {
+		var existing;
+		if (event_handlers.hasItem(event)) {
+			existing = event_handlers.getItem(event);
+		} else {
+			existing = [];
+		}
+		existing.push(cb);
+		event_handlers.setItem(event, existing);
+	};
+
+	this.dispatch_event = function(event, params) {
+		if (event_handlers.hasItem(event)) {
+			var cbs = event_handlers.getItem(event);
+			for (i=0; i<cbs.length; i++) {
+				cbs[i](params);
+			}
+		}
+	};
+
 	return this;
+}
+
+//>>>
+function setup_connection_status() { //<<<
+	m2.listen_event('connected', function(newstate) {
+		var cx_statusNode = document.getElementById('connection_status');
+
+		while (cx_statusNode.firstChild) {
+			cx_statusNode.removeChild(cx_statusNode.firstChild);
+		}
+
+		tmpNode = document.createElement('image');
+		alert('connected_changed: ('+newstate+'), type: ('+typeof newstate+')');
+		if (newstate) {
+			tmpNode.setAttribute('src', 'chrome://m2/content/images/indicator_green.png');
+		} else {
+			tmpNode.setAttribute('src', 'chrome://m2/content/images/indicator_red.png');
+		}
+		cx_statusNode.appendChild(tmpNode);
+	});
 }
 
 //>>>

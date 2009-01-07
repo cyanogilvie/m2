@@ -1,10 +1,16 @@
 <?xml version="1.0"?>
 <overlay id="m2_overlay"
-	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" />
+	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 	<script type="application/x-javascript" src="chrome://m2/content/m2.js" />
 	<script type="application/x-javascript"><![CDATA[
 		window.addEventListener("load", function(evt){
-			m2 = m2('localhost', 5300);
+			m2 = m2_connect('localhost', 5300);
+			setup_connection_status();
 		}, false);
 	]]></script>
+	<statusbar id="status-bar" class="chromeclass-status">
+		<statusbarpanel class="statusbarpanel-iconic" id="connection_status">
+			<!--<image src="chrome://m2/content/images/indicator_red.png" width="16" height="16" />-->
+		</statusbarpanel>
+	</statusbar>
 </overlay>
