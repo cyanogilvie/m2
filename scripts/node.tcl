@@ -45,8 +45,8 @@ oo::class create m2::node {
 			}
 		}
 		set listens	{}
-		foreach id $outbound_connection_afterids {
-			after cancel $id; set $outbound_connection_afterids($id)	""
+		dict for {addr id} $outbound_connection_afterids {
+			after cancel $id; dict set $outbound_connection_afterids $addr 	""
 		}
 		if {[self next] ne {}} {next}
 	}
@@ -252,9 +252,9 @@ oo::class create m2::node {
 			set queue	[netdgram::queue new]
 			$queue attach $con
 		} on error {errmsg options} {
-			log notice "m2::Node::constructor: error connecting to upstream: ($addr): $errmsg"
+			log notice "m2::Node::constructor: error connecting to upstream: ($addr): $errmsg\n[dict get $options -errorinfo]"
 
-			set outbound_connection_afterids($addr)	[after \
+			dict set outbound_connection_afterids $addr	[after \
 					[expr {int($connection_retry * 1000)}] \
 					[namespace code [list my _attempt_outbound_connection $addr]]]
 		} on ok {res options} {
