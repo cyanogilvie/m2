@@ -1,0 +1,38 @@
+#!/usr/bin/env tclsh8.6
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+
+package require Tcl 8.6
+package require m2
+
+set cfg	[dict create {*}{
+	listen_on		{"tcp_coroutine://:5300"}
+	upstream		{"tcp_coroutine://genua:5300"}
+	daemon			0
+}]
+
+proc log {lvl msg} {
+	puts $msg
+}
+
+interp bgerror {} [list apply {
+	{errmsg options} {
+		log error "$errmsg"
+		array set o	$options
+		parray o
+	}
+}]
+
+m2::node create server \
+		-listen_on	[dict get $cfg listen_on] \
+		-upstream	[dict get $cfg upstream]
+
+if {[dict get $cfg daemon]} {
+	package require daemon 0.2
+
+	dutils::daemonize
+}
+
+vwait ::forever
+
