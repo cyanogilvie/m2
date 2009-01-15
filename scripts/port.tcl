@@ -175,7 +175,7 @@ oo::class create m2::port {
 			
 			pr_jm -
 			jm { #<<<
-				#puts stderr "[$msg get type] writing"
+				#puts stderr "[$msg get type] writing:\n[$msg display]"
 				if {![dict exists $jm_sport $m_seq]} {
 					dict set jm_sport $m_seq	$srcport
 				}
@@ -263,7 +263,7 @@ oo::class create m2::port {
 
 	#>>>
 
-	method _type {} { #<<<
+	method type {} { #<<<
 		dict get $neighbour_info type
 	}
 
@@ -304,6 +304,7 @@ oo::class create m2::port {
 			}
 
 			neighbour_info { #<<<
+				puts "got neighbour_info: [$msg get data]"
 				set neighbour_info \
 						[dict merge $neighbour_info [$msg get data]]
 				#>>>
@@ -358,6 +359,8 @@ oo::class create m2::port {
 						dict set jm $m_seq	[$server unique_id]
 					}
 					set jmid	[dict get $jm $m_seq]
+					#puts "sending pr_jm downstream with id: ($jmid)"
+					#puts "dport ($dport) type is \"[$dport type]\""
 					if {[$dport type] eq "application"} {
 						if {
 							![dict exists $jm_prev $dport,$jmid] || 
@@ -393,14 +396,14 @@ oo::class create m2::port {
 						return
 					}
 					set jmid		[dict get $jm $m_seq]
+					#puts "jm($m_seq): ($jmid)"
 
 					$msg set type		jm
 					$msg set seq		$jmid
 
-					#puts stderr "jm: [$msg display]"
-
 					foreach dport [dict get $jm_ports $jmid] {
 						$msg set prev_seq	[dict get $jm_prev $dport,$jmid]
+						#puts stderr "jm -> $dport: [$msg display]"
 						my _send_dport $dport $msg
 					}
 				}

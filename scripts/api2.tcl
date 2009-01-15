@@ -149,11 +149,11 @@ m2::pclass create m2::api2 {
 								[list $m_seq [$msg get data]]
 					} on error {errmsg options} {
 						my log error "req: error handling svc: ([$msg get svc]):$errmsg\n[dict get $options -errorinfo]"
-						nack $m_seq "Internal error"
+						my nack $m_seq "Internal error"
 					}
 				} else {
 					my log error "req: no handlers for svc: ([$msg get svc])"
-					nack $m_seq "Internal error"
+					my nack $m_seq "Internal error"
 				}
 				#>>>
 			}
@@ -212,7 +212,7 @@ m2::pclass create m2::api2 {
 					my chans chanreq $m_seq $m_prev_seq [$msg get data]
 				} on error {errmsg options} {
 					my log error "\nerror processing [$msg get svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
-					nack $m_seq "internal error"
+					my nack $m_seq "internal error"
 				}
 				#>>>
 			}
@@ -246,7 +246,7 @@ m2::pclass create m2::api2 {
 					default {
 						my log error "\nerror processing jm_req: $errmsg\n[dict get $options -errorinfo]"
 						if {![my answered $m_seq]} {
-							nack $m_seq "internal error"
+							my nack $m_seq "internal error"
 						}
 					}
 				}
@@ -351,7 +351,10 @@ m2::pclass create m2::api2 {
 		# decref the outstanding req, and process any oob messages <<<
 		if {[dict exists $outstanding_reqs $prev_seq]} {
 			set origmsg	[dict get $outstanding_reqs $prev_seq]
-			if {[info object isa typeof $origmsg m2::msg]} {
+			if {
+				[info object isa object $origmsg] &&
+				[info object isa typeof $origmsg m2::msg]
+			} {
 				switch -- [$origmsg get oob_type] {
 					1 {}
 					profiling {
@@ -380,12 +383,6 @@ m2::pclass create m2::api2 {
 			my log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
 			return
 		}
-		if {[dict exists $outstanding_reqs $prev_seq]} {
-			set msg	[dict get $outstanding_reqs $prev_seq]
-			if {[info object isa typeof $msg m2::msg]} {
-				$msg decref "nack outstanding_reqs($prev_seq)"
-			}
-		}
 		set msg		[m2::msg new new \
 				svc			"" \
 				type		nack \
@@ -397,7 +394,10 @@ m2::pclass create m2::api2 {
 		# decref the outstanding req, and process any oob messages <<<
 		if {[dict exists $outstanding_reqs $prev_seq]} {
 			set origmsg	[dict get $outstanding_reqs $prev_seq]
-			if {[info object isa typeof $origmsg m2::msg]} {
+			if {
+				[info object isa object $origmsg] &&
+				[info object isa typeof $origmsg m2::msg]
+			} {
 				switch -- [$origmsg get oob_type] {
 					1 {}
 					profiling {
@@ -787,7 +787,7 @@ m2::pclass create m2::api2 {
 
 					default { #<<<
 						my log error "chanreq: Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0]) ($data)"
-						main nack $seq "Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0])"
+						my nack $seq "Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0])"
 						#>>>
 					}
 				}

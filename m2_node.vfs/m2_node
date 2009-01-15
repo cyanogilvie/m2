@@ -2,15 +2,58 @@
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-
 package require Tcl 8.6
 package require m2
 
+# Config options handling <<<
 set cfg	[dict create {*}{
 	listen_on		{"tcp_coroutine://:5300"}
-	upstream		{"tcp_coroutine://genua:5300"}
+	upstream		{}
 	daemon			0
 }]
+
+set cmd_args	[dict create]
+foreach {k v} $argv {
+	puts "processing cmd arg: \"$k\": \"$v\""
+	if {[string index $k 0] ne "-"} {
+		puts stderr "Expecting arg, got \"$k\""
+		exit 1
+	}
+	set k	[string range $k 1 end]
+	if {![dict exists $cfg $k]} {
+		puts stderr "Invalid arg: \"$k\", should be one of \"[join [dict keys $cfg] "\", \""]\""
+		exit 1
+	}
+	dict set cmd_args $k $v
+}
+set cfg	[dict merge $cfg $cmd_args]
+
+proc cfg {op args} {
+	global cfg
+
+	switch -- $op {
+		"get" {
+			set rest	[lassign $args key]
+			if {[llength $rest] > 1} {
+				error "Too many arguments"
+			}
+			if {[dict exists $cfg $key]} {
+				return [dict get $cfg $key]
+			} else {
+				if {[llength $args] > 0} {
+					return [lindex $args 0]
+				} else {
+					error "No such config item: \"$key\""
+				}
+			}
+		}
+
+		default {
+			error "Invalid config operation: \"$op\""
+		}
+	}
+}
+# Config options handling >>>
 
 proc log {lvl msg} {
 	puts $msg
