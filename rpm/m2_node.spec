@@ -29,6 +29,7 @@ rm -rf $RPM_BUILD_ROOT
 chkconfig m2_node on
 
 %preun
+/etc/init.d/m2_node stop
 chkconfig m2_node off
 
 %files
