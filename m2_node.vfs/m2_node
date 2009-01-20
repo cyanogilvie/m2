@@ -74,8 +74,8 @@ proc log {lvl msg} {
 interp bgerror {} [list apply {
 	{errmsg options} {
 		log error "$errmsg"
-		array set o	$options
-		parray o
+		#array set o	$options
+		#parray o
 	}
 }]
 
