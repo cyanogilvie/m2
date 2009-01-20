@@ -19,6 +19,8 @@ test -x $DAEMON || { echo "$DAEMON not installed";
 	if [ "$1" = "stop" ]; then exit 0;
 	else exit 5; fi; }
 
+PIDFILE="$(DAEMON pidfile)"
+
 DAEMON_CONFIG=/etc/sysconfig/m2_node
 test -r $DAEMON_CONFIG || { echo "config $DAEMON_CONFIG doesn't exist";
 	if [ "$1" = "stop" ]; then exit 0;

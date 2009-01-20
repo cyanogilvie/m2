@@ -193,8 +193,9 @@ if {[dict get $cfg daemon]} {
 		stop
 		restart
 		status
+		pidfile
 	}} {
-		puts stderr "Invalid command \"$cmd\", should be one of \"start\", \"stop\", \"restart\" or \"status\""
+		puts stderr "Invalid command \"$cmd\", should be one of \"start\", \"stop\", \"restart\", \"status\" or \"pidfile\""
 		exit 1
 	}
 
@@ -229,6 +230,12 @@ if {[dict get $cfg daemon]} {
 				puts "not running"
 				exit 0
 			}
+			#>>>
+		}
+
+		"pidfile" { #<<<
+			puts [daemon_pid_file]
+			exit 0
 			#>>>
 		}
 	}
