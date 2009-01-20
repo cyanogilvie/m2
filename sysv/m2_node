@@ -36,7 +36,7 @@ case "$1" in
 	start)
 		echo -n "Starting m2 node"
 		if [ "$($DAEMON status)" = "running" ]; then
-			? = 0
+			(exit 0)
 		else
 			$DAEMON start $M2_START_ARGS
 		fi
@@ -46,7 +46,7 @@ case "$1" in
 	stop)
 		echo -n "Shutting down m2 node"
 		if [ "$($DAEMON status)" = "not running" ]; then
-			? = 0
+			(exit 0)
 		else
 			$DAEMON stop
 		fi
@@ -68,16 +68,16 @@ case "$1" in
 		if [ "$($DAEMON status)" = "running" ]; then
 			kill -HUP $(cat $PIDFILE)
 		else
-			? = 7
+			(exit 0)
 		fi
 		rc_status -v
 		;;
 
 	status)
 		if [ "$($DAEMON status)" = "running" ]; then
-			? = 0
+			(exit 0)
 		else
-			? = 3
+			(exit 3)
 		fi
 		rc_status -v
 		;;
