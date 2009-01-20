@@ -30,7 +30,7 @@ for {set i 0} {$i < [llength $argv]} {incr i} {
 		exit 1
 	}
 	set k	[string range $k 1 end]
-	set v	[lindex $argv [incr i]]
+	set v	[lindex $argv $i]
 
 	if {![dict exists $cfg $k]} {
 		puts stderr "Invalid arg: \"$k\", should be one of \"[join [dict keys $cfg] "\", \""]\""
@@ -233,7 +233,7 @@ if {[dict get $cfg daemon]} {
 			#>>>
 		}
 
-		"pidfile" { #<<<
+		pidfile { #<<<
 			puts [daemon_pid_file]
 			exit 0
 			#>>>
