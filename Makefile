@@ -39,7 +39,9 @@ install: all
 install-rpm: all
 	install -d $(DESTDIR)/usr/bin
 	install -d $(DESTDIR)/etc/init.d
+	install -d $(DESTDIR)/etc/sysconfig
 	install --mode 0755 m2_node $(DESTDIR)/usr/bin
+	install --mode 0755 sysv/config $(DESTDIR)/etc/sysconfig/m2_node
 	install --mode 0755 sysv/m2_node $(DESTDIR)/etc/init.d
 
 clean:
