@@ -1,3 +1,5 @@
+DESTDIR=
+
 VER=0.20
 
 BASESCRIPTS = \
@@ -33,6 +35,12 @@ m2_node.bin: m2_node.vfs/m2_node
 
 install: all
 	./install
+
+install-rpm: all
+	install -d $(DESTDIR)/usr/bin
+	install -d $(DESTDIR)/etc/init.d
+	install --mode 0755 m2_node $(DESTDIR)/usr/bin
+	install --mode 0755 sysv/m2_node $(DESTDIR)/etc/init.d
 
 clean:
 	-rm -rf tm m2_node m2_node.bin 

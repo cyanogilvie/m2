@@ -1,0 +1,89 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides: m2_node
+# Required-Start: $syslog $remote_fs $network
+# Should-Start: $time
+# Required-Stop: $syslog $remote_fs $network
+# Should-Stop: $time
+# Default-Start: 3 5
+# Default-Stop: 0 1 2 6
+# Short-Description: m2 messagebus node
+# Description: Start m2_node, providing the m2 messagebus transport
+#	service to other parties locally and remotely.  Routes m2 messages
+#	based on service tag
+### END INIT INFO
+
+DAEMON="/usr/bin/m2_node"
+test -x $DAEMON || { echo "$DAEMON not installed";
+	if [ "$1" = "stop" ]; then exit 0;
+	else exit 5; fi; }
+
+DAEMON_CONFIG=/etc/sysconfig/m2_node
+test -r $DAEMON_CONFIG || { echo "config $DAEMON_CONFIG doesn't exist";
+	if [ "$1" = "stop" ]; then exit 0;
+	else exit 6; fi; }
+
+. $DAEMON_CONFIG
+
+. /etc/rc.status
+
+rc_reset
+
+case "$1" in
+	start)
+		echo -n "Starting m2 node"
+		if [ "$(DAEMON status)" = "running" ]; then
+			$_ = 0
+		else
+			$DAEMON start $M2_START_ARGS
+		fi
+		rc_status -v
+		;;
+
+	stop)
+		echo -n "Shutting down m2 node"
+		if [ "$(DAEMON status)" = "not running" ]; then
+			$_ = 0
+		else
+			$DAEMON stop
+		fi
+		rc_status -v
+		;;
+
+	restart)
+		echo -n "Restarting the m2 node"
+		if [ "$(DAEMON status)" = "not running" ]; then
+			$DAEMON start $M2_START_ARGS
+		else
+			$DAEMON restart $M2_START_ARGS
+		fi
+		rc_status -v
+		;;
+
+	reload)
+		echo -n "Reloading m2 node"
+		if [ "$($DAEMON status)" = "running" ]; then
+			kill -HUP $(cat $PIDFILE)
+		else
+			$_ = 7
+		fi
+		rc_status -v
+		;;
+
+	status)
+		if [ "$($DAEMON status)" = "running" ]; then
+			$? = 0
+		else
+			$? = 3
+		fi
+		rc_status -v
+		;;
+
+	*)
+		echo "Usage: $0 {start|stop|status|restart|reload}"
+		;;
+esac
+
+rc_exit
+
