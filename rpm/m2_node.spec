@@ -6,6 +6,7 @@ License:	BSD
 Vendor:		Codeforge (Pty) Ltd.
 Group:		Applications/System
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
+Requires:	kbskit
 Summary:	m2 messagebus node
 
 %description
@@ -23,6 +24,12 @@ make DESTDIR=$RPM_BUILD_ROOT install-rpm
 
 %clean
 rm -rf $RPM_BUILD_ROOT
+
+%post
+chkconfig m2_node on
+
+%preun
+chkconfig m2_node off
 
 %files
 /usr/bin/m2_node

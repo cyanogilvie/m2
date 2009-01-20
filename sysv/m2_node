@@ -19,7 +19,7 @@ test -x $DAEMON || { echo "$DAEMON not installed";
 	if [ "$1" = "stop" ]; then exit 0;
 	else exit 5; fi; }
 
-PIDFILE="$(DAEMON pidfile)"
+PIDFILE="$($DAEMON pidfile)"
 
 DAEMON_CONFIG=/etc/sysconfig/m2_node
 test -r $DAEMON_CONFIG || { echo "config $DAEMON_CONFIG doesn't exist";
@@ -35,7 +35,7 @@ rc_reset
 case "$1" in
 	start)
 		echo -n "Starting m2 node"
-		if [ "$(DAEMON status)" = "running" ]; then
+		if [ "$($DAEMON status)" = "running" ]; then
 			$_ = 0
 		else
 			$DAEMON start $M2_START_ARGS
@@ -45,7 +45,7 @@ case "$1" in
 
 	stop)
 		echo -n "Shutting down m2 node"
-		if [ "$(DAEMON status)" = "not running" ]; then
+		if [ "$($DAEMON status)" = "not running" ]; then
 			$_ = 0
 		else
 			$DAEMON stop
@@ -55,7 +55,7 @@ case "$1" in
 
 	restart)
 		echo -n "Restarting the m2 node"
-		if [ "$(DAEMON status)" = "not running" ]; then
+		if [ "$($DAEMON status)" = "not running" ]; then
 			$DAEMON start $M2_START_ARGS
 		else
 			$DAEMON restart $M2_START_ARGS
