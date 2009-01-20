@@ -172,7 +172,7 @@ namespace eval netdgram {
 
 			set msgid		[incr msgid_seq]
 			#dict lappend queues $target [list $msgid [zlib deflate [encoding convertto utf-8 $msg] 3]]
-			dict lappend queues $target [list $msgid $msg]
+			dict lappend queues $target [list $msgid [encoding convertto utf-8 $msg]]
 			$rawcon data_waiting 1
 		}
 
@@ -249,7 +249,7 @@ namespace eval netdgram {
 				set complete	[dict get $defrag_buf $msgid]
 				dict unset defrag_buf $msgid
 				#my receive [encoding convertfrom utf-8 [zlib inflate $complete]]
-				my receive $complete
+				my receive [encoding convertfrom utf-8 $complete]
 			}
 		}
 
