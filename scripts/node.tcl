@@ -9,7 +9,7 @@ oo::class create m2::node {
 		set outbound_connection_afterids	[dict create]
 
 		# Defaults
-		set listen_on			{"tcp_coroutine://:5307"}
+		set listen_on			{"tcp://:5307"}
 		set connection_retry	10
 		set upstream			{}
 
@@ -216,7 +216,7 @@ oo::class create m2::node {
 				}
 			}
 
-			set addr	"tcp_coroutine://$upip:$upport/?flags=$flags"
+			set addr	"tcp://$upip:$upport/?flags=$flags"
 		}
 
 		if {$flags eq "NA"} {

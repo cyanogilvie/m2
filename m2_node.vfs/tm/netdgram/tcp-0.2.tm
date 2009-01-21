@@ -3,7 +3,7 @@
 namespace eval netdgram {
 	package require netdgram
 
-	class create connectionmethod::tcp_coroutine { #<<<
+	class create connectionmethod::tcp { #<<<
 		superclass netdgram::connectionmethod
 		mixin netdgram::debug
 
@@ -24,7 +24,7 @@ namespace eval netdgram {
 			}
 			lassign $params host port
 			set flags	[dict get $parts query]
-			set listen [netdgram::listener::tcp_coroutine new $host $port $flags]
+			set listen [netdgram::listener::tcp new $host $port $flags]
 			oo::objdefine $listen forward human_id apply {
 				{human_id} {
 					set human_id
@@ -45,7 +45,7 @@ namespace eval netdgram {
 				set flags	[dict get $parts query]
 				set socket	[socket $host $port]
 
-				set con	[netdgram::connection::tcp_coroutine new $socket $host $port $flags]
+				set con	[netdgram::connection::tcp new $socket $host $port $flags]
 				oo::objdefine $con forward human_id apply {
 					{human_id} {
 						set human_id
@@ -69,7 +69,7 @@ namespace eval netdgram {
 
 
 	#>>>
-	class create listener::tcp_coroutine { #<<<
+	class create listener::tcp { #<<<
 		superclass netdgram::listener
 		mixin netdgram::debug
 
@@ -103,7 +103,7 @@ namespace eval netdgram {
 
 		method _accept {socket cl_ip cl_port} { #<<<
 			try {
-				set con		[netdgram::connection::tcp_coroutine new \
+				set con		[netdgram::connection::tcp new \
 						$socket $cl_ip $cl_port $flags]
 
 				oo::objdefine $con forward human_id apply {
@@ -142,7 +142,7 @@ namespace eval netdgram {
 
 
 	#>>>
-	class create connection::tcp_coroutine { #<<<
+	class create connection::tcp { #<<<
 		superclass netdgram::connection
 		mixin netdgram::debug
 
@@ -167,7 +167,6 @@ namespace eval netdgram {
 			#} on ok {} {
 			#	puts stderr "Enabled TCP_NODELAY on socket"
 			#}
-			puts "[self] initialized socket to: ($socket)"
 		}
 
 		#>>>

@@ -5,7 +5,7 @@ class m2::Node {
 	destructor {}
 
 	public {
-		variable listen_on			{"tcp_coroutine://:5307"}
+		variable listen_on			{"tcp://:5307"}
 		variable connection_retry	10
 		variable upstream			{}
 
@@ -210,7 +210,7 @@ body m2::Node::attempt_outbound_connection {addr} { #<<<
 			}
 		}
 
-		set addr	"tcp_coroutine://$upip:$upport/?flags=$flags"
+		set addr	"tcp://$upip:$upport/?flags=$flags"
 	}
 
 	if {$flags == "NA"} {

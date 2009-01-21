@@ -7,11 +7,16 @@
 tcl::tm::path add [file normalize [file join [file dirname [info script]] .. tm]]
 set auto_path	{}
 
+source /home/cyan/git/netdgram/tm/netdgram-0.1.tm
+package provide netdgram 0.1
+source /home/cyan/git/netdgram/tm/netdgram/tcp-0.1.tm
+package provide netdgram::tcp 0.1
+
 package require Tcl 8.6
 package require m2
 
 set cfg	[dict create {*}{
-	listen_on		{"tcp_coroutine://:5307"}
+	listen_on		{"tcp://:5300"}
 	upstream		{}
 }]
 

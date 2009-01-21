@@ -7,7 +7,7 @@ package require m2
 
 # Config options handling <<<
 set cfg	[dict create {*}{
-	listen_on		{"tcp_coroutine://:5300"}
+	listen_on		{"tcp://:5300"}
 	upstream		{}
 	daemon			1
 	runas_user		"daemon"

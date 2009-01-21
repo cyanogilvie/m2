@@ -14,7 +14,7 @@ package require m2
 #	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
 #
 #	public {
-#		variable uri	"tcp_coroutine://localhost:5307"
+#		variable uri	"tcp://localhost:5307"
 #		variable images	"images"
 #	}
 #}
@@ -22,7 +22,7 @@ package require m2
 #Config cfg {*}$argv
 #set cfg	[cfg dump_config]
 set cfg	{
-	uri		"tcp_coroutine://localhost:5307"
+	uri		"tcp://localhost:5307"
 	images	"images"
 }
 

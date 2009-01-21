@@ -12,7 +12,7 @@ class Config {
 	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
 
 	public {
-		variable uri	"tcp_coroutine://localhost:5307"
+		variable uri	"tcp://localhost:5307"
 	}
 }
 

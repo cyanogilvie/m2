@@ -7,6 +7,7 @@ package require Tcl 8.6
 tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
 package require m2
 package require TLC 0.99
+package require Tk
 wm withdraw .
 
 class Config {
@@ -15,7 +16,7 @@ class Config {
 	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
 
 	public {
-		variable uri	"tcp_coroutine://localhost:5307"
+		variable uri	"tcp://localhost:5307"
 	}
 }
 
@@ -24,12 +25,12 @@ set cfg	[cfg dump_config]
 
 array set signals	{}
 tlc::Gate #auto signals(ready) -name "ready" -mode and
-tlc::Signal #auto signals(list_files_available) -name "list_files_available"
-tlc::Signal #auto signals(get_file) -name "get_file"
+m2::signal new signals(list_files_available) -name "list_files_available"
+m2::signal new signals(get_file) -name "get_file"
 $signals(ready) attach_input $signals(list_files_available)
 $signals(ready) attach_input $signals(get_file)
 
-m2::API2 m2 -uri [dict get $cfg uri]
+m2::api2 create m2 -uri [dict get $cfg uri]
 $signals(ready) attach_input [m2 signal_ref connected]
 
 proc svc_avail_changed {} {

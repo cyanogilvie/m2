@@ -153,7 +153,7 @@ m2::pclass create m2::api {
 		}
 		try {
 			if {$uri eq ""} {
-				set uri	"tcp_coroutine://${ip}:${port}"
+				set uri	"tcp://${ip}:${port}"
 			}
 			set con	[netdgram::connect_uri $uri]
 			set queue	[netdgram::queue new]

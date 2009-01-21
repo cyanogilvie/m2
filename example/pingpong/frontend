@@ -5,6 +5,10 @@
 package require Tcl 8.6
 
 tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
+source /home/cyan/git/netdgram/tm/netdgram-0.1.tm
+package provide netdgram 0.1
+source /home/cyan/git/netdgram/tm/netdgram/tcp-0.1.tm
+package provide netdgram::tcp 0.1
 package require m2
 #package require TLC-base 0.99
 
@@ -14,15 +18,18 @@ package require m2
 #	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
 #
 #	public {
-#		variable uri	"tcp_coroutine://localhost:5307"
+#		variable uri	"tcp://localhost:5300"
 #		variable images	"images"
 #	}
 #}
 #
 #Config cfg {*}$argv
 #set cfg	[cfg dump_config]
+#set cfg	{
+#	uri		"tcp://localhost:5300"
+#}
 set cfg	{
-	uri		"tcp_coroutine://localhost:5307"
+	uri		"tcp://10.41.68.160:5300"
 }
 
 
@@ -40,8 +47,8 @@ m2::gate new signals(ready) -name "ready" -mode "and"
 m2::signal new signals(ping) -name "ping"
 $signals(ready) attach_input $signals(ping)
 
-#m2::api2 create m2 -uri [dict get $cfg uri] -oob_type "profiling"
-m2::api2 create m2 -uri [dict get $cfg uri]
+m2::api2 create m2 -uri [dict get $cfg uri] -oob_type "profiling"
+#m2::api2 create m2 -uri [dict get $cfg uri]
 oo::objdefine m2 method station_id {} {
 	return "pingpong frontend ([next])"
 }
@@ -85,7 +92,11 @@ proc ping {} {
 
 		switch -- $type {
 			ack {
-				puts "got ack: ($data)"
+				#puts "got ack: ($data)"
+				if {![string match "*hello, world*" $data]} {
+					puts stderr "ack data doesn't look right:\n($data)"
+					exit 1
+				}
 				incr ::received
 			}
 
