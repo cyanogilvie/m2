@@ -38,7 +38,7 @@ application "m2_node" {
 	}
 
 	files {
-		m2_node.tcl
+		m2_node/m2_node.tcl
 	}
 
 	#choose_package {

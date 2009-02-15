@@ -1,3 +1,0 @@
-Package daemon 0.4
-Meta description 
-Meta platform    linux-glibc2.3-ix86

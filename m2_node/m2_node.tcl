@@ -1,4 +1,4 @@
-#!/usr/bin/env tclsh8.6
+#!/usr/bin/env kbskit8.6
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
@@ -246,13 +246,21 @@ if {[dict get $cfg daemon]} {
 	}
 
 	set pid	[daemon_fork]
-	daemon_log LOG_INFO "running, pid: ($pid)"
+	daemon_log LOG_INFO "running, pid: ([pid])"
 }
 
-m2::node create server \
-		-listen_on	[dict get $cfg listen_on] \
-		-upstream	[dict get $cfg upstream]
+daemon_log LOG_INFO "foo"
+try {
+	m2::node create server \
+			-listen_on	[dict get $cfg listen_on] \
+			-upstream	[dict get $cfg upstream]
+} on error {errmsg options} {
+	daemon_log LOG_ERR "Could not start m2 node: $errmsg"
+	deamon_retval_send 1
+	exit 1
+}
 
+daemon_log LOG_INFO "baz"
 if {[dict get $cfg daemon]} {
 	daemon_sighandler [list apply {
 		{signame} {
