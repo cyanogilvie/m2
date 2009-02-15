@@ -1,0 +1,57 @@
+set version	0.21
+
+tm "m2" {
+	version $::version
+
+	summary "Realtime messagebus with efficient multipoint subscriptions"
+
+	description {
+		A service-routed realtime messagebus with efficient distribution
+		of multi-endpoint subscription channels
+	}
+
+	requires {
+		{Tcl 8.6}
+		netdgram
+	}
+
+	init {
+		namespace eval m2 {}
+	}
+
+	files {
+		scripts/api.tcl
+		scripts/*.tcl
+	}
+
+	platform tcl
+}
+
+application "m2_node" {
+	version ${::version}.0
+
+	#runtime kbskit8.6
+
+	requires {
+		m2
+		netdgram::tcp
+	}
+
+	files {
+		m2_node.tcl
+	}
+
+	#choose_package {
+	#	return "m2_node"
+	#}
+
+	platform linux-glibc2.3-ix86 {
+		requires {daemon}
+	}
+	#platform linux-glibc2.4-ppc {
+	#	requires {daemon}
+	#}
+	platform tcl
+}
+
+# vim: ft=tcl
