@@ -4,7 +4,7 @@
 #	outstanding_reqs(count)			- fired when the count of outstanding
 #									  requests changes
 
-m2::pclass create m2::api2 {
+cflib::pclass create m2::api2 {
 	superclass m2::api
 
 	property oob_type	"none"

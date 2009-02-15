@@ -6,7 +6,7 @@
 #	onclose()		- fired when socket is closed and object is dieing
 
 oo::class create m2::port {
-	superclass m2::handlers m2::baselog
+	superclass cflib::handlers cflib::baselog
 
 	constructor {mode parms a_queue a_params} { #<<<
 		next

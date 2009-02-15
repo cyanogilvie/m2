@@ -1,7 +1,7 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 oo::class create m2::msg {
-	superclass m2::refcounted
+	superclass cflib::refcounted
 
 	constructor {mode args} { #<<<
 		next

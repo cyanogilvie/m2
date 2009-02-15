@@ -8,9 +8,9 @@
 #	incoming(msgobj)			- called with incoming msg
 #	incoming,$msgtype(msgobj)	- specific message type, ie send,req
 
-m2::pclass create m2::api {
-	#superclass m2::handlers m2::signalsource m2::baselog
-	superclass m2::pclassbase m2::signalsource m2::handlers m2::baselog
+cflib::pclass create m2::api {
+	#superclass cflib::handlers sop::signalsource cflib::baselog
+	superclass cflib::pclassbase sop::signalsource cflib::handlers cflib::baselog
 
 	property uri				""			_need_reconnect
 	property ip					""			_need_reconnect
@@ -29,9 +29,9 @@ m2::pclass create m2::api {
 	constructor {args} { #<<<
 		array set dominos	{}
 
-		m2::domino new dominos(need_reconnect) -name "[self] need_reconnect"
-		m2::signal new signals(connected) -name "[self] connected"
-		m2::domino new dominos(svc_avail_changed) -name "[self] svc_avail_changed"
+		sop::domino new dominos(need_reconnect) -name "[self] need_reconnect"
+		sop::signal new signals(connected) -name "[self] connected"
+		sop::domino new dominos(svc_avail_changed) -name "[self] svc_avail_changed"
 
 		$dominos(svc_avail_changed) attach_output [my code _svc_avail_changed]
 		$dominos(need_reconnect) attach_output [my code _attempt_connection]

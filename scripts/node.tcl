@@ -126,7 +126,7 @@ oo::class create m2::node {
 		if {![dict exists $svcs $svc]} {
 			error "Service ($svc) not available"
 		}
-		set tmp			[m2::intersect3 [dict get $svcs $svc] $excl]
+		set tmp			[cflib::intersect3 [dict get $svcs $svc] $excl]
 		set remaining	[lindex $tmp 0]
 		if {[llength $remaining] == 0} {
 			error "Service ($svc) not available"
@@ -165,7 +165,7 @@ oo::class create m2::node {
 
 	#>>>
 	method all_ports {args} { #<<<
-		set tmp	[m2::intersect3 [dict keys $ports] $args]
+		set tmp	[cflib::intersect3 [dict keys $ports] $args]
 		return [lindex $tmp 0]
 	}
 
