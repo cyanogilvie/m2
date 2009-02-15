@@ -17,6 +17,8 @@ function is_space(char) { //<<<
 
 //>>>
 function unicode_char(value) { //<<<
+	return String.fromCharCode(value);
+	/*
 	var hexstr;
 	var rhexmap = [
 		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
@@ -27,6 +29,7 @@ function unicode_char(value) { //<<<
 	hexstr += rhexmap[(value / (1<<4)) & 0xF];
 	hexstr += rhexmap[value & 0xF];
 	return eval('"'+hexstr+'"');
+	*/
 }
 
 //>>>
@@ -422,6 +425,46 @@ function parse_tcl_list(str) { //<<<
 	//>>>
 
 	return parts;
+}
+
+//>>>
+function serialize_tcl_list(arr) { //<<<
+	// for now...
+	var i, staged, elem;
+	staged = [];
+	for (i=0; i<arr.length; i++) {
+		elem = String(arr[i]);
+		if (
+			elem.length > 0 &&
+			elem.indexOf(' ') == -1 &&
+			elem.indexOf('"') == -1 &&
+			elem.indexOf('}') == -1 &&
+			elem.indexOf('{') == -1 &&
+			elem.indexOf('\t') == -1 &&
+			elem.indexOf('\n') == -1 &&
+			elem.indexOf('\r') == -1 &&
+			elem.indexOf('\v') == -1
+		) {
+			if (elem.indexOf('\\') == -1) {
+				staged.push(elem);
+			} else {
+				// Replace all \ with \\
+				staged.push(elem.replace(/\\/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
+			}
+		} else {
+			if (
+				elem.indexOf('}') == -1 &&
+				elem.indexOf('{') == -1 &&
+				elem.charAt(elem.length-1) != '\\'
+			) {
+				staged.push('{'+elem+'}');
+			} else {
+				// Replace all <special> with \<special>
+				staged.push(elem.replace(/\\| |"|}|{|\t|\n|\r|\v/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
+			}
+		}
+	}
+	return staged.join(' ');
 }
 
 //>>>
