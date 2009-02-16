@@ -94,7 +94,7 @@ cflib::pclass create m2::api2 {
 							#my log debug "pr_jm: dubious looking key: ([$msg get data])"
 						}
 						#my log debug "pr_jm: registering key for ($m_seq): ([my mungekey [$msg get data]])"
-						register_jm_key $m_seq	[$msg get data]
+						my register_jm_key $m_seq	[$msg get data]
 						return
 					} else {
 						if {[string length [$msg get data]] == 56} {
@@ -167,12 +167,24 @@ cflib::pclass create m2::api2 {
 						set cb		[dict get $pending $prev_seq]
 						if {$cb ne {}} {
 							try {
-								uplevel #0 $cb [list \
-										[$msg get type] \
-										[$msg get svc] \
-										[$msg get data] \
-										$m_seq \
-										$prev_seq]
+								switch -- $cb_mode {
+									"separate_args" {
+										uplevel #0 $cb [list \
+												[$msg get type] \
+												[$msg get svc] \
+												[$msg get data] \
+												$m_seq \
+												$prev_seq]
+									}
+
+									"msg_dict" {
+										uplevel #0 $cb [list [$msg get_data]]
+									}
+
+									default {
+										error "Invalid -cb_mode, expecting one of \"separate_args\" or \"msg_dict\""
+									}
+								}
 							} on error {errmsg options} {
 								my log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
 								my log error "\njm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"

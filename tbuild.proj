@@ -1,4 +1,4 @@
-set version	0.21
+set version	0.22
 
 tm "m2" {
 	version $::version
@@ -21,6 +21,7 @@ tm "m2" {
 
 	files {
 		scripts/api.tcl
+		scripts/api2.tcl
 		scripts/*.tcl
 	}
 
