@@ -249,7 +249,6 @@ if {[dict get $cfg daemon]} {
 	daemon_log LOG_INFO "running, pid: ([pid])"
 }
 
-daemon_log LOG_INFO "foo"
 try {
 	m2::node create server \
 			-listen_on	[dict get $cfg listen_on] \
@@ -260,7 +259,6 @@ try {
 	exit 1
 }
 
-daemon_log LOG_INFO "baz"
 if {[dict get $cfg daemon]} {
 	daemon_sighandler [list apply {
 		{signame} {
