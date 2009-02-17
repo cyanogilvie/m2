@@ -6,7 +6,7 @@
 #								  system.admin perm)
 
 cflib::pclass create m2::authenticator {
-	superclass mware::api2
+	superclass m2::api2
 
 	property pbkey		"authenticator.pub"
 	property profile_cb	""

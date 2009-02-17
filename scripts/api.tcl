@@ -26,6 +26,10 @@ cflib::pclass create m2::api {
 	protected_property queue_roundrobin			{}
 	protected_property last_connection_attempt	0
 
+	variable {*}{
+		signals
+	}
+
 	constructor {args} { #<<<
 		array set dominos	{}
 
