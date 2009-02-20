@@ -1,6 +1,6 @@
 set version	0.22
 
-tm "m2" {
+tm "m2" { #<<<
 	version $::version
 
 	summary "Realtime messagebus with efficient multipoint subscriptions"
@@ -28,7 +28,8 @@ tm "m2" {
 	platform tcl
 }
 
-application "m2_node" {
+#>>>
+application "m2_node" { #<<<
 	version ${::version}.0
 
 	#runtime kbskit8.6
@@ -55,4 +56,25 @@ application "m2_node" {
 	platform tcl
 }
 
-# vim: ft=tcl
+#>>>
+application "authenticatord" { #<<<
+	version 0.21.0
+
+	requires {
+		m2
+		netdgram::tcp
+		sqlite3
+	}
+
+	files {
+		authenticator/authenticator
+		authenticator/*
+	}
+
+	platform linux-glibc2.3-ix86 {
+		requires {daemon}
+	}
+}
+
+#>>>
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
