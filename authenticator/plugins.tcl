@@ -10,12 +10,16 @@ oo::class create Plugins {
 	}
 
 	constructor {} { #<<<
+		if {[self next] ne {}} next
+
 		set plugins	{}
 	}
 
 	#>>>
 	destructor { #<<<
 		my _unload_plugins
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

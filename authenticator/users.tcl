@@ -9,6 +9,8 @@ oo::class create Users {
 	}
 
 	constructor {} { #<<<
+		if {[self next] ne {}} next
+
 		my log debug [self]
 		array set cookie_expires	{}
 		array set pending_cookies	{}
@@ -26,6 +28,8 @@ oo::class create Users {
 		foreach cookie_idx [array names cookie_expires] {
 			my expire_cookie $cookie_idx
 		}
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

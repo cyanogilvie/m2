@@ -9,6 +9,8 @@ oo::class create Crypto {
 	}
 
 	constructor {} { #<<<
+		if {[self next] ne {}} next
+
 		my log debug [self]
 		array set session_keys {}
 

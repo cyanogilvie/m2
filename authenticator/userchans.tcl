@@ -16,6 +16,8 @@ oo::class create Userchans {
 	}
 
 	constructor {fqun} { #<<<
+		if {[self next] ne {}} next
+
 		my log debug [self]
 		set dat					[dict create]
 		set uinfo				[dict create]
@@ -93,6 +95,8 @@ oo::class create Userchans {
 		users logoff [dict get $dat fqun]
 
 		admin user_disconnected [self]
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

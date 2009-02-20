@@ -11,6 +11,8 @@ oo::class create User {
 	}
 
 	constructor {name} { #<<<
+		if {[self next] ne {}} next
+
 		set heartbeat_afterid	""
 
 		set fqun					[users make_fqun $name]
@@ -63,6 +65,8 @@ oo::class create User {
 			m2 jm_can $session_jmid ""
 			unset session_jmid
 		}
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

@@ -4,6 +4,8 @@ oo::class create Svckeys {
 	superclass cflib::baselog
 
 	constructor {} { #<<<
+		if {[self next] ne {}} next
+
 		my log debug [self]
 
 		users register_handler userreq_get_svc_pubkey \
@@ -15,6 +17,8 @@ oo::class create Svckeys {
 		my log debug [self]
 		users deregister_handler userreq_get_svc_pubkey \
 				[namespace code {my get_pbkey}]
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

@@ -16,7 +16,7 @@ namespace eval cflib {
 	namespace export *
 }
 namespace import cflib::*
-cd [file join [info script]]
+cd [file dirname [info script]]
 
 set iswrapped	[expr {[lindex [file system [info script]] 0] ne "native"}]
 if {$iswrapped} {
@@ -29,17 +29,17 @@ set hold	[pwd]
 cd $base
 cflib::config create cfg $argv {
 	variable uri				"tcp://localhost:5300"
-	variable prkey				"authenticator.priv"
+	variable prkey				"/etc/codeforge/authenticator/authenticator.priv"
 	variable svc				"authenticator"
-	variable svc_keys			"svc_keys"
+	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
 	variable as_user			"codeforge"
 	variable as_group			"codeforge"
 	variable crypto_devmode		0
-	variable plugin_dir			"plugins"
+	variable plugin_dir			"/etc/codeforge/authenticator/plugins"
 	variable cookie_shelflife	20000
 	variable heartbeat_interval	120
 	switch -- $::tcl_platform(platform) {
-		"unix"	{variable db	"/var/lib/authenticator/authenticator.sqlite3"}
+		"unix"	{variable db	"/var/lib/codeforge/authenticator/authenticator.sqlite3"}
 		default	{variable db	"authenticator.sqlite3"}
 	}
 }
@@ -51,7 +51,9 @@ if {[::tcl::pkgconfig get threaded]} {
 }
 
 package require sqlite3
-package require daemon 0.3
+package require cflib
+package require sop
+package require daemon 0.5
 namespace eval dutils {
 	namespace export daemon*
 }
@@ -60,7 +62,7 @@ namespace import dutils::*
 # Drop root priviledges <<<
 
 proc lookup_uid {user} { #<<<
-	foreach line [split [tlc::readfile /etc/passwd] \n] {
+	foreach line [split [cflib::readfile /etc/passwd] \n] {
 		lassign [split $line :] username pw uid pgid gecos home shell
 
 		if {$user == $username} {
@@ -73,7 +75,7 @@ proc lookup_uid {user} { #<<<
 
 #>>>
 proc lookup_gid {name} { #<<<
-	foreach line [split [tlc::readfile /etc/group] \n] {
+	foreach line [split [cflib::readfile /etc/group] \n] {
 		lassign [split $line :] group pw gid userlist
 		set userlist	[split $userlist ,]
 
@@ -113,16 +115,15 @@ if {[cfg get crypto_devmode]} {
 package require m2
 package require Crypto 0.9.1
 
-source "main.tcl"
 source "crypto.tcl"
 source "users.tcl"
 
-source "userchans.itcl"
-source "user.itcl"
-source "userkeys.itcl"
-source "svckeys.itcl"
-source "plugins.itcl"
-source "admin.itcl"
+source "userchans.tcl"
+source "user.tcl"
+source "userkeys.tcl"
+source "svckeys.tcl"
+source "plugins.tcl"
+source "admin.tcl"
 
 daemon_name "authenticatord"
 daemon_pid_file_proc [list apply {
@@ -198,6 +199,7 @@ if {$existingpid >= 0} {
 }
 
 set pid	[daemon_fork]
+dutils::umask 022
 
 try {
 	# Setup signal handler <<<
@@ -239,11 +241,13 @@ try {
 	set ::online	[dict create]
 	set ::userchans	[dict create]
 
-	interp bgerror {} apply {
+	interp bgerror {} [list apply {
 		{errmsg options} {
 			daemon_log LOG_ERR [dict get $options -errorinfo]
 		}
-	}
+	}]
+
+	m2::api2 create m2 -uri [cfg get uri]
 
 	# Init db <<<
 	sqlite3 db [cfg get db]
@@ -273,29 +277,37 @@ try {
 	Plugins create plugins
 	Admin create admin
 
-	m2 handle_svc [cfg get svc] [list apply {
-		{seq data} {
-			set rest	[lassign $data op]
+	[m2 signal_ref connected] attach_output [list apply {
+		{newstate} {
+			daemon_log LOG_INFO "m2 connection state: [expr {$newstate ? "connected" : "not connected"}]"
+			if {$newstate} {
+				m2 handle_svc [cfg get svc] [list apply {
+					{seq data} {
+						set rest	[lassign $data op]
 
-			switch -- $op {
-				"crypt_setup" {
-					crypto crypt_setup $rest
-				}
+						switch -- $op {
+							"crypt_setup" {
+								crypto crypt_setup $rest
+							}
 
-				default {
-					daemon_log LOG_ERR "Unhandled request type: ($op)"
-				}
+							default {
+								daemon_log LOG_ERR "Unhandled request type: ($op)"
+							}
+						}
+					}
+				}]
+			} else {
+				m2 handle_svc [cfg get svc] ""
 			}
 		}
 	}]
 } on error {errmsg options} {
-	daemon_log LOG_ERR "Initialization failed: $errmsg"
+	daemon_log LOG_ERR "Initialization failed: $errmsg\n[dict get $options -errorinfo]"
 	daemon_retval_send 1
 	daemon_exit
 }
 
 daemon_retval_send 0
-daemon_log LOG_INFO "Ready"
 
 coroutine main apply {
 	{} {

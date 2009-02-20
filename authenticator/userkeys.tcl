@@ -12,6 +12,8 @@ oo::class create Userkeys {
 	}
 
 	constructor {} { #<<<
+		if {[self next] ne {}} next
+
 		my log debug [self]
 
 		set userkey_expires_hours	4.0
@@ -34,6 +36,8 @@ oo::class create Userkeys {
 			after cancel $afterid
 			dict unset expires $user
 		}
+
+		if {[self next] ne {}} next
 	}
 
 	#>>>

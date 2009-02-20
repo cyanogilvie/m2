@@ -9,6 +9,8 @@ oo::class create Admin {
 	}
 
 	constructor {} { #<<<
+		if {[self next] ne {}} {next}
+
 		set connected_users	{}
 	}
 
