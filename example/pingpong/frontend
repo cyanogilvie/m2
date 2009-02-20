@@ -4,32 +4,11 @@
 
 package require Tcl 8.6
 
-tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
-source /home/cyan/git/netdgram/tm/netdgram-0.1.tm
-package provide netdgram 0.1
-source /home/cyan/git/netdgram/tm/netdgram/tcp-0.1.tm
-package provide netdgram::tcp 0.1
 package require m2
-#package require TLC-base 0.99
+package require sop
 
-#class Config {
-#	inherit tlc::Baseconfig
-#
-#	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
-#
-#	public {
-#		variable uri	"tcp://localhost:5300"
-#		variable images	"images"
-#	}
-#}
-#
-#Config cfg {*}$argv
-#set cfg	[cfg dump_config]
-#set cfg	{
-#	uri		"tcp://localhost:5300"
-#}
 set cfg	{
-	uri		"tcp://10.41.68.160:5300"
+	uri		"tcp://localhost:5300"
 }
 
 
@@ -43,8 +22,8 @@ interp bgerror {} [list apply {
 }]
 
 array set signals	{}
-m2::gate new signals(ready) -name "ready" -mode "and"
-m2::signal new signals(ping) -name "ping"
+sop::gate new signals(ready) -name "ready" -mode "and"
+sop::signal new signals(ping) -name "ping"
 $signals(ready) attach_input $signals(ping)
 
 m2::api2 create m2 -uri [dict get $cfg uri] -oob_type "profiling"

@@ -4,48 +4,22 @@
 
 package require Tcl 8.6
 
-tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
-source /home/cyan/git/netdgram/tm/netdgram-0.1.tm
-package provide netdgram 0.1
-source /home/cyan/git/netdgram/tm/netdgram/tcp-0.1.tm
-package provide netdgram::tcp 0.1
 package require m2
-#package require TLC-base 0.99
 
-#class Config {
-#	inherit tlc::Baseconfig
-#
-#	constructor {args} {tlc::Baseconfig::constructor {*}$args} {}
-#
-#	public {
-#		variable uri	"tcp://localhost:5300"
-#		variable images	"images"
-#	}
-#}
-#
-#Config cfg {*}$argv
-#set cfg	[cfg dump_config]
-#set cfg	{
-#	uri		"tcp://localhost:5300"
-#}
 set cfg	{
-	uri		"tcp://10.41.68.160:5300"
+	uri		"tcp://localhost:5300"
 }
 
 m2::api2 create m2 -uri [dict get $cfg uri]
-oo::objdefine m2 method station_id {} {
-	return "pingpong backend ([next])"
-}
 
 set seq	0
 proc ping {seq data} {
-	#puts "got ping request: $seq \"$data\""
 	m2 ack $seq "pong: ($data)"
 }
 
 [m2 signal_ref connected] attach_output [list apply {
 	{newstate} {
-		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
+		puts "m2 connection state: [expr {$newstate ? "connected" : "not connected"}]"
 		if {$newstate} {
 			m2 handle_svc "ping" ping
 		} else {
@@ -59,4 +33,5 @@ while {1} {
 	after 100000 {set ::forever 0}
 	vwait ::forever
 }
+
 

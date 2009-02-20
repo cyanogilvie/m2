@@ -93,7 +93,7 @@ oo::class create Users {
 
 	#>>>
 
-	method _login_person {session_id seq prev_seq data} { #<<<
+	method _login_person {seq prev_seq data} { #<<<
 		my log debug "got encrypted user login"
 		lassign $data type username password
 
@@ -159,7 +159,7 @@ oo::class create Users {
 	}
 
 	#>>>
-	method _login_svc {session_id seq prev_seq data} { #<<<
+	method _login_svc {seq prev_seq data} { #<<<
 		# Keep in sync with Users::login
 		try {
 			lassign $data -> svc cookie_idx e_cookie
@@ -197,7 +197,7 @@ oo::class create Users {
 	}
 
 	#>>>
-	method _get_user_pbkey {session_id seq prev_seq data} { #<<<
+	method _get_user_pbkey {seq prev_seq data} { #<<<
 		set fqun	[lindex $data 1]
 
 		my log debug "dispatching request for fqun: ($fqun)"
@@ -213,12 +213,12 @@ oo::class create Users {
 	}
 
 	#>>>
-	method _svc_cookie_req {session_id seq prev_seq data} { #<<<
+	method _svc_cookie_req {seq prev_seq data} { #<<<
 		set svc			[lindex $data 1]
 
 		my log debug "svc: ($svc)"
 
-		set cookie		[crypto generate_key]	;# WARNING: possible RNG DOS
+		set cookie		[m2 pseudo_bytes 16]	;# WARNING: possible RNG DOS
 		set cookie_idx	[m2 unique_id]
 
 		set pending_cookies($cookie_idx)	[list $cookie $svc]
@@ -230,7 +230,7 @@ oo::class create Users {
 	}
 
 	#>>>
-	method _userinfo_setup {session_id seq prev_seq data} { #<<<
+	method _userinfo_setup {seq prev_seq data} { #<<<
 		set fqun		[my make_fqun [lindex $data 1]]
 		my log debug "got userinfo chan setup request for user: ($fqun)"
 		try {

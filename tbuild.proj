@@ -63,6 +63,9 @@ application "authenticatord" { #<<<
 	requires {
 		m2
 		netdgram::tcp
+		cflib
+		sop
+		dsl
 		sqlite3
 	}
 
@@ -71,10 +74,14 @@ application "authenticatord" { #<<<
 		authenticator/*
 	}
 
-	platform linux-glibc2.3-ix86 {
-		requires {daemon}
+	platform linux-glibc2.8-ix86 {
+		requires {
+			{Crypto 0.9.1}
+			{daemon 0.5}
+		}
 	}
 }
 
 #>>>
+
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
