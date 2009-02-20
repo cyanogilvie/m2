@@ -71,7 +71,7 @@ oo::class create m2::userinfo {
 	}
 
 	#>>>
-	destructor {} { #<<<
+	destructor { #<<<
 		if {
 			[info exists userinfo_jmid] &&
 			[info exists userinfo_prev_seq] &&
