@@ -113,7 +113,6 @@ if {[cfg get crypto_devmode]} {
 }
 
 package require m2
-package require Crypto 0.9.1
 
 source "crypto.tcl"
 source "users.tcl"
@@ -251,9 +250,9 @@ try {
 
 	# Init db <<<
 	sqlite3 db [cfg get db]
-	if {![db exists {
+	if {[db onecolumn {
 		select
-			count(1) > 0
+			count(1) < 1	
 		from
 			sqlite_master
 		where
@@ -269,6 +268,8 @@ try {
 		}
 	}
 	# Init db >>>
+
+	package require Crypto 0.9.1
 
 	Crypto create crypto
 	Users create users
