@@ -236,7 +236,7 @@ try {
 	# Setup signal handler >>>
 
 	# Do init
-	daemon_log LOG_INFO "---------------Authenticator start-----------------"
+	daemon_log LOG_INFO "-----------------Authenticator start-----------------"
 
 	set ::online	[dict create]
 	set ::userchans	[dict create]
