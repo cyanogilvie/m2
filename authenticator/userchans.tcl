@@ -61,11 +61,10 @@ oo::class create Userchans {
 		set subdomain		[join [lrange $upath_parts 1 end-1] /]
 
 		set normalized [plugins plugin_command $plugin_name $plugin_params \
-				normalize_username \
-				$simple_username]
+				normalize_username $simple_username]
 
 		# Set these again, this time with the normalized values
-		dict set uinfo fqun				$normalized
+		dict set uinfo fqun			$normalized
 		set baselog_instancename	$normalized
 		dict set dat upath			[my _getupath]
 		# Normalize username >>>
