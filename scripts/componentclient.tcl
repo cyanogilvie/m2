@@ -19,7 +19,7 @@ cflib::pclass create m2::componentclient {
 	}
 
 	#>>>
-	destructor {} { #<<<
+	destructor { #<<<
 		my log debug "svc: [expr {[info exists svc] ? $svc : {not set}}]"
 		if {[info exists component_svr]} {
 			catch {$component_svr destroy}

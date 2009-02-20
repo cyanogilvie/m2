@@ -50,7 +50,7 @@ cflib::pclass create m2::component {
 	}
 
 	#>>>
-	destructor {} { #<<<
+	destructor { #<<<
 		if {[info exists auth] && [info object isa object $auth]} {
 			[$auth signal_ref established] detach_output \
 					[my code _established_changed]
