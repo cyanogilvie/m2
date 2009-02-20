@@ -49,8 +49,19 @@ oo::class create m2::port {
 		#oo::objdefine $queue forward assign {*}[namespace code {my _queue_assign}]
 		oo::objdefine $queue method assign {rawmsg msg} {
 			switch -- [$msg get type] {
-				"rsj_req" - "req" - "jm"	{$msg get seq}
-				default						{$msg get prev_seq}
+				rsj_req - req {
+					$msg get seq
+				}
+				jm {
+					if {[$msg get prev_seq] eq 0} {
+						$msg get seq
+					} else {
+						$msg get prev_seq
+					}
+				}
+				default {
+					$msg get prev_seq
+				}
 			}
 		}
 		# Use the default netdgram::queue::pick code for round-robin
@@ -550,6 +561,7 @@ oo::class create m2::port {
 			::puts "PANIC: not connected"
 			return
 		}
+
 		try {
 			# Add profiling stamp if requested <<<
 			if {[$msg get oob_type] eq "profiling"} {
