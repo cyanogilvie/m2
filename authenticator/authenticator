@@ -1,0 +1,306 @@
+#!/usr/bin/env kbskit8.6
+# vim: ft=tcl foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4
+
+proc mungekey {args} {}
+#proc mungekey {key} {
+#	set build	0
+#	binary scan $key c* bytes
+#	foreach byte $bytes {
+#		incr build	$byte
+#	}
+#	return [format "%i" $build] 
+#}
+
+package require cflib
+namespace eval cflib {
+	namespace export *
+}
+namespace import cflib::*
+cd [file join [info script]]
+
+set iswrapped	[expr {[lindex [file system [info script]] 0] ne "native"}]
+if {$iswrapped} {
+	set base [file normalize [file join [file dirname [info script]] .. .. ..]]
+} else {
+	set base [file normalize [file dirname [info script]]]
+}
+
+set hold	[pwd]
+cd $base
+cflib::config create cfg $argv {
+	variable uri				"tcp://localhost:5300"
+	variable prkey				"authenticator.priv"
+	variable svc				"authenticator"
+	variable svc_keys			"svc_keys"
+	variable as_user			"codeforge"
+	variable as_group			"codeforge"
+	variable crypto_devmode		0
+	variable plugin_dir			"plugins"
+	variable cookie_shelflife	20000
+	variable heartbeat_interval	120
+	switch -- $::tcl_platform(platform) {
+		"unix"	{variable db	"/var/lib/authenticator/authenticator.sqlite3"}
+		default	{variable db	"authenticator.sqlite3"}
+	}
+}
+cd $hold
+
+if {[::tcl::pkgconfig get threaded]} {
+	puts stderr "Cannot daemonize in a threaded interpreter"
+	exit 1
+}
+
+package require sqlite3
+package require daemon 0.3
+namespace eval dutils {
+	namespace export daemon*
+}
+namespace import dutils::*
+
+# Drop root priviledges <<<
+
+proc lookup_uid {user} { #<<<
+	foreach line [split [tlc::readfile /etc/passwd] \n] {
+		lassign [split $line :] username pw uid pgid gecos home shell
+
+		if {$user == $username} {
+			return $uid
+		}
+	}
+
+	error "User $user not found" "" [list no_such_user $user]
+}
+
+#>>>
+proc lookup_gid {name} { #<<<
+	foreach line [split [tlc::readfile /etc/group] \n] {
+		lassign [split $line :] group pw gid userlist
+		set userlist	[split $userlist ,]
+
+		if {$name == $group} {
+			return $gid
+		}
+	}
+
+	error "Group $group not found" "" [list no_such_group $name]
+}
+
+#>>>
+
+if {
+	[dutils::getgid] == 0 ||
+	[dutils::getegid] == 0
+} {
+	set gid		[lookup_gid [cfg get as_group]]
+	dutils::setregid $gid $gid
+}
+
+if {
+	[dutils::getuid] == 0 ||
+	[dutils::geteuid] == 0
+} {
+	set uid		[lookup_uid [cfg get as_user]]
+	dutils::setreuid $uid $uid
+}
+# Drop root priviledges >>>
+
+if {[cfg get crypto_devmode]} {
+	namespace eval crypto {
+		variable devmode	1
+	}
+}
+
+package require m2
+package require Crypto 0.9.1
+
+source "main.tcl"
+source "crypto.tcl"
+source "users.tcl"
+
+source "userchans.itcl"
+source "user.itcl"
+source "userkeys.itcl"
+source "svckeys.itcl"
+source "plugins.itcl"
+source "admin.itcl"
+
+daemon_name "authenticatord"
+daemon_pid_file_proc [list apply {
+	{} {
+		file join / var tmp authenticatord.pid
+	}
+}]
+
+set cmd [lindex $argv 0]
+if {$cmd eq ""} {
+	set cmd	"start"
+}
+
+set valid_commands {
+	start
+	stop
+	restart
+	status
+	pidfile
+}
+if {$cmd ni $valid_commands} {
+	puts stderr "Invalid command \"$cmd\", should be one of \"[join $valid_commands "\", \""]\""
+	exit 1
+}
+set existingpid	[daemon_pid_file_is_running]
+switch -- $cmd {
+	stop - restart { #<<<
+		if {[daemon_pid_file_is_running] < 0} {
+			if {$cmd eq "restart"} {
+				daemon_log LOG_WARNING "Not running"
+			} else {
+				daemon_log LOG_WARNING "Can't stop - not running"
+				exit 1
+			}
+		} else {
+			try {
+				daemon_pid_file_kill_wait SIGINT 5
+			} on error {errmsg options} {
+				daemon_log LOG_WARNING "Failed to kill daemon: $errmsg"
+				exit 1
+			} on ok {} {
+				set existingpid	-1
+			}
+		}
+
+		if {$cmd eq "stop"} {
+			exit 0
+		}
+		#>>>
+	}
+
+	status { #<<<
+		if {$existingpid >= 0} {
+			puts "running"
+			exit 0
+		} else {
+			puts "not running"
+			exit 0
+		}
+		#>>>
+	}
+
+	pidfile { #<<<
+		puts [daemon_pid_file]
+		exit 0
+		#>>>
+	}
+}
+
+if {$existingpid >= 0} {
+	daemon_log LOG_ERR "already running, PID: ($existingpid)"
+	exit 1
+}
+
+set pid	[daemon_fork]
+
+try {
+	# Setup signal handler <<<
+	daemon_sighandler [list apply {
+		{signame} {
+			switch -- $signame {
+				"SIGINT" -
+				"SIGQUIT" -
+				"SIGTERM" {
+					daemon_log LOG_INFO "Got $signame, shutting down cleanly"
+					try {
+						if {[info object isa object chat]} {
+							chatserver destroy
+						}
+						if {[info object isa object m2]} {
+							m2 destroy
+						}
+					} on error {errmsg options} {
+						daemon_log LOG_WARNING "Problem cleanly shutting down: $errmsg"
+					}
+					daemon_exit
+				}
+
+				"SIGHUP" {
+					daemon_log LOG_INFO "Got HUP"
+				}
+
+				default {
+					daemon_log LOG_WARNING "Got unexpected signal: \"$signame\""
+				}
+			}
+		}
+	}]
+	# Setup signal handler >>>
+
+	# Do init
+	daemon_log LOG_INFO "---------------Authenticator start-----------------"
+
+	set ::online	[dict create]
+	set ::userchans	[dict create]
+
+	interp bgerror {} apply {
+		{errmsg options} {
+			daemon_log LOG_ERR [dict get $options -errorinfo]
+		}
+	}
+
+	# Init db <<<
+	sqlite3 db [cfg get db]
+	if {![db exists {
+		select
+			count(1) > 0
+		from
+			sqlite_master
+		where
+			type = 'table'
+			and name = 'delegations'
+	}]} {
+		db eval {
+			create table delegations (
+				domain_match	text primary key,
+				plugin_name		text not null,
+				plugin_params	text
+			);
+		}
+	}
+	# Init db >>>
+
+	Crypto create crypto
+	Users create users
+	Userkeys create userkeys
+	Svckeys create svckeys
+	Plugins create plugins
+	Admin create admin
+
+	m2 handle_svc [cfg get svc] [list apply {
+		{seq data} {
+			set rest	[lassign $data op]
+
+			switch -- $op {
+				"crypt_setup" {
+					crypto crypt_setup $rest
+				}
+
+				default {
+					daemon_log LOG_ERR "Unhandled request type: ($op)"
+				}
+			}
+		}
+	}]
+} on error {errmsg options} {
+	daemon_log LOG_ERR "Initialization failed: $errmsg"
+	daemon_retval_send 1
+	daemon_exit
+}
+
+daemon_retval_send 0
+daemon_log LOG_INFO "Ready"
+
+coroutine main apply {
+	{} {
+		vwait ::forever
+	}
+}
+
+
