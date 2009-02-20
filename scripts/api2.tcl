@@ -204,7 +204,7 @@ cflib::pclass create m2::api2 {
 			jm_disconnect { #<<<
 				try {
 					#my log trivia "API2::incoming: got jm_disconnect:\nseq: ($m_seq)\nprev_seq: ($m_prev_seq)"
-					chans cancel $m_seq
+					my chans cancel $m_seq
 				} on error {errmsg options} {
 					my log error "\nerror processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
 				}
