@@ -60,7 +60,7 @@ oo::class create User {
 		if {[info exists session_jmid]} {
 			m2 chans deregister_chan $session_jmid
 			my log notice "Cancelling session_jmid: ($session_jmid)"
-			main jm_can $session_jmid ""
+			m2 jm_can $session_jmid ""
 			unset session_jmid
 		}
 	}
@@ -87,7 +87,7 @@ oo::class create User {
 		set session_jmid	[m2 unique_id]
 		m2 chans register_chan $session_jmid \
 				[namespace code {my _session_chan_cb}]
-		m2 jm $session_jmid $seq \
+		m2 pr_jm $session_jmid $seq \
 				[list session_chan [cfg get heartbeat_interval]]
 		set heartbeat_afterid	[after [expr {
 			round([cfg get heartbeat_interval] * 1000)
@@ -119,7 +119,7 @@ oo::class create User {
 		set session_jmid	[m2 unique_id]
 		m2 chans register_chan $session_jmid \
 				[namespace code {my _session_chan_cb}]
-		m2 jm $session_jmid $seq \
+		m2 pr_jm $session_jmid $seq \
 				[list session_chan [cfg get heartbeat_interval]]
 	}
 

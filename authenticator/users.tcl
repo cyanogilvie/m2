@@ -103,7 +103,7 @@ oo::class create Users {
 		} trap {invalid_user_type} {errmsg options} { #<<<
 			set badtype	[lindex $::errorCode 1]
 			my log error "Invalid user type: ($badtype)\n[dict get $options -errorinfo]" -suppress data
-			main nack $seq $errmsg
+			m2 nack $seq $errmsg
 			#>>>
 		} trap {duplicate_login} {errmsg options} { #<<<
 			my log warning "User already logged in elsewhere" -suppress data

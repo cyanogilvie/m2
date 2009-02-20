@@ -378,7 +378,7 @@ oo::class create Userchans {
 
 		if {[info exists userinfo_chan]} {
 			my log debug "Sending jm update for pref ($pref) := ($newvalue)"
-			m2 jm $userinfo_chan 0 [list prefs [list $pref $newvalue]]
+			m2 jm $userinfo_chan [list prefs [list $pref $newvalue]]
 		} else {
 			my log error "no userchan exists for user, even though we are answering a request from that user"
 		}
