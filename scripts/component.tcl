@@ -29,7 +29,7 @@ cflib::pclass create m2::component {
 		my configure {*}$args
 
 		foreach reqf {svc auth prkeyfn} {
-			if {![set $reqf] eq ""} {
+			if {[set $reqf] eq ""} {
 				error "Must set -$reqf"
 			}
 		}

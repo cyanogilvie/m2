@@ -65,7 +65,7 @@ cflib::pclass create m2::api2 {
 				dict unset ack_pend $m_prev_seq
 				if {[dict exists $pending_keys $m_prev_seq]} {
 					#my log debug "Decrypting ack with [my mungekey [dict get $pending_keys $m_prev_seq]]" -suppress {data}
-					$msg data [decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
+					$msg data [my decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
 				}
 				dict unset pending_keys $m_prev_seq
 				#>>>
@@ -88,7 +88,7 @@ cflib::pclass create m2::api2 {
 				}
 
 				if {[dict exists $pending_keys $m_prev_seq]} {
-					$msg data [decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
+					$msg data [my decrypt [dict get $pending_keys $m_prev_seq] [$msg get data]]
 					if {![dict exists $jm_keys $m_seq]} {
 						if {[string length [$msg get data]] != 56} {
 							#my log debug "pr_jm: dubious looking key: ([$msg get data])"
@@ -116,7 +116,7 @@ cflib::pclass create m2::api2 {
 
 			jm { #<<<
 				if {[dict exists $jm_keys $m_seq]} {
-					$msg data [decrypt [dict get $jm_keys $m_seq] [$msg get data]]
+					$msg data [my decrypt [dict get $jm_keys $m_seq] [$msg get data]]
 				}
 				#>>>
 			}
@@ -125,7 +125,7 @@ cflib::pclass create m2::api2 {
 				#my log debug "Got jm_req: seq: ($m_seq) prev_seq: ($m_prev_seq)" -suppress {data}
 				if {[dict exists $jm_keys $m_prev_seq]} {
 					#my log debug "Decrypting data with [my mungekey [dict get $jm_keys $m_prev_seq]]" -suppress data
-					$msg data [decrypt [dict get $jm_keys $m_prev_seq] [$msg get data]]
+					$msg data [my decrypt [dict get $jm_keys $m_prev_seq] [$msg get data]]
 					dict set set m data	[$msg data]
 				}
 				#>>>
@@ -218,7 +218,7 @@ cflib::pclass create m2::api2 {
 					#my log trivia "API2::incoming: got [$msg svc]: ([$msg seq]) ([$msg prev_seq]) ([$msg data])"
 					#my log debug "API2::incoming: channel request"
 					if {[my crypto registered_chan $m_prev_seq]} {
-						$msg data	[crypto decrypt $m_prev_seq [$msg get data]] 
+						$msg data	[my crypto decrypt $m_prev_seq [$msg get data]] 
 						my register_pending_encrypted $m_seq $m_prev_seq
 					}
 					my chans chanreq $m_seq $m_prev_seq [$msg get data]
@@ -525,7 +525,9 @@ cflib::pclass create m2::api2 {
 		if {[dict exists $jm_keys $jm_seq]} {
 			#my log debug "([my mungekey [dict get $jm_keys $jm_seq]])"
 			dict set pending_keys $seq	[dict get $jm_keys $jm_seq]
-			dict set data	[my encrypt [dict get $jm_keys $jm_seq] $data]
+			set e_data		[my encrypt [dict get $jm_keys $jm_seq] $data]
+		} else {
+			set e_data		$data
 		}
 
 		set msg		[m2::msg new new \
@@ -533,7 +535,7 @@ cflib::pclass create m2::api2 {
 				type		rsj_req \
 				seq			$seq \
 				prev_seq	$jm_seq \
-				data		$data \
+				data		$e_data \
 		]
 		my send $msg
 		
