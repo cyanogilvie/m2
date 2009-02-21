@@ -20,4 +20,26 @@ application "examplecomponent" {
 	}
 }
 
+application "exampleclient" {
+	version 0.1
+
+	requires {
+		m2
+		netdgram::tcp
+		sop
+		cflib
+		dsl
+	}
+
+	files {
+		client.tcl
+	}
+
+	platform linux-glibc2.8-ix86 {
+		requires {
+			{Crypto 0.9.1}
+		}
+	}
+}
+
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

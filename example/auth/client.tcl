@@ -1,20 +1,17 @@
 package require m2
 package require cflib
-package require sop
-package require dsl
 
 cflib::config create cfg $argv {
 	variable uri			"tcp://localhost:5300"
-	variable pbkey			"authenticator.pub"
-	variable crypto_devmode	0
+	variable crypto_devmode 0
+	variable pbkey			"/etc/codeforge/authenticator/authenticator.pub"
 }
 
 if {[cfg get crypto_devmode]} {
 	namespace eval crypto {
-		variable devmode 1
+		variable devmode	1
 	}
 }
-package require Crypto 0.9.1
 
 m2::authenticator create auth -uri [cfg get uri] -pbkey [cfg get pbkey]
 
@@ -25,17 +22,16 @@ dict for {signal sigobj} [auth signals_available] {
 	[auth signal_ref $signal] attach_output [list apply $report_signal_change $signal]
 }
 
-m2::component create comp \
-		-svc		"examplecomponent" \
-		-auth		auth \
-		-prkeyfn	[file join [pwd] "examplecomponent.priv"] \
-		-login		0
 
-comp handler "hello" [list apply {
-	{auth user seq rdata} {
-		auth ack $seq "world, [$user name]"
+[auth signal_ref login_allowed] attach_output [list apply {
+	{newstate} {
+		if {$newstate} {
+			set ok	[auth login "cyan@cf" "foo"]
+			puts "login ok? $ok"
+		}
 	}
 }]
+
 
 coroutine main apply {
 	{} {
