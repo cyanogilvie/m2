@@ -80,7 +80,7 @@ cflib::pclass create m2::connector {
 		} [info coroutine]]
 
 		while {1} {
-			set msg_data	[yield]
+			lassign [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {
@@ -125,7 +125,7 @@ cflib::pclass create m2::connector {
 		} [info coroutine]]
 
 		while {1} {
-			set msg_data	[yield]
+			lassign [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {

@@ -57,9 +57,7 @@ cflib::pclass create m2::authenticator {
 		$signals(login_allowed) attach_input $signals(authenticated) inverted
 		$signals(login_allowed) attach_input $signals(established)
 		
-		configure {*}$args
-
-		my log debug "port: ($port) ip: ($ip)"
+		my configure {*}$args
 
 		if {![file exists $pbkey]} {
 			error "Cannot find authenticator public key"
@@ -232,7 +230,7 @@ cflib::pclass create m2::authenticator {
 		} [info coroutine]]
 
 		while {1} {
-			set msg_data	[yield]
+			lassign [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {
@@ -281,7 +279,7 @@ cflib::pclass create m2::authenticator {
 			} [info coroutine]]
 
 			while {1} {
-				set msg_data	[yield]
+				lassign [yield] msg_data
 				dict with msg_data {}
 
 				switch -- $type {
@@ -399,7 +397,7 @@ cflib::pclass create m2::authenticator {
 		my log trivia "waiting for reply to seq: ($seq)"
 		set aid	[after 1000 [list [info coroutine [list type "timeout"]]]
 		while {1} {
-			set msg_data	[yield]
+		lassign [yield] msg_data
 			dict with msg_data {}
 			after cancel $aid; set aid ""
 
@@ -436,15 +434,21 @@ cflib::pclass create m2::authenticator {
 		set pending_cookie	[my generate_key]
 		my log debug "negotiating session_key ([my mungekey $keys(main)]), cookie: ([my mungekey $pending_cookie])"
 
-		my req "authenticator" [list crypt_setup \
-			[crypto::armour [crypto::rsa_public_encrypt $pubkey $keys(main)]] \
-			[crypto::armour [crypto::rsa_public_encrypt $pubkey $pending_cookie]] \
-		] [list apply {
+		set e_key		[crypto::rsa_public_encrypt $pubkey $keys(main)]
+		set e_cookie	[crypto::rsa_public_encrypt $pubkey $pending_cookie]
+		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
+		#my req "authenticator" [list crypt_setup \
+		#	[crypto::armour $e_key] \
+		#	[crypto::armour $e_cookie] \
+		#] [list apply {
+		#	{coro args} {$coro $args}
+		#} [info coroutine]]
+		my req "authenticator" [list crypt_setup $e_key $e_cookie] [list apply {
 			{coro args} {$coro $args}
 		} [info coroutine]]
 
 		while {1} {
-			set msg_data	[yield]
+			lassign [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {
@@ -470,7 +474,7 @@ cflib::pclass create m2::authenticator {
 
 			switch -- $type {
 				ack { #<<<
-					if {$pdata eq $cookie} {
+					if {$pdata eq $pending_cookie} {
 						$signals(established) set_state 1
 					} else {
 						my log debug "cookie challenge from server did not match" -suppress {cookie data}
@@ -809,7 +813,7 @@ cflib::pclass create m2::authenticator {
 
 		my log trivia "waiting for reply to seq: ($seq)"
 		while {1} {
-			set msg_data	[yield]
+			lassig [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {

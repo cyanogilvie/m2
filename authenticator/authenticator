@@ -247,6 +247,38 @@ try {
 	}]
 
 	m2::api2 create m2 -uri [cfg get uri]
+	set loghandler {
+		try {
+			switch -- $lvl {
+				trivia - debug {set log_prio LOG_DEBUG}
+				notice {set log_prio LOG_INFO}
+				warn - warning {set log_prio LOG_WARNING}
+				error {set log_prio LOG_ERR}
+				fatal {set log_prio LOG_CRIT}
+				default {
+					if {$lvl in {
+						LOG_DEBUG
+						LOG_INFO
+						LOG_NOTICE
+						LOG_WARNING
+						LOG_ERR
+						LOG_CRIT
+						LOG_ALERT
+						LOG_EMERG
+					}} {
+						set log_prio	$lvl
+					} else {
+						set log_prio	LOG_INFO
+					}
+				}
+			}
+			dutils::daemon_log $log_prio $msg
+		} on error {errmsg options} {
+			puts stderr "Error in logger: $errmsg"
+			dutils::daemon_log LOG_ERR "Error in logger"
+		}
+	}
+	oo::objdefine m2 method log {lvl {msg ""} args} $loghandler
 
 	# Init db <<<
 	sqlite3 db [cfg get db]
@@ -278,17 +310,25 @@ try {
 	Plugins create plugins
 	Admin create admin
 
+	oo::objdefine crypto method log {lvl {msg ""} args} $loghandler
+	oo::objdefine users method log {lvl {msg ""} args} $loghandler
+	oo::objdefine userkeys method log {lvl {msg ""} args} $loghandler
+	oo::objdefine svckeys method log {lvl {msg ""} args} $loghandler
+	oo::objdefine plugins method log {lvl {msg ""} args} $loghandler
+	oo::objdefine admin method log {lvl {msg ""} args} $loghandler
+
 	[m2 signal_ref connected] attach_output [list apply {
 		{newstate} {
 			daemon_log LOG_INFO "m2 connection state: [expr {$newstate ? "connected" : "not connected"}]"
 			if {$newstate} {
+				daemon_log LOG_INFO "Advertising service \"[cfg get svc]\""
 				m2 handle_svc [cfg get svc] [list apply {
 					{seq data} {
 						set rest	[lassign $data op]
 
 						switch -- $op {
 							"crypt_setup" {
-								crypto crypt_setup $rest
+								crypto crypt_setup $seq $rest
 							}
 
 							default {
@@ -298,7 +338,8 @@ try {
 					}
 				}]
 			} else {
-				m2 handle_svc [cfg get svc] ""
+				#daemon_log LOG_INFO "Revoking service \"[cfg get svc]\""
+				#m2 handle_svc [cfg get svc] ""
 			}
 		}
 	}]

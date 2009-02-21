@@ -60,6 +60,8 @@ application "m2_node" { #<<<
 application "authenticatord" { #<<<
 	version 0.21.0
 
+	runtime kbskit8.6
+
 	requires {
 		m2
 		netdgram::tcp

@@ -3,6 +3,10 @@
 oo::class create Crypto {
 	superclass cflib::handlers cflib::baselog
 
+	variable {*}{
+		priv_key
+	}
+
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
@@ -22,6 +26,7 @@ oo::class create Crypto {
 	method crypt_setup {seq data} { #<<<
 		my log debug "" -suppress data
 		lassign $data e_key e_cookie
+		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 
 		try {
 			set session_key	[crypto::rsa_private_decrypt $priv_key $e_key]
@@ -51,8 +56,7 @@ oo::class create Crypto {
 	}
 
 	#>>>
-
-	method _session_chan {session_id op data} { #<<<
+	method _session_chan {op data} { #<<<
 		my log debug
 		switch -- $op {
 			cancelled {

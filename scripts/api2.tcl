@@ -153,7 +153,7 @@ cflib::pclass create m2::api2 {
 					}
 				} else {
 					my log error "req: no handlers for svc: ([$msg get svc])"
-					my nack $m_seq "Internal error"
+					my nack $m_seq "No handlers for [$msg get svc])"
 				}
 				#>>>
 			}
@@ -665,7 +665,8 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method generate_key {{bytes 56}} { #<<<
-		crypto::rand_bytes $bytes
+		#crypto::rand_bytes $bytes
+		crypto::rand_pseudo_bytes $bytes
 	}
 
 	#>>>
@@ -729,7 +730,7 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method mungekey {key} { #<<<
-		return ""
+		return "disabled"
 
 		set build	0
 		binary scan $key c* bytes
