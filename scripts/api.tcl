@@ -95,7 +95,7 @@ cflib::pclass create m2::api {
 		my invoke_handlers send,[$msg type] $msg
 
 		set sdata	[$msg serialize]
-		$queue enqueue $sdata $msg
+		$queue enqueue $sdata [$msg get type] [$msg get seq] [$msg get prev_seq]
 	}
 
 	#>>>
@@ -165,28 +165,76 @@ cflib::pclass create m2::api {
 
 			oo::objdefine $queue forward closed {*}[my code _connection_lost]
 			oo::objdefine $queue forward receive {*}[my code _receive_raw]
-			#oo::objdefine $queue forward assign {*}[my code _assign_queue]
-			oo::objdefine $queue method assign {rawmsg msg} {
-				switch -- [$msg get type] {
+			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
+				switch -- $type {
 					rsj_req - req {
-						$msg get seq
+						set seq
 					}
 
-					jm {
-						if {[$msg get prev_seq] eq 0} {
-							$msg get seq
+					jm - jm_can {
+						if {$prev_seq eq 0} {
+							set seq
 						} else {
-							$msg get prev_seq
+							my variable _pending_jm_setup
+							dict set _pending_jm_setup $seq $prev_seq
+							set prev_seq
 						}
 					}
 
 					default {
-						$msg get prev_seq
+						set prev_seq
 					}
 				}
 			}
-			# Use the default queue pick behaviour of round-robin
-			#oo::objdefine $queue forward pick {*}[my code _pick_queue]
+
+			#>>>
+			oo::objdefine $queue method pick {queues} { #<<<
+				my variable _pending_jm_setup
+				if {![info exists _pending_jm_setup]} {
+					set _pending_jm_setup	[dict create]
+				}
+
+				set q		[next $queues]
+				set first	$q
+
+				# Skip queues for jms that were setup in requests for which
+				# we still haven't sent the ack or nack
+				while {[dict exists $_pending_jm_setup $q]} {
+					set q		[next $queues]
+					if {$q eq $first} {
+						if {[info commands "dutils::daemon_log"] ne {}} {
+							dutils::daemon_log LOG_ERR "Eeek - all queues have the pending flag set, should never happen"
+						} else {
+							puts stderr "Eeek - all queues have the pending flag set, should never happen"
+						}
+						# Should never happen
+						break
+					}
+				}
+
+				return $q
+			}
+
+			#>>>
+			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
+				if {$type in {
+					ack
+					nack
+				}} {
+					my variable _pending_jm_setup
+					if {![info exists _pending_jm_setup]} {
+						set _pending_jm_setup	[dict create]
+					}
+
+					dict for {s p} $_pending_jm_setup {
+						if {$p eq $prev_seq} {
+							dict unset _pending_jm_setup $s
+						}
+					}
+				}
+			}
+
+			#>>>
 
 			$con activate
 		} on error {errmsg options} {
@@ -265,49 +313,6 @@ cflib::pclass create m2::api {
 	#>>>
 	method _need_reconnect {} { #<<<
 		$dominos(need_reconnect) tip
-	}
-
-	#>>>
-	method _assign_queue {raw_msg msg} { #<<<
-		set m	[$msg get_data]
-		switch -- [dict get $m type] {
-			"rsj_req" -
-			"req" -
-			"jm" {
-				return [dict get $m seq]
-			}
-
-			default {
-				return [dict get $m prev_seq]
-			}
-		}
-	}
-
-	#>>>
-	method _pick_queue {queues} { #<<<
-		# Note: not used, uses the default netdgram::queue::pick behaviour (round-robin)
-
-		# Default behaviour: roundrobin of queues
-		my variable roundrobin
-		set new_roundrobin	{}
-
-		# Trim queues that have gone away
-		foreach queue $roundrobin {
-			if {$queue ni $queues} continue
-			lappend new_roundrobin $queue
-		}
-
-		# Append any new queues to the end of the roundrobin
-		foreach queue $queues {
-			if {$queue in $new_roundrobin} continue
-			lappend new_roundrobin $queue
-		}
-
-		# Pull the next queue off head and add it to the tail
-		set roundrobin	[lassign $new_roundrobin next]
-		lappend roundrobin	$next
-
-		return $next
 	}
 
 	#>>>

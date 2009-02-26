@@ -46,26 +46,76 @@ oo::class create m2::port {
 
 		$server register_port [self] $outbound $advertise
 
-		#oo::objdefine $queue forward assign {*}[namespace code {my _queue_assign}]
-		oo::objdefine $queue method assign {rawmsg msg} {
-			switch -- [$msg get type] {
+		oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
+			switch -- $type {
 				rsj_req - req {
-					$msg get seq
+					set seq
 				}
-				jm {
-					if {[$msg get prev_seq] eq 0} {
-						$msg get seq
-					} else {
-						$msg get prev_seq
-					}
+
+				pr_jm {
+					my variable _pending_jm_setup
+					dict set _pending_jm_setup $seq $prev_seq
+					set prev_seq
 				}
+				
+				jm - jm_can {
+					set seq
+				}
+
 				default {
-					$msg get prev_seq
+					set prev_seq
 				}
 			}
 		}
-		# Use the default netdgram::queue::pick code for round-robin
-		#oo::objdefine $queue forward pick {*}[namespace code {my _queue_pick}]
+
+		#>>>
+		oo::objdefine $queue method pick {queues} { #<<<
+			my variable _pending_jm_setup
+			if {![info exists _pending_jm_setup]} {
+				set _pending_jm_setup	[dict create]
+			}
+
+			set q		[next $queues]
+			set first	$q
+
+			# Skip queues for jms that were setup in requests for which
+			# we still haven't sent the ack or nack
+			while {[dict exists $_pending_jm_setup $q]} {
+				set q		[next $queues]
+				if {$q eq $first} {
+					if {[info commands "dutils::daemon_log"] ne {}} {
+						dutils::daemon_log LOG_ERR "[self] Eeek - all queues have the pending flag set, should never happen"
+					} else {
+						puts stderr "[self] Eeek - all queues have the pending flag set, should never happen"
+					}
+					# Should never happen
+					break
+				}
+			}
+
+			return $q
+		}
+
+		#>>>
+		oo::objdefine $queue method sent {type seq prev_seq} { #<<<
+			if {$type in {
+				ack
+				nack
+			}} {
+				my variable _pending_jm_setup
+				if {![info exists _pending_jm_setup]} {
+					set _pending_jm_setup	[dict create]
+				}
+
+				dict for {s p} $_pending_jm_setup {
+					if {$p eq $prev_seq} {
+						dict unset _pending_jm_setup $s
+					}
+				}
+			}
+		}
+
+		#>>>
 		oo::objdefine $queue forward receive {*}[namespace code {my _receive}]
 		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
 
@@ -571,7 +621,7 @@ oo::class create m2::port {
 			}
 			# Add profiling stamp if requested >>>
 
-			$queue enqueue [$msg serialize] $msg
+			$queue enqueue [$msg serialize] [$msg get type] [$msg get seq] [$msg get prev_seq]
 		} on error {errmsg options} {
 			log error "Error queueing message [$msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
 			my _die
@@ -589,22 +639,6 @@ oo::class create m2::port {
 			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) dport collapsed before we could send it the msg (type: \"[$msg type]\", svc: \"[$msg svc]\", seq: \"[$msg seq]\", prev_seq: \"[$msg prev_seq]\"), dropping msg"
 		} on error {errmsg options} {
 			puts stderr "m2::Port::send_dport($dport,$msg): this: ([self]) error sending ([$msg svc]): $errmsg {[dict get $options -errorcode]}\n[dict get $options -errorinfo]"
-		}
-	}
-
-	#>>>
-	method _queue_assign {data msg} { #<<<
-		# !!! Not used - objdefine method is faster
-		switch -- [$msg get type] {
-			"rsj_req" -
-			"req" -
-			"jm" {
-				return [$msg get seq]
-			}
-
-			default {
-				return [$msg get prev_seq]
-			}
 		}
 	}
 
