@@ -1,5 +1,13 @@
 // vim: ft=javascript foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
+if (console === undefined) {
+	console = {
+		log: function(msg) {dump(arguments);},
+		warn: function(msg) {alert(arguments);},
+		error: function(msg) {alert(arguments);}
+	};
+}
+
 function get_interface(component, interface) { //<<<
 	var obj = Components.classes[component].createInstance(Components.interfaces[interface]);
 
@@ -15,7 +23,7 @@ function get_service(component, interface) { //<<<
 
 //>>>
 function m2_connect(host, port) { //<<<
-	dump('attempting to connect to m2_node on ('+host+') ('+port+')\n');
+	console.log('attempting to connect to m2_node on ('+host+') ('+port+')');
 	this.unique_id = 0;
 	var handlers = new Hash();
 	var event_handlers = new Hash();
@@ -212,15 +220,15 @@ function m2_connect(host, port) { //<<<
 
 		//>>>
 		_got_msg: function(msg) { //<<<
-			dump('got m2 msg:\n');
-			dump('msg.svc: ('+msg.svc+')\n');
-			dump('msg.type: ('+msg.type+')\n');
-			dump('msg.seq: ('+msg.seq+')\n');
-			dump('msg.prev_seq: ('+msg.prev_seq+')\n');
-			dump('msg.sell_by: ('+msg.sell_by+')\n');
-			dump('msg.oob_type: ('+msg.oob_type+')\n');
-			dump('msg.oob_data: ('+msg.oob_data+')\n');
-			dump('msg.data: ('+msg.data+')\n');
+			console.log('got m2 msg:');
+			console.log('msg.svc: ('+msg.svc+')');
+			console.log('msg.type: ('+msg.type+')');
+			console.log('msg.seq: ('+msg.seq+')');
+			console.log('msg.prev_seq: ('+msg.prev_seq+')');
+			console.log('msg.sell_by: ('+msg.sell_by+')');
+			console.log('msg.oob_type: ('+msg.oob_type+')');
+			console.log('msg.oob_data: ('+msg.oob_data+')');
+			console.log('msg.data: ('+msg.data+')');
 			switch (msg.type) {
 				case 'svc_avail':
 					this._svc_avail(parse_tcl_list(msg.data));
@@ -501,17 +509,6 @@ function m2_connect(host, port) { //<<<
 
 	//>>>
 
-	this.req_partial = function(op, data, listener) { //<<<
-		var myseq = reqsequence++;
-		var out = "";
-		var payload = op + "\n" + data;
-		handlers.setItem(myseq, listener);
-		out += payload.length+' '+myseq+' req_partial'+"\n"+payload;
-		//console.log('writing: ('+out+')');
-		outstream.write(out,out.length);
-	};
-
-	//>>>
 	this.listen_event = function(event, cb) { //<<<
 		var existing;
 		if (event_handlers.hasItem(event)) {
@@ -548,15 +545,6 @@ function setup_connection_status() { //<<<
 		while (cx_statusNode.firstChild) {
 			cx_statusNode.removeChild(cx_statusNode.firstChild);
 		}
-
-		tmpNode = document.createElement('image');
-		tmpNode.setAttribute('src', 'chrome://m2/content/images/indicator_unknown.png');
-		//tmpNode.setAttribute('onclick', 'm2_reconnect();');
-		cx_statusNode.appendChild(tmpNode);
-		tmpNode.addEventListener('click', function(evt){
-			console.log('got click');
-			m2_reconnect();
-		}, false);
 
 		tmpNode = document.createElement('image');
 		console.log('connected_changed: ('+newstate+'), type: ('+typeof newstate+')');

@@ -10,7 +10,7 @@
 
 cflib::pclass create m2::api {
 	#superclass cflib::handlers sop::signalsource cflib::baselog
-	superclass cflib::pclassbase sop::signalsource cflib::handlers cflib::baselog
+	superclass sop::signalsource cflib::handlers cflib::baselog
 
 	property uri				""			_need_reconnect
 	property ip					""			_need_reconnect
