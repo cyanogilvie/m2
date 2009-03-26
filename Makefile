@@ -5,7 +5,7 @@ all: tm m2_node
 tm:
 	tbuild build m2
 
-m2_node: tm m2_node.tcl
+m2_node: tm m2_node/m2_node.tcl
 	tbuild build m2_node
 
 install-tm: tm
