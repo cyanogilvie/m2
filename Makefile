@@ -18,7 +18,7 @@ install-rpm: all
 	install -d $(DESTDIR)/usr/bin
 	install -d $(DESTDIR)/etc/init.d
 	install -d $(DESTDIR)/etc/sysconfig
-	install --mode 0755 ~/.tbuild/repo/apps/linux-glibc2.3-ix86/m2_node/m2_node $(DESTDIR)/usr/bin
+	install --mode 0755 ~/.tbuild/repo/apps/linux-glibc2.3-ix86/m2_node $(DESTDIR)/usr/bin
 	install --mode 0644 sysv/config $(DESTDIR)/etc/sysconfig/m2_node
 	install --mode 0755 sysv/m2_node $(DESTDIR)/etc/init.d
 
