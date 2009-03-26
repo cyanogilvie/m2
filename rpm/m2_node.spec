@@ -1,12 +1,12 @@
 Name:		m2_node
-Version:	0.20.3
+Version:	0.23.1
 Release:	1
-Source:		m2_node-0.20.3.tar.gz
+Source:		m2_node-0.23.1.tar.gz
 License:	BSD
 Vendor:		Codeforge (Pty) Ltd.
 Group:		Applications/System
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
-Requires:	kbskit
+Requires:	cfkit
 Summary:	m2 messagebus node
 
 %description
@@ -38,6 +38,9 @@ chkconfig m2_node off
 %config /etc/sysconfig/m2_node
 
 %changelog
+* Thu Mar 26 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.1-1
+- Changed to cfkit
+
 * Wed Jan 21 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.20.3-1
 - Rename of connection method tcp_coroutine to tcp
 

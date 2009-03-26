@@ -8,8 +8,30 @@
 oo::class create m2::port {
 	superclass cflib::handlers cflib::baselog
 
+	variable {*}{
+		server
+		use_keepalive
+		req
+		jm
+		jm_prev
+		jm_ports
+		jm_sport
+
+		mysvcs
+		outbound
+		signals
+		queue
+		advertise
+		neighbour_info
+		dieing
+		connected
+	}
+
 	constructor {mode parms a_queue a_params} { #<<<
 		next
+		my variable params
+		set params	$a_params
+
 		set use_keepalive		0
 		set advertise			0
 		set dieing				0
@@ -120,13 +142,18 @@ oo::class create m2::port {
 		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
 
 		set connected	1
-		log debug "m2::Port::constructor ($queue) connection from ($a_params)"
+		log debug "m2::Port::constructor ($queue) connection from ($params)"
 
 		my _send_all_svcs
 	}
 
 	#>>>
 	destructor { #<<<
+		my variable params
+
+		if {![info exists params]} {set params	""}
+		if {![info exists queue]} {set queue	""}
+		log debug "m2::Port::destructor ($queue) connection from ($params) closed"
 		try {
 			if {[info exists queue] && [info object is object $queue]} {
 				set con	[$queue con]
@@ -183,25 +210,6 @@ oo::class create m2::port {
 	}
 
 	#>>>
-
-	variable {*}{
-		server
-		use_keepalive
-		req
-		jm
-		jm_prev
-		jm_ports
-		jm_sport
-
-		mysvcs
-		outbound
-		signals
-		queue
-		advertise
-		neighbour_info
-		dieing
-		connected
-	}
 
 	method send {srcport msg} { #<<<
 		#puts "Port::send: ($srcport) -> ([self])"

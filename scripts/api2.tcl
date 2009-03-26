@@ -269,9 +269,9 @@ cflib::pclass create m2::api2 {
 			nack -
 			jm -
 			pr_jm { #<<<
-				# m(prev_seq) is a list of previous sequences for junkmails (there
-				# may be more than one of our requests that were subscribed to
-				# this junkmail)
+				# m(prev_seq) is a list of previous sequences for junkmails
+				# (there may be more than one of our requests that were
+				# subscribed to this junkmail)
 				foreach prev_seq $m_prev_seq {
 					if {[dict exists $pending $prev_seq]} {
 						set cb		[dict get $pending $prev_seq]

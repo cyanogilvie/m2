@@ -30,14 +30,16 @@ tm "m2" { #<<<
 
 #>>>
 application "m2_node" { #<<<
-	version ${::version}.0
+	version ${::version}.1
 
-	#runtime kbskit8.6
+	runtime cfkit8.6
 
 	requires {
 		m2
 		{netdgram 0.4}
 		netdgram::tcp
+		cflib
+		dsl
 	}
 
 	files {
