@@ -1,7 +1,7 @@
 Name:		m2_node
-Version:	0.23.1
+Version:	0.23.2
 Release:	1
-Source:		m2_node-0.23.1.tar.gz
+Source:		m2_node-0.23.2.tar.gz
 License:	BSD
 Vendor:		Codeforge (Pty) Ltd.
 Group:		Applications/System
@@ -38,6 +38,9 @@ chkconfig m2_node off
 %config /etc/sysconfig/m2_node
 
 %changelog
+* Mon Mar 30 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.2-1
+- Made config system pluggable
+
 * Thu Mar 26 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.1-1
 - Changed to cfkit
 

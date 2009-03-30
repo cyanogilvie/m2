@@ -1,1 +1,5 @@
-M2_START_ARGS=''
+if [ -x /etc/m2_node/start_args ]; then
+	M2_START_ARGS="$(/etc/m2_node/start_args)"
+else
+	M2_START_ARGS=''
+fi
