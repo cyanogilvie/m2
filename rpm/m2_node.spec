@@ -1,12 +1,12 @@
 Name:		m2_node
-Version:	0.23.4
+Version:	0.23.5
 Release:	1
-Source:		m2_node-0.23.4.tar.gz
+Source:		m2_node-0.23.5.tar.gz
 License:	BSD
 Vendor:		Codeforge (Pty) Ltd.
 Group:		Applications/System
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
-Requires:	cfkit aaa_base
+Requires:	cfkit aaa_base sysconfig
 Summary:	m2 messagebus node
 
 %description
@@ -38,6 +38,9 @@ chkconfig m2_node off
 %config /etc/sysconfig/m2_node
 
 %changelog
+* Mon Mar 30 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.5-1
+- Added sysconfig dep
+
 * Mon Mar 30 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.4-1
 - Added aaa_base dep (for chkconfig)
 
