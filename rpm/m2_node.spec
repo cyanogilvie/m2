@@ -1,7 +1,7 @@
 Name:		m2_node
-Version:	0.23.5
+Version:	0.23.6
 Release:	1
-Source:		m2_node-0.23.5.tar.gz
+Source:		m2_node-0.23.6.tar.gz
 License:	BSD
 Vendor:		Codeforge (Pty) Ltd.
 Group:		Applications/System
@@ -26,7 +26,8 @@ make DESTDIR=$RPM_BUILD_ROOT install-rpm
 rm -rf $RPM_BUILD_ROOT
 
 %post
-chkconfig m2_node on
+# Grrr.  Stupid image creation can't deal with this
+#chkconfig m2_node on
 
 %preun
 /etc/init.d/m2_node stop
@@ -38,6 +39,9 @@ chkconfig m2_node off
 %config /etc/sysconfig/m2_node
 
 %changelog
+* Mon Mar 30 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.6-1
+- Disabled chkconfig in %post scriptlet
+
 * Mon Mar 30 2009 Cyan Ogilvie <cyan.ogilvie@gmail.com> 0.23.5-1
 - Added sysconfig dep
 
