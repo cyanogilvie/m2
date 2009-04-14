@@ -92,5 +92,42 @@ application "authenticatord" { #<<<
 }
 
 #>>>
+rpm "m2_node" { #<<<
+	version ${::version}.7
+
+	summary "m2 messagebus node"
+
+	description {
+Provides service tag based routing for m2 messages
+	}
+
+	applications {
+		m2_node
+	}
+
+	files {
+		sysv/m2_node		/etc/init.d/m2_node
+		sysv/config			/etc/sysconfig/m2_node
+	}
+
+	post_scriptlet {
+		if [ -x /sbin/chkconfig ]
+		then
+			/sbin/chkconfig m2_node on
+		fi
+	}
+
+	preun_scriptlet {
+		if [ -x /sbin/chkconfig ]
+		then
+			/sbin/chkconfig m2_node off
+		fi
+		/etc/init.d/m2_node stop
+	}
+
+	target i586-linux-gnu linux-glibc2.3-ix86
+}
+
+#>>>
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

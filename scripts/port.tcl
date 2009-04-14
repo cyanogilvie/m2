@@ -144,7 +144,9 @@ oo::class create m2::port {
 		set connected	1
 		log debug "m2::Port::constructor ($queue) connection from ($params)"
 
-		my _send_all_svcs
+		if {$advertise} {
+			my _send_all_svcs
+		}
 	}
 
 	#>>>
