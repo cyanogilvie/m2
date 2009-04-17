@@ -1,0 +1,29 @@
+<html>
+	<head>
+		<title>M2 connection example</title>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="m2/hash.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript">
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			m2 = m2_connect('localhost', 5301);
+
+			m2.listen_event('connected', function(newstate) {
+					var connected_icon;
+					connected_icon = document.getElementById('connected_status');
+					if (newstate) {
+						connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+					} else {
+						connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+					}
+			});
+		</script>
+	</head>
+	<body>
+		<div>Connected: <img id="connected_status" src="images/connected_indicator_red.png" width="16" height="16" /></div>
+	</body>
+</html>

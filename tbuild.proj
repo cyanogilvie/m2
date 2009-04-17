@@ -30,7 +30,7 @@ tm "m2" { #<<<
 
 #>>>
 application "m2_node" { #<<<
-	version ${::version}.1
+	version ${::version}.2
 
 	runtime cfkit8.6
 
@@ -38,6 +38,7 @@ application "m2_node" { #<<<
 		m2
 		{netdgram 0.4}
 		netdgram::tcp
+		netdgram::jssocket
 		cflib
 		dsl
 	}
@@ -93,7 +94,7 @@ application "authenticatord" { #<<<
 
 #>>>
 rpm "m2_node" { #<<<
-	version ${::version}.7
+	version ${::version}.8
 
 	summary "m2 messagebus node"
 
