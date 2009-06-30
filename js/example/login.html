@@ -1,0 +1,31 @@
+<div dojoType="dijit.layout.ContentPane" class="modulesContainer">
+	<form dojoType="dijit.form.Form" action="" method="">
+		<script type="dojo/method" event="onSubmit">
+			return false;
+		</script>
+		<script type="dojo/method" event="execute" args="formdata">
+			for (var p in formdata) {
+				console.log(p+': "'+formdata[p]+'"');
+			}
+			return false;
+		</script>
+		<table cellspacing="0" cellpadding="0" class="loginForm">
+			<tr>
+				<th>Username</th>
+				<td><input type="text" dojoType="dijit.form.TextBox" name="username" /></td>
+			</tr>
+			<tr>
+				<th>Password</th>
+				<td><input type="password" dojoType="dijit.form.TextBox" name="password" /></td>
+			</tr>
+			<tr>
+				<td>&nbsp;</td>
+				<td>
+					<button type="submit" dojoType="dijit.form.Button">
+						Login
+					</button>
+				</td>
+			</tr>
+		</table>
+	</form>
+</div>

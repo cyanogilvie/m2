@@ -28,10 +28,12 @@ cflib::pclass create m2::api {
 
 	variable {*}{
 		signals
+		svc_signals
 	}
 
 	constructor {args} { #<<<
-		array set dominos	{}
+		array set dominos		{}
+		array set svc_signals	{}
 
 		sop::domino new dominos(need_reconnect) -name "[self] need_reconnect"
 		sop::signal new signals(connected) -name "[self] connected"
@@ -74,6 +76,15 @@ cflib::pclass create m2::api {
 	}
 
 	#>>>
+	method svc_signal {svc} { #<<<
+		if {![info exists svc_signals($svc)]} {
+			sop::signal new svc_signals($svc) -name "svc_avail_$svc"
+			$svc_signals($svc) set_state [my svc_avail $svc]
+		}
+		return $svc_signals($svc)
+	}
+
+	#>>>
 	method svc_avail {svc} { #<<<
 		return [dict exists $svcs $svc]
 	}
@@ -111,6 +122,9 @@ cflib::pclass create m2::api {
 			svc_avail {
 				foreach svc [$msg data] {
 					dict set svcs $svc	1
+					if {[info exists svc_signals($svc)]} {
+						$svc_signals($svc) set_state 1
+					}
 				}
 				$dominos(svc_avail_changed) tip
 			}
@@ -118,6 +132,9 @@ cflib::pclass create m2::api {
 			svc_revoke {
 				foreach svc [$msg data] {
 					dict unset svcs $svc
+					if {[info exists svc_signals($svc)]} {
+						$svc_signals($svc) set_state 0
+					}
 				}
 				$dominos(svc_avail_changed) tip
 			}
@@ -289,6 +306,9 @@ cflib::pclass create m2::api {
 		set was_connected	[$signals(connected) state]
 		$signals(connected) set_state 0
 		if {$was_connected} {
+			foreach svc [array names svc_signals] {
+				$svc_signals($svc) set_state 0
+			}
 			my invoke_handlers lost_connection
 		}
 	}

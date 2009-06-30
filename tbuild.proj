@@ -1,4 +1,4 @@
-set version	0.23
+set version	0.24
 
 tm "m2" { #<<<
 	version $::version
@@ -39,6 +39,7 @@ application "m2_node" { #<<<
 		{netdgram 0.4}
 		netdgram::tcp
 		netdgram::jssocket
+		netdgram::uds
 		cflib
 		dsl
 	}
@@ -55,19 +56,29 @@ application "m2_node" { #<<<
 		requires {
 			daemon
 			sockopt
+			unix_sockets
 		}
 	}
 	#platform linux-glibc2.4-ppc {
 	#	requires {daemon}
 	#}
+
+	platform linux-glibc2.9-x86_64 {
+		requires {
+			{daemon 0.6}
+			{sockopt}
+			{unix_sockets}
+		}
+	}
+
 	platform tcl
 }
 
 #>>>
 application "authenticatord" { #<<<
-	version 0.21.0
+	version 0.22.0
 
-	runtime kbskit8.6
+	runtime cfkit8.6
 
 	requires {
 		m2
@@ -77,6 +88,7 @@ application "authenticatord" { #<<<
 		sop
 		dsl
 		sqlite3
+		crypto
 	}
 
 	files {
@@ -84,12 +96,7 @@ application "authenticatord" { #<<<
 		authenticator/*
 	}
 
-	platform linux-glibc2.8-ix86 {
-		requires {
-			{Crypto 0.9.1}
-			{daemon 0.5}
-		}
-	}
+	platform tcl
 }
 
 #>>>

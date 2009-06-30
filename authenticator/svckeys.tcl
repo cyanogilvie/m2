@@ -40,7 +40,7 @@ oo::class create Svckeys {
 			error "No such svc: ($svc) ($svcfn)"
 		}
 
-		crypto::rsa_read_public_key $svcfn
+		crypto::rsa::load_asn1_pubkey $svcfn
 	}
 
 	#>>>

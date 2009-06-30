@@ -489,3 +489,21 @@ function array2dict(arr) { //<<<
 }
 
 //>>>
+function array2hash(arr) { //<<<
+	var h;
+
+	h = new Hash;
+
+	for (i=0; i<arr.length; i+=2) {
+		var k, v;
+		k = arr[i];
+		v = arr[i+1];
+
+		h.setItem(k, v);
+	}
+
+	return h;
+}
+
+//>>>
+

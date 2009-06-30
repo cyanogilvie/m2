@@ -7,7 +7,7 @@ package require m2
 package require cflib
 
 cflib::config create cfg $argv {
-	variable listen_on		{"tcp://:5300"}
+	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
 	variable upstream		{}
 	variable daemon			1
 	variable runas_user		"daemon"
@@ -69,6 +69,7 @@ if {[cfg get daemon]} {
 	}
 
 	daemon fork {
+		dutils::umask 022
 		init
 	}
 } else {

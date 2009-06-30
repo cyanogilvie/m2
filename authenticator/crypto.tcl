@@ -18,7 +18,7 @@ oo::class create Crypto {
 			error "Cannot find authenticator private key: ([cfg get prkey])"
 		}
 
-		set priv_key		[crypto::rsa_read_private_key $fqkeyfn]
+		set priv_key		[crypto::rsa::load_asn1_prkey $fqkeyfn]
 	}
 
 	#>>>
@@ -28,8 +28,12 @@ oo::class create Crypto {
 		lassign $data e_key e_cookie
 		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 
+		set K	[dict with priv_key {list $p $q $dP $dQ $qInv}]
+		set hash	$crypto::rsa::sha1
+		set mgf		$crypto::rsa::MGF
 		try {
-			set session_key	[crypto::rsa_private_decrypt $priv_key $e_key]
+			#set session_key	[crypto::rsa_private_decrypt $priv_key $e_key]
+			set session_key	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_key $sha1 $mgf]
 			my log debug "session_key: ([mungekey $session_key])" -suppress data
 		} on error {errmsg options} {
 			my log error "could not decrypt session_key: $errmsg" -suppress data
@@ -38,7 +42,8 @@ oo::class create Crypto {
 		}
 
 		try {
-			set cookie		[crypto::rsa_private_decrypt $priv_key $e_cookie]
+			#set cookie		[crypto::rsa_private_decrypt $priv_key $e_cookie]
+			set cookie		[crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie $hash $mgf]
 		} on error {errmsg options} {
 			my log error "could not decrypt cookie: $errmsg" -suppress data
 			m2 nack $seq "Could not decrypt cookie"

@@ -7,17 +7,14 @@ application "examplecomponent" {
 		sop
 		cflib
 		dsl
+		crypto
 	}
 
 	files {
 		component.tcl
 	}
 
-	platform linux-glibc2.8-ix86 {
-		requires {
-			{Crypto 0.9.1}
-		}
-	}
+	platform tcl
 }
 
 application "exampleclient" {
@@ -29,17 +26,14 @@ application "exampleclient" {
 		sop
 		cflib
 		dsl
+		crypto
 	}
 
 	files {
 		client.tcl
 	}
 
-	platform linux-glibc2.8-ix86 {
-		requires {
-			{Crypto 0.9.1}
-		}
-	}
+	platform tcl
 }
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

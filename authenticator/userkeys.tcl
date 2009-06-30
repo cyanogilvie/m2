@@ -62,7 +62,7 @@ oo::class create Userkeys {
 			return [dict get $userkeys $user]
 		} elseif {[regexp {^svc%(.*)$} $user x svc_name]} {
 			my log debug "Returning pbkey for svc ($svc_name)"
-			return [crypto::rsa_get_public_key [svckeys get_pbkey $svc_name]]
+			return [svckeys get_pbkey $svc_name]
 		}
 
 		my log error "No key stored for user"

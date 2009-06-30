@@ -1,0 +1,27 @@
+application "m2modules" {
+	version 0.1
+
+	runtime cfkit8.6
+
+	requires {
+		m2
+		netdgram::tcp
+		netdgram::uds
+		cflib
+		dsl
+	}
+
+	files {
+		modules.tcl
+	}
+
+	platform linux-glibc2.9-x86_64 {
+		requires {
+			{daemon 0.6}
+			{unix_sockets 0.1}
+		}
+	}
+}
+
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

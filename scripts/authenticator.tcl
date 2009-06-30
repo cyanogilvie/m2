@@ -30,7 +30,7 @@ cflib::pclass create m2::authenticator {
 	}
 
 	constructor {args} { #<<<
-		package require Crypto
+		package require crypto
 
 		set coro_pref	"coro_[string map {:: _} [self]]"
 		array set keys			{}
@@ -63,7 +63,7 @@ cflib::pclass create m2::authenticator {
 			error "Cannot find authenticator public key"
 		}
 
-		set pubkey		[crypto::rsa_read_public_key $pbkey]
+		set pubkey		[crypto::rsa::load_asn1_pubkey $pbkey]
 		set keys(main)	[my generate_key]
 
 		$signals(connected) attach_output [my code _connected_changed]
@@ -91,9 +91,14 @@ cflib::pclass create m2::authenticator {
 		if {$ok} {
 			set fqun	$username
 			my log debug "Logged in ok, generating key" -suppress password
-			set handle	[crypto::rsa_generate_key 1024 17]
-			set pbkey	[crypto::rsa_get_public_key $handle]
-			set session_prkey	$handle
+			#set handle	[crypto::rsa_generate_key 1024 17]
+			#set pbkey	[crypto::rsa_get_public_key $handle]
+			#set session_prkey	$handle
+			set K		[crypto::rsa::RSAKG 1024 0x10001]
+			set pbkey	[dict create \
+					n		[dict get $K n] \
+					e		[dict get $K e]]
+			set session_prkey	$K
 			my rsj_req [lindex $login_chan 0] \
 					[list session_pbkey_update $pbkey] \
 					[my code _session_pbkey_chan] [info coroutine]
@@ -104,7 +109,7 @@ cflib::pclass create m2::authenticator {
 				$signals(authenticated) set_state 1
 			} else {
 				my log debug "error updating session key: ([lindex $resp 1])" -suppress password
-				jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
+				m2 jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
 			}
 		} else {
 			my log warning "Error logging in: ($last_login_message)" -suppress password
@@ -125,7 +130,7 @@ cflib::pclass create m2::authenticator {
 			error "No such file: ($prkeyfn)"
 		}
 		try {
-			set prkey	[crypto::rsa_read_private_key $prkeyfn]
+			set prkey	[crypto::rsa::load_asn1_prkey $prkeyfn]
 		} on error {errmsg options} {
 			error "Error reading private key ($prkeyfn): $errmsg"
 		}
@@ -142,7 +147,8 @@ cflib::pclass create m2::authenticator {
 		}
 		# Get a cookie from auth backend >>>
 
-		set e_cookie	[crypto::rsa_private_encrypt $prkey $cookie]
+		#set e_cookie	[crypto::rsa_private_encrypt $prkey $cookie]
+		set e_cookie	[crypto::rsa::RSAES-OAEP-Sign $prkey $cookie]
 
 		my rsj_req $enc_chan \
 				[list login_svc $svc $cookie_idx $e_cookie] \
@@ -208,7 +214,8 @@ cflib::pclass create m2::authenticator {
 
 	#>>>
 	method decrypt_with_session_prkey {data} { #<<<
-		crypto::rsa_private_decrypt $session_prkey $data
+		set K	[dict with session_prkey {list $p $q $dP $dQ $qInv}]
+		crypto::rsa::RSAES-OAEP-Decrypt $K $data $crypto::rsa::sha1 $crypto::rsa::MGF]
 	}
 
 	#>>>
@@ -434,8 +441,10 @@ cflib::pclass create m2::authenticator {
 		set pending_cookie	[my generate_key]
 		my log debug "negotiating session_key ([my mungekey $keys(main)]), cookie: ([my mungekey $pending_cookie])"
 
-		set e_key		[crypto::rsa_public_encrypt $pubkey $keys(main)]
-		set e_cookie	[crypto::rsa_public_encrypt $pubkey $pending_cookie]
+		set n		[dict get $pubkey n]
+		set e		[dict get $pubkey e]
+		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie $crypto::rsa::sha1 $crypto::rsa::MGF]
 		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 		#my req "authenticator" [list crypt_setup \
 		#	[crypto::armour $e_key] \
@@ -746,11 +755,14 @@ cflib::pclass create m2::authenticator {
 					refresh_key { #<<<
 						my log debug "jm(session_pbkey_chan): got notification to renew session keypair"
 						my log debug "jm(session_pbkey_chan): generating keypair"
-						set handle	[crypto::rsa_generate_key 1024 17]
+						set K		[crypto::rsa::RSAKG 1024 0x10001]
 						my log debug "jm(session_pbkey_chan): done generating keypair"
-						crypto::rsa_free_key $session_prkey
-						set pbkey	[crypto::rsa_get_public_key $handle]
-						set session_prkey	$handle
+						# TODO: need a replacement for this
+						#crypto::rsa_free_key $session_prkey
+						set pbkey	[dict create \
+								n	[dict get $K n] \
+								e	[dict get $K e]]
+						set session_prkey	$K
 						my log debug "jm(session_pbkey_chan): sending public key to backend"
 						my rsj_req \
 								[lindex $session_pbkey_chan 0] \

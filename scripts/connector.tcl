@@ -283,9 +283,13 @@ cflib::pclass create m2::connector {
 			my disconnect
 		}
 		set skey	[$auth generate_key]
-		set cookie	[$auth generate_key 8]
-		set msg		[crypto::rsa_public_encrypt $pbkey $skey]
-		set tail	[crypto::encrypt bf_cbc $skey [list $cookie [$auth fqun]]]
+		set cookie	[crypto::blowfish::csprng 8]
+		set n		[dict get $pbkey n]
+		set e		[dict get $pbkey e]
+		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set ks		[crypto::blowfish::init_key $skey]
+		set iv		[crypto::blowfish::csprng 8]
+		set tail	[crypto::blowfish::encrypt_cbc $ks [list $cookie [$auth fqun] $iv] $iv]
 
 		$auth req $svc "setup [list $msg $tail]" [my code _resp]
 	}
@@ -371,7 +375,7 @@ cflib::pclass create m2::connector {
 				#set pbkey	[crypto::rsa_load_public_key [$auth get_svc_pbkey $svc]]
 				set pbkey_asc	[$auth get_svc_pbkey $svc]
 				my log debug "got public key ascii format for ($svc), loading into key ..."
-				set pbkey		[crypto::rsa_load_public_key $pbkey_asc]
+				set pbkey		[crypto::rsa::load_asn1_pubkey_from_value $pbkey_asc]
 				my log debug "got public key for ($svc)"
 			} on error {errmsg options} {
 				my log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"

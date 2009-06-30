@@ -271,11 +271,12 @@ oo::class create m2::node {
 	}
 
 	#>>>
-	method _accept_inbound {con cl_ip cl_port} { #<<<
+	method _accept_inbound {con args} { #<<<
+		log debug "node::_accept_inbound: con: ($con) args: ($args)"
 		set queue [netdgram::queue new]
 		$queue attach $con
 		m2::port new inbound \
-				[list -server [self]] $queue [list $cl_ip $cl_port]
+				[list -server [self]] $queue $args
 	}
 
 	#>>>

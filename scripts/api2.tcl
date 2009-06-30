@@ -657,23 +657,29 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method encrypt {key data} { #<<<
-		crypto::encrypt bf_cbc $key [crypto::compress $data]
+		set iv		[crypto::blowfish::csprng 8]
+		return $iv[crypto::blowfish::encrypt_cbc $key [zlib deflate [encoding convertto utf-8 $data] 3]]
 	}
 
 	#>>>
 	method decrypt {key data} { #<<<
-		crypto::uncompress [crypto::decrypt bf_cbc $key $data]
+		set iv		[string range $data 0 7]
+		set rest	[string range $data 8 end]
+		encoding convertfrom utf-8 [zlib inflate [crypto::blowfish::decrypt_cbc $key $rest]]
 	}
 
 	#>>>
 	method generate_key {{bytes 56}} { #<<<
 		#crypto::rand_bytes $bytes
-		crypto::rand_pseudo_bytes $bytes
+		#crypto::rand_pseudo_bytes $bytes
+		# Hmmmm
+		crypto::blowfish::csprng $bytes
 	}
 
 	#>>>
 	method pseudo_bytes {{bytes 56}} { #<<<
-		crypto::rand_pseudo_bytes $bytes
+		#crypto::rand_pseudo_bytes $bytes
+		crypto::blowfish::csprng $bytes
 	}
 
 	#>>>
@@ -706,14 +712,14 @@ cflib::pclass create m2::api2 {
 				lassign $args session_id msg
 
 				#my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
-				return [crypto::encrypt bf_cbc [dict get $session_keys $session_id] [crypto::compress $msg]]
+				return [my encrypt [dict get $session_keys $session_id] $msg]
 				#>>>
 			}
 
 			decrypt { #<<<
 				lassign $args session_id msg
 
-				return [crypto::uncompress [crypto::decrypt bf_cbc [dict get $session_keys $session_id] $msg]]
+				return [my decrypt [dict get $session_keys $session_id] $msg]
 				#>>>
 			}
 

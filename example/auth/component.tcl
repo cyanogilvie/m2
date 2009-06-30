@@ -5,16 +5,10 @@ package require dsl
 
 cflib::config create cfg $argv {
 	variable uri			"tcp://localhost:5300"
-	variable pbkey			"authenticator.pub"
+	variable pbkey			"/etc/codeforge/authenticator/authenticator.pub"
 	variable crypto_devmode	0
 }
 
-if {[cfg get crypto_devmode]} {
-	namespace eval crypto {
-		variable devmode 1
-	}
-}
-package require Crypto 0.9.1
 
 m2::authenticator create auth -uri [cfg get uri] -pbkey [cfg get pbkey]
 
@@ -37,8 +31,4 @@ comp handler "hello" [list apply {
 	}
 }]
 
-coroutine main apply {
-	{} {
-		vwait ::forever
-	}
-}
+coroutine coro_main vwait forever

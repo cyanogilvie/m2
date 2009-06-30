@@ -142,7 +142,7 @@ oo::class create m2::port {
 		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
 
 		set connected	1
-		log debug "m2::Port::constructor ($queue) connection from ($params)"
+		log debug "m2::Port::constructor, self: ([self]), queue: ($queue) connection from ($params)"
 
 		if {$advertise} {
 			my _send_all_svcs
@@ -155,12 +155,17 @@ oo::class create m2::port {
 
 		if {![info exists params]} {set params	""}
 		if {![info exists queue]} {set queue	""}
-		log debug "m2::Port::destructor ($queue) connection from ($params) closed"
+		log debug "m2::Port::destructor, self: ([self]), queue: ($queue) connection from ($params) closed"
 		try {
 			if {[info exists queue] && [info object is object $queue]} {
 				set con	[$queue con]
 				# $queue dies when $con does, close_con unsets $con
-				$con destroy
+				if {[info object isa object $con]} {
+					$con destroy
+				} else {
+					log warning "con $con died mysteriously under queue $queue"
+					$queue destroy
+				}
 				unset queue
 			}
 		} on error {errmsg options} {
@@ -375,9 +380,10 @@ oo::class create m2::port {
 			}
 
 			neighbour_info { #<<<
-				puts "got neighbour_info: [$msg get data]"
+				#log debug "-- [my cached_station_id] got neighbour_info: [$msg get data]"
 				set neighbour_info \
 						[dict merge $neighbour_info [$msg get data]]
+				#log debug "---- [my cached_station_id], neighbour_info type: ([dict get $neighbour_info type]), keys: ([dict keys $neighbour_info])"
 				#>>>
 			}
 
@@ -420,6 +426,7 @@ oo::class create m2::port {
 			pr_jm -
 			jm { #<<<
 				set pseq	$m_prev_seq
+				#log debug "------ [$msg get type], pseq: ($pseq) \[[my cached_station_id]\]"
 				if {[dict exists $req $pseq]} {
 					$msg type		pr_jm
 					set tmp			[dict get $req $pseq]
@@ -430,8 +437,8 @@ oo::class create m2::port {
 						dict set jm $m_seq	[$server unique_id]
 					}
 					set jmid	[dict get $jm $m_seq]
-					#puts "sending pr_jm downstream with id: ($jmid)"
-					#puts "dport ($dport) type is \"[$dport type]\""
+					#log debug "--------- sending pr_jm downstream with id: ($jmid)"
+					#log debug "--------- dport ($dport) type is \"[$dport type]\" \[[$dport cached_station_id]\]"
 					if {[$dport type] eq "application"} {
 						if {
 							![dict exists $jm_prev $dport,$jmid] || 

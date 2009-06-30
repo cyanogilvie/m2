@@ -1,4 +1,4 @@
-#!/usr/bin/env kbskit8.6
+#!/usr/bin/env cfkit8.6
 # vim: ft=tcl foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4
 
 proc mungekey {args} {}
@@ -42,8 +42,15 @@ cflib::config create cfg $argv {
 		"unix"	{variable db	"/var/lib/codeforge/authenticator/authenticator.sqlite3"}
 		default	{variable db	"authenticator.sqlite3"}
 	}
+	variable daemon				1
 }
 cd $hold
+
+proc log {lvl msg args} { #<<<
+	puts stderr $msg
+}
+
+#>>>
 
 if {[::tcl::pkgconfig get threaded]} {
 	puts stderr "Cannot daemonize in a threaded interpreter"
@@ -53,65 +60,7 @@ if {[::tcl::pkgconfig get threaded]} {
 package require sqlite3
 package require cflib
 package require sop
-package require daemon 0.5
-namespace eval dutils {
-	namespace export daemon*
-}
-namespace import dutils::*
-
-# Drop root priviledges <<<
-
-proc lookup_uid {user} { #<<<
-	foreach line [split [cflib::readfile /etc/passwd] \n] {
-		lassign [split $line :] username pw uid pgid gecos home shell
-
-		if {$user == $username} {
-			return $uid
-		}
-	}
-
-	error "User $user not found" "" [list no_such_user $user]
-}
-
-#>>>
-proc lookup_gid {name} { #<<<
-	foreach line [split [cflib::readfile /etc/group] \n] {
-		lassign [split $line :] group pw gid userlist
-		set userlist	[split $userlist ,]
-
-		if {$name == $group} {
-			return $gid
-		}
-	}
-
-	error "Group $group not found" "" [list no_such_group $name]
-}
-
-#>>>
-
-if {
-	[dutils::getgid] == 0 ||
-	[dutils::getegid] == 0
-} {
-	set gid		[lookup_gid [cfg get as_group]]
-	dutils::setregid $gid $gid
-}
-
-if {
-	[dutils::getuid] == 0 ||
-	[dutils::geteuid] == 0
-} {
-	set uid		[lookup_uid [cfg get as_user]]
-	dutils::setreuid $uid $uid
-}
-# Drop root priviledges >>>
-
-if {[cfg get crypto_devmode]} {
-	namespace eval crypto {
-		variable devmode	1
-	}
-}
-
+package require daemon 0.6
 package require m2
 
 source "crypto.tcl"
@@ -124,159 +73,19 @@ source "svckeys.tcl"
 source "plugins.tcl"
 source "admin.tcl"
 
-daemon_name "authenticatord"
-daemon_pid_file_proc [list apply {
-	{} {
-		file join / var tmp authenticatord.pid
-	}
-}]
-
-set cmd [lindex $argv 0]
-if {$cmd eq ""} {
-	set cmd	"start"
-}
-
-set valid_commands {
-	start
-	stop
-	restart
-	status
-	pidfile
-}
-if {$cmd ni $valid_commands} {
-	puts stderr "Invalid command \"$cmd\", should be one of \"[join $valid_commands "\", \""]\""
-	exit 1
-}
-set existingpid	[daemon_pid_file_is_running]
-switch -- $cmd {
-	stop - restart { #<<<
-		if {[daemon_pid_file_is_running] < 0} {
-			if {$cmd eq "restart"} {
-				daemon_log LOG_WARNING "Not running"
-			} else {
-				daemon_log LOG_WARNING "Can't stop - not running"
-				exit 1
-			}
-		} else {
-			try {
-				daemon_pid_file_kill_wait SIGINT 5
-			} on error {errmsg options} {
-				daemon_log LOG_WARNING "Failed to kill daemon: $errmsg"
-				exit 1
-			} on ok {} {
-				set existingpid	-1
-			}
-		}
-
-		if {$cmd eq "stop"} {
-			exit 0
-		}
-		#>>>
-	}
-
-	status { #<<<
-		if {$existingpid >= 0} {
-			puts "running"
-			exit 0
-		} else {
-			puts "not running"
-			exit 0
-		}
-		#>>>
-	}
-
-	pidfile { #<<<
-		puts [daemon_pid_file]
-		exit 0
-		#>>>
-	}
-}
-
-if {$existingpid >= 0} {
-	daemon_log LOG_ERR "already running, PID: ($existingpid)"
-	exit 1
-}
-
-set pid	[daemon_fork]
-dutils::umask 022
-
-try {
-	# Setup signal handler <<<
-	daemon_sighandler [list apply {
-		{signame} {
-			switch -- $signame {
-				"SIGINT" -
-				"SIGQUIT" -
-				"SIGTERM" {
-					daemon_log LOG_INFO "Got $signame, shutting down cleanly"
-					try {
-						if {[info object isa object chat]} {
-							chatserver destroy
-						}
-						if {[info object isa object m2]} {
-							m2 destroy
-						}
-					} on error {errmsg options} {
-						daemon_log LOG_WARNING "Problem cleanly shutting down: $errmsg"
-					}
-					daemon_exit
-				}
-
-				"SIGHUP" {
-					daemon_log LOG_INFO "Got HUP"
-				}
-
-				default {
-					daemon_log LOG_WARNING "Got unexpected signal: \"$signame\""
-				}
-			}
-		}
-	}]
-	# Setup signal handler >>>
-
-	# Do init
-	daemon_log LOG_INFO "-----------------Authenticator start-----------------"
-
+proc init {} { #<<<
 	set ::online	[dict create]
 	set ::userchans	[dict create]
 
 	interp bgerror {} [list apply {
 		{errmsg options} {
-			daemon_log LOG_ERR [dict get $options -errorinfo]
+			log error [dict get $options -errorinfo]
 		}
 	}]
 
 	m2::api2 create m2 -uri [cfg get uri]
-	set loghandler {
-		try {
-			switch -- $lvl {
-				trivia - debug {set log_prio LOG_DEBUG}
-				notice {set log_prio LOG_INFO}
-				warn - warning {set log_prio LOG_WARNING}
-				error {set log_prio LOG_ERR}
-				fatal {set log_prio LOG_CRIT}
-				default {
-					if {$lvl in {
-						LOG_DEBUG
-						LOG_INFO
-						LOG_NOTICE
-						LOG_WARNING
-						LOG_ERR
-						LOG_CRIT
-						LOG_ALERT
-						LOG_EMERG
-					}} {
-						set log_prio	$lvl
-					} else {
-						set log_prio	LOG_INFO
-					}
-				}
-			}
-			dutils::daemon_log $log_prio $msg
-		} on error {errmsg options} {
-			puts stderr "Error in logger: $errmsg"
-			dutils::daemon_log LOG_ERR "Error in logger"
-		}
+	set loghandler	{
+		log $lvl $msg {*}$args
 	}
 	oo::objdefine m2 method log {lvl {msg ""} args} $loghandler
 
@@ -301,7 +110,7 @@ try {
 	}
 	# Init db >>>
 
-	package require Crypto 0.9.1
+	package require crypto
 
 	Crypto create crypto
 	Users create users
@@ -343,18 +152,44 @@ try {
 			}
 		}
 	}]
-} on error {errmsg options} {
-	daemon_log LOG_ERR "Initialization failed: $errmsg\n[dict get $options -errorinfo]"
-	daemon_retval_send 1
-	daemon_exit
 }
 
-daemon_retval_send 0
+#>>>
+proc cleanup {} { #<<<
+}
 
-coroutine main apply {
-	{} {
-		vwait ::forever
+#>>>
+
+if {[cfg get daemon]} {
+	dutils::daemon create daemon \
+			-name 			"authenticatord" \
+			-as_user		"as_user" \
+			-as_group		"as_group" \
+			-gen_pid_file	{return "/var/tmp/authenticator.pid"}
+
+	proc log {lvl msg args} { #<<<
+		daemon log $lvl $msg {*}$args
 	}
-}
 
+	#>>>
+
+	set cmd		[lindex [cfg rest] 0]
+	if {$cmd eq ""} {
+		set cmd		"start"
+	}
+
+	daemon apply_cmd $cmd
+
+	daemon cleanup {
+		cleanup
+	}
+
+	daemon fork {
+		dutils::umask 022
+		init
+	}
+} else {
+	init
+	coroutine coro_main vwait forever
+}
 

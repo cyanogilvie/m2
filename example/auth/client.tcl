@@ -7,11 +7,6 @@ cflib::config create cfg $argv {
 	variable pbkey			"/etc/codeforge/authenticator/authenticator.pub"
 }
 
-if {[cfg get crypto_devmode]} {
-	namespace eval crypto {
-		variable devmode	1
-	}
-}
 
 m2::authenticator create auth -uri [cfg get uri] -pbkey [cfg get pbkey]
 
@@ -33,8 +28,4 @@ dict for {signal sigobj} [auth signals_available] {
 }]
 
 
-coroutine main apply {
-	{} {
-		vwait ::forever
-	}
-}
+coroutine coro_main vwait forever

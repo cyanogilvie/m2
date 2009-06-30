@@ -5,25 +5,67 @@
 		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
 		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
 		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
-		<script type="text/javascript" src="m2/hash.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
 		<script type="text/javascript" src="m2/tcllist.js"></script>
 		<script type="text/javascript" src="m2/m2.js"></script>
 		<script type="text/javascript">
 			jsSocket.swf = 'jssocket/jsSocket.swf';
-			m2 = m2_connect('localhost', 5301);
-
-			m2.listen_event('connected', function(newstate) {
-					var connected_icon;
-					connected_icon = document.getElementById('connected_status');
-					if (newstate) {
-						connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
-					} else {
-						connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
-					}
+			var api = new m2.api({
+				host: 'localhost',
+				port: 5301
 			});
+
+			signals = {};
+			signals['ready'] = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+			signals['ready'].attach_input(api.signal_ref('connected'));
+			signals['ready'].attach_input(api.svc_signal('tickertape_prov'));
+
+			/*
+			api.signal_ref('connected').attach_output(function(newstate) {
+				console.log('connected changed: '+newstate);
+			});
+			*/
 		</script>
 	</head>
 	<body>
-		<div>Connected: <img id="connected_status" src="images/connected_indicator_red.png" width="16" height="16" /></div>
+		<div><img id="connected_status" src="images/connected_indicator_red.png" width="16" height="16" /> connected</div>
+		<div><img id="svc_avail" src="images/connected_indicator_red.png" width="16" height="16" /> tickertape_prov available</div>
+		<div><img id="ready" src="images/connected_indicator_red.png" width="16" height="16" /> ready</div>
+		<script type="text/javascript">
+			api.signal_ref('connected').attach_output(function(newstate) {
+				var connected_icon;
+				connected_icon = document.getElementById('connected_status');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+			api.svc_signal('tickertape_prov').attach_output(function(newstate) {
+				var connected_icon;
+				connected_icon = document.getElementById('svc_avail');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+			signals['ready'].attach_output(function(newstate) {
+				console.log(signals['ready'].explain_txt());
+				var connected_icon;
+				connected_icon = document.getElementById('ready');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+		</script>
 	</body>
 </html>

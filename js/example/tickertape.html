@@ -1,0 +1,136 @@
+<div class="modulesContainer" dojoType="dijit.layout.BorderContainer" design="headline">
+	<script type="dojo/event">
+		tickertape_dschan = new sitelocal.dschanStore({
+			svc: 'tickertape_admin',
+			m2: api,
+			reqdata: serialize_tcl_list(['tickertape_dschan'])
+		});
+	</script>
+
+	<script type="dojo/event" event="destroy">
+		console.log('in destroy');
+
+		tickertape_dschan.disconnect();
+		tickertape_dschan = null;
+	</script>
+
+	<table dojoType="dojox.grid.DataGrid"
+		jsId="tickertapeMessagesGrid"
+		selectionMode="single"
+		store="tickertape_dschan"
+		query="{}"
+		region="center"
+		clientSort="true">
+
+		<script type="dojo/event">
+			console.log('wheeee');
+			this.itemselected = new Signal({
+				name: 'tickertape_itemselected'
+			});
+			this.candelete = new Gate({
+				name: 'tickertape_candelete',
+				mode: 'and'
+			});
+			this.candelete.attach_input(this.itemselected);
+			this.candelete.attach_input(this.store.m2.svc_signal(this.store.svc));
+			this.itemselected.attach_output(function(newstate) {
+				console.log('tickertape itemselected: '+newstate);
+			});
+		</script>
+		<script type="dojo/event" event="destroy">
+			console.log('in tickertape grid destructor, deleting candelete signal');
+			this.candelete = this.candelete.destroy();
+		</script>
+
+		<thead>
+			<tr>
+				<th width="170pt" field="id">ID</th>
+				<th width="auto" field="summary">Message</th>
+			</tr>
+		</thead>
+
+		<script type="dojo/event" event="onSelectionChanged">
+			var items = this.selection.getSelected();
+			console.log('tickertape grid onSelectionChanged, items: ', items);
+			if (items.length) {
+				this.itemselected.set_state(true);
+			} else {
+				this.itemselected.set_state(false);
+			}
+		</script>
+	</table>
+
+	<div dojoType="dijit.layout.ContentPane" region="bottom">
+		<button dojoType="dijit.form.Button">
+			Remove
+			<script type="dojo/event">
+				var self = this;
+				tickertapeMessagesGrid.itemselected.attach_output(function(newstate){
+					if (newstate) {
+						self.attr('disabled', false);
+					} else {
+						self.attr('disabled', true);
+					}
+				});
+			</script>
+			<script type="dojo/method" event="onClick">
+				alert('remove clicked');
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button">
+			Add
+			<script type="dojo/method" event="onClick">
+				dijit.byId('newtickertapemessage').show();
+			</script>
+		</button>
+	</div>
+</div>
+<div dojoType="dijit.Dialog" id="newtickertapemessage" title="Create New Tickertape Message" style="display: none;">
+	<div dojoType="dijit.form.Form" encType="multipart/form-data" action="" method="">
+		<script type="dojo/method" event="onSubmit">
+			console.log('in onSubmit execute method');
+			console.log('data: ', this.attr('value'));
+			dijit.byId('newtickertapemessage').hide();
+
+			return false;
+		</script>
+
+		<div class="fieldheading">Scope</div>
+
+		<div class="scope">
+			<input type="radiobutton" dojoType="dijit.form.RadioButton" name="scope" value="global" />
+			Global
+		</div>
+
+		<div class="scope">
+			<input type="radiobutton" dojoType="dijit.form.RadioButton" name="scope" value="region" />
+			Region
+			<select dojoType="dijit.form.ComboBox" name="region">
+				<option>GAU</option>
+				<option>KZN</option>
+				<option>WCP</option>
+				<option>ECP</option>
+				<option>FSP</option>
+				<option>PTA</option>
+			</select>
+		</div>
+
+		<div class="scope">
+			<input type="radiobutton" dojoType="dijit.form.RadioButton" name="scope" value="branch" />
+			Branch
+			<input dojoType="dijit.form.TextBox" name="branch" />
+		</div>
+
+		<div class="fieldheading">Summary</div>
+		<input type="text" dojoType="dijit.form.TextBox" name="summary" style="width: 80%;" />
+
+		<div class="fieldheading">Body (optional)</div>
+		<div dojoType="dijit.form.Textarea" name="body" style="width: 90%;"></div>
+
+		<div class="actionbuttons">
+			<button dojoType="dijit.form.Button" type="submit" name="action" value="submit">
+				Submit
+			</button>
+		</div>
+	</div>
+</div>

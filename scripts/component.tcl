@@ -35,7 +35,7 @@ cflib::pclass create m2::component {
 		}
 
 		# This fetches the private key for this service
-		set prkey	[crypto::rsa_read_private_key $prkeyfn]
+		set prkey	[crypto::rsa::load_asn1_prkey $prkeyfn]
 		
 		[$auth signal_ref established] attach_output \
 				[my code _established_changed]
@@ -88,15 +88,16 @@ cflib::pclass create m2::component {
 		my log debug "got ($svc)"
 		try {
 			if {[string range $data 0 5] == "setup "} {
-				lassign [string range $data 6 end] e_skey e_tail
+				lassign [string range $data 6 end] e_skey e_tail iv
 
-				set skey	[crypto::rsa_private_decrypt $prkey $e_skey]
-				set tail	[crypto::decrypt bf_cbc $skey $e_tail]
+				set skey	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $e_skey $crypto::rsa::sha1 $crypto::rsa::MGF]
+				set ks		[crypto::blowfish::init_key $skey]
+				set tail	[crypto::blowfish::decrypt_cbc $ks $e_tail $iv]
 				
 				lassign $tail cookie fqun
 			} else {
-				lassign [crypto::rsa_private_decrypt $prkey $data] \
-						cookie skey fqun
+				set tmp	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $data $crypto::rsa::sha1 $crypto::rsa::MGF]
+				lassign $tmp cookie skey fqun
 			}
 		} on error {errmsg options} {
 			my log error "error decrypting request: $errmsg"
@@ -122,7 +123,9 @@ cflib::pclass create m2::component {
 			$auth nack $seq "Cannot get public key for \"$fqun\""
 		} else {
 			my log debug "got user pbkey, encrypting mycookie with it and acking"
-			$auth ack $seq [crypto::rsa_public_encrypt $user_pbkey $mycookie]
+			set n	[dict get $user_pbkey n]
+			set e	[dict get $user_pbkey e]
+			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie]
 		}
 	}
 
