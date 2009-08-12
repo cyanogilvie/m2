@@ -143,7 +143,7 @@ oo::class create m2::port {
 						if {$p eq $prev_seq} {
 							puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
 							dict unset _pending_jm_setup $s $p
-							if {[dict size $_pending_jm_setup $s] == 0} {
+							if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
 								dict unset _pending_jm_setup $s
 							}
 						}

@@ -252,7 +252,7 @@ cflib::pclass create m2::api {
 						foreach p [dict keys $ps] {
 							if {$p eq $prev_seq} {
 								dict unset _pending_jm_setup $s $p
-								if {[dict size $_pending_jm_setup $s] == 0} {
+								if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
 									dict unset _pending_jm_setup $s
 								}
 							}
