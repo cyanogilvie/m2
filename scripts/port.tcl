@@ -76,7 +76,7 @@ oo::class create m2::port {
 
 				pr_jm {
 					my variable _pending_jm_setup
-					puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
+					#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
 					dict set _pending_jm_setup $seq $prev_seq 1
 					set prev_seq
 				}
@@ -141,7 +141,7 @@ oo::class create m2::port {
 				dict for {s ps} $_pending_jm_setup {
 					foreach p [dict keys $ps] {
 						if {$p eq $prev_seq} {
-							puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
+							#puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
 							dict unset _pending_jm_setup $s $p
 							if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
 								dict unset _pending_jm_setup $s
