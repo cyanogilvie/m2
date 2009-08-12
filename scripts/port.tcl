@@ -76,7 +76,8 @@ oo::class create m2::port {
 
 				pr_jm {
 					my variable _pending_jm_setup
-					dict set _pending_jm_setup $seq $prev_seq
+					puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
+					dict set _pending_jm_setup $seq $prev_seq 1
 					set prev_seq
 				}
 				
@@ -105,10 +106,18 @@ oo::class create m2::port {
 			while {[dict exists $_pending_jm_setup $q]} {
 				set q		[next $queues]
 				if {$q eq $first} {
+					set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
+					foreach p $queues {
+						if {[dict exists $_pending_jm_setup $p]} {
+							append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
+						} else {
+							append errmsg "\n\t($p): --"
+						}
+					}
 					if {[info commands "dutils::daemon_log"] ne {}} {
-						dutils::daemon_log LOG_ERR "[self] Eeek - all queues have the pending flag set, should never happen"
+						dutils::daemon_log LOG_ERR $errmsg
 					} else {
-						puts stderr "[self] Eeek - all queues have the pending flag set, should never happen"
+						puts stderr $errmsg
 					}
 					# Should never happen
 					break
@@ -129,9 +138,15 @@ oo::class create m2::port {
 					set _pending_jm_setup	[dict create]
 				}
 
-				dict for {s p} $_pending_jm_setup {
-					if {$p eq $prev_seq} {
-						dict unset _pending_jm_setup $s
+				dict for {s ps} $_pending_jm_setup {
+					foreach p [dict keys $ps] {
+						if {$p eq $prev_seq} {
+							puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
+							dict unset _pending_jm_setup $s $p
+							if {[dict size $_pending_jm_setup $s] == 0} {
+								dict unset _pending_jm_setup $s
+							}
+						}
 					}
 				}
 			}

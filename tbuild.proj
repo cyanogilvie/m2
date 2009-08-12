@@ -1,4 +1,4 @@
-set version	0.24
+set version	0.25
 
 tm "m2" { #<<<
 	version $::version
@@ -12,7 +12,9 @@ tm "m2" { #<<<
 
 	requires {
 		{Tcl 8.6}
-		{netdgram 0.4}
+		{netdgram 0.5.2}
+		{sop 1.2}
+		sha1
 	}
 
 	init {
@@ -36,8 +38,9 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.4}
+		{netdgram 0.5.2}
 		netdgram::tcp
+		{sop 1.2}
 		netdgram::jssocket
 		netdgram::uds
 		cflib
@@ -82,13 +85,15 @@ application "authenticatord" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.4}
+		{netdgram 0.5.2}
+		{sop 1.2}
 		netdgram::tcp
 		cflib
 		sop
 		dsl
-		sqlite3
 		crypto
+
+		sha1
 	}
 
 	files {
@@ -96,7 +101,12 @@ application "authenticatord" { #<<<
 		authenticator/*
 	}
 
-	platform tcl
+	platform linux-glibc2.9-x86_64 {
+		requires {
+			sqlite3
+			{daemon 0.6}
+		}
+	}
 }
 
 #>>>

@@ -86,7 +86,12 @@ cflib::pclass create m2::api {
 
 	#>>>
 	method svc_avail {svc} { #<<<
-		return [dict exists $svcs $svc]
+		dict exists $svcs $svc
+	}
+
+	#>>>
+	method all_svcs {} { #<<<
+		dict keys $svcs
 	}
 
 	#>>>
@@ -193,7 +198,7 @@ cflib::pclass create m2::api {
 							set seq
 						} else {
 							my variable _pending_jm_setup
-							dict set _pending_jm_setup $seq $prev_seq
+							dict set _pending_jm_setup $seq $prev_seq 1
 							set prev_seq
 						}
 					}
@@ -243,9 +248,14 @@ cflib::pclass create m2::api {
 						set _pending_jm_setup	[dict create]
 					}
 
-					dict for {s p} $_pending_jm_setup {
-						if {$p eq $prev_seq} {
-							dict unset _pending_jm_setup $s
+					dict for {s ps} $_pending_jm_setup {
+						foreach p [dict keys $ps] {
+							if {$p eq $prev_seq} {
+								dict unset _pending_jm_setup $s $p
+								if {[dict size $_pending_jm_setup $s] == 0} {
+									dict unset _pending_jm_setup $s
+								}
+							}
 						}
 					}
 				}
