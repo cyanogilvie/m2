@@ -33,7 +33,7 @@ oo::class create Crypto {
 		set mgf		$crypto::rsa::MGF
 		try {
 			#set session_key	[crypto::rsa_private_decrypt $priv_key $e_key]
-			set session_key	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_key $sha1 $mgf]
+			set session_key	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_key {} $hash $mgf]
 			my log debug "session_key: ([mungekey $session_key])" -suppress data
 		} on error {errmsg options} {
 			my log error "could not decrypt session_key: $errmsg" -suppress data
@@ -43,7 +43,7 @@ oo::class create Crypto {
 
 		try {
 			#set cookie		[crypto::rsa_private_decrypt $priv_key $e_cookie]
-			set cookie		[crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie $hash $mgf]
+			set cookie		[crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie {} $hash $mgf]
 		} on error {errmsg options} {
 			my log error "could not decrypt cookie: $errmsg" -suppress data
 			m2 nack $seq "Could not decrypt cookie"

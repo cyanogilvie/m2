@@ -30,7 +30,8 @@ cflib::pclass create m2::connector {
 		array set signals	{}
 		array set dominos	{}
 
-		sop::signal new signals(available) -name "$svc [self] available"
+		#sop::signal new signals(available) -name "$svc [self] available"
+		set signals(available)	[$auth svc_signal $svc]
 		sop::signal new signals(connected) -name "$svc [self] connected"
 		sop::signal new signals(authenticated) -name "$svc [self] authenticated"
 		sop::signal new signals(got_svc_pbkey) -name "$svc [self] got_svc_pbkey"
@@ -47,8 +48,8 @@ cflib::pclass create m2::connector {
 		$dominos(need_reconnect) attach_output [my code _reconnect]
 		$signals(connect_ready) attach_output [my code _connect_ready_changed]
 
-		$auth register_handler svc_avail_changed [my code _svc_avail_changed]
-		my _svc_avail_changed		;# Initialize the state
+		#$auth register_handler svc_avail_changed [my code _svc_avail_changed]
+		#my _svc_avail_changed		;# Initialize the state
 	}
 
 	#>>>
@@ -95,12 +96,14 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method req_jm {op data cb} { #<<<
+		puts "my coro: ([info coroutine])"
 		my log debug
 		my waitfor authenticated
 		$auth rsj_req $e_chan [list $op $data] \
 				[my code _req_resp [info coroutine] $cb]
 
 		lassign [yield] ok resp
+		puts "ok: ($ok), resp: ($resp)"
 
 		if {$ok} {
 			return $resp
@@ -202,6 +205,42 @@ cflib::pclass create m2::connector {
 	}
 
 	#>>>
+	method _connect_ready_changed {newstate} { #<<<
+		if {$newstate} {
+			my log debug "setting reconnect in motion"
+			$dominos(need_reconnect) tip
+		} else {
+			my log debug
+		}
+	}
+
+	#>>>
+	method _svc_avail_changed {} { #<<<
+		my log debug [self]
+		set is_avail	[$auth svc_avail $svc]
+		my log notice "$svc available: ($is_avail)"
+		$signals(available) set_state $is_avail
+	}
+
+	#>>>
+	method _reconnect {} { #<<<
+		my log debug "reconnecting to $svc"
+		if {[$signals(connected) state]} {
+			my disconnect
+		}
+		set skey	[$auth generate_key]
+		set cookie	[crypto::blowfish::csprng 8]
+		set n		[dict get $pbkey n]
+		set e		[dict get $pbkey e]
+		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set ks		[crypto::blowfish::init_key $skey]
+		set iv		[crypto::blowfish::csprng 8]
+		set tail	[crypto::blowfish::encrypt_cbc $ks [list $cookie [$auth fqun] $iv] $iv]
+
+		$auth req $svc "setup [list $msg $tail $iv]" [my code _resp]
+	}
+
+	#>>>
 	method _resp {msg_data} { #<<<
 		dict with msg_data {}
 
@@ -256,42 +295,6 @@ cflib::pclass create m2::connector {
 				#>>>
 			}
 		}
-	}
-
-	#>>>
-	method _connect_ready_changed {newstate} { #<<<
-		if {$newstate} {
-			my log debug "setting reconnect in motion"
-			$dominos(need_reconnect) tip
-		} else {
-			my log debug
-		}
-	}
-
-	#>>>
-	method _svc_avail_changed {} { #<<<
-		my log debug [self]
-		set is_avail	[$auth svc_avail $svc]
-		my log notice "$svc available: ($is_avail)"
-		$signals(available) set_state $is_avail
-	}
-
-	#>>>
-	method _reconnect {} { #<<<
-		my log debug "reconnecting to $svc"
-		if {[$signals(connected) state]} {
-			my disconnect
-		}
-		set skey	[$auth generate_key]
-		set cookie	[crypto::blowfish::csprng 8]
-		set n		[dict get $pbkey n]
-		set e		[dict get $pbkey e]
-		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey $crypto::rsa::sha1 $crypto::rsa::MGF]
-		set ks		[crypto::blowfish::init_key $skey]
-		set iv		[crypto::blowfish::csprng 8]
-		set tail	[crypto::blowfish::encrypt_cbc $ks [list $cookie [$auth fqun] $iv] $iv]
-
-		$auth req $svc "setup [list $msg $tail]" [my code _resp]
 	}
 
 	#>>>
@@ -379,7 +382,7 @@ cflib::pclass create m2::connector {
 				my log debug "got public key for ($svc)"
 			} on error {errmsg options} {
 				my log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"
-			} else {
+			} on ok {} {
 				$signals(got_svc_pbkey) set_state 1
 			}
 		} else {

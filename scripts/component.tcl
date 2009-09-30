@@ -76,6 +76,11 @@ cflib::pclass create m2::component {
 	}
 
 	#>>>
+	method auth {} { #<<<
+		return $auth
+	}
+
+	#>>>
 
 	# Protected
 	method authenticated_changed {newstate} { #<<<
@@ -90,18 +95,19 @@ cflib::pclass create m2::component {
 			if {[string range $data 0 5] == "setup "} {
 				lassign [string range $data 6 end] e_skey e_tail iv
 
-				set skey	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $e_skey $crypto::rsa::sha1 $crypto::rsa::MGF]
+				set skey	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 				set ks		[crypto::blowfish::init_key $skey]
 				set tail	[crypto::blowfish::decrypt_cbc $ks $e_tail $iv]
-				
+
 				lassign $tail cookie fqun
 			} else {
-				set tmp	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $data $crypto::rsa::sha1 $crypto::rsa::MGF]
+				log warning "Deprecated user session setup"
+				set tmp	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $data {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 				lassign $tmp cookie skey fqun
 			}
 		} on error {errmsg options} {
-			my log error "error decrypting request: $errmsg"
-			$auth nack $seq
+			my log error "error decrypting request: [dict get $options -errorinfo]"
+			$auth nack $seq ""
 			return
 		}
 
@@ -121,11 +127,11 @@ cflib::pclass create m2::component {
 		} on error {errmsg options} {
 			my log warning "nacking $seq: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq "Cannot get public key for \"$fqun\""
-		} else {
+		} on ok {} {
 			my log debug "got user pbkey, encrypting mycookie with it and acking"
 			set n	[dict get $user_pbkey n]
 			set e	[dict get $user_pbkey e]
-			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie]
+			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		}
 	}
 

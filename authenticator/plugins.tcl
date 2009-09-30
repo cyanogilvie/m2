@@ -47,6 +47,7 @@ oo::class create Plugins {
 			}
 		}
 
+		set ok	0
 		try {
 			set slave	[interp create]
 
@@ -54,7 +55,7 @@ oo::class create Plugins {
 
 			try {
 				$slave eval [list source $fn]
-				$slave eval [list Plugin plugin {*}$params]
+				$slave eval [list Plugin create plugin {*}$params]
 			} on error {errmsg options} {
 				error $errmsg $::errorInfo {load_problem}
 			}

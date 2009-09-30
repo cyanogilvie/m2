@@ -530,7 +530,7 @@ m2.api.prototype._enqueue = function(sdata, msg) { //<<<
 
 //>>>
 m2.api.prototype._socket_onStatus = function(type, val) { //<<<
-	var e, key, i, inf;
+	var e, keys, i, inf;
 	switch (type) {
 		case 'connecting':
 			break;
@@ -555,7 +555,7 @@ m2.api.prototype._socket_onStatus = function(type, val) { //<<<
 				keys = this._svc_signals.keys();
 				for (i=0; i<keys.length; i++) {
 					inf = this._svc_signals.getItem(keys[i]);
-					inf.sig.set_state(0);
+					inf.sig.set_state(false);
 				}
 				this._signals.getItem('connected').set_state(false);
 				this._dispatch_event('connected', false);

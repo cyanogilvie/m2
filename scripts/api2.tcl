@@ -145,8 +145,9 @@ cflib::pclass create m2::api2 {
 					}
 					# Add profiling stamp if requested >>>
 					try {
-						uplevel #0 [dict get $svc_handlers [$msg get svc]] \
-								[list $m_seq [$msg get data]]
+						coroutine coro_req_[incr ::coro_seq] \
+								{*}[dict get $svc_handlers [$msg get svc]] \
+								$m_seq [$msg get data]
 					} on error {errmsg options} {
 						my log error "req: error handling svc: ([$msg get svc]):$errmsg\n[dict get $options -errorinfo]"
 						my nack $m_seq "Internal error"
@@ -169,16 +170,18 @@ cflib::pclass create m2::api2 {
 							try {
 								switch -- $cb_mode {
 									"separate_args" {
-										uplevel #0 $cb [list \
+										coroutine coro_jm_can_[incr ::coro_seq] \
+												{*}$cb \
 												[$msg get type] \
 												[$msg get svc] \
 												[$msg get data] \
 												$m_seq \
-												$prev_seq]
+												$prev_seq
 									}
 
 									"msg_dict" {
-										uplevel #0 $cb [list [$msg get_data]]
+										coroutine coro_jm_can_[incr ::coro_seq] \
+												{*}$cb [$msg get_data]
 									}
 
 									default {
@@ -245,12 +248,26 @@ cflib::pclass create m2::api2 {
 						&& [dict get $pending $jm_prev] ne ""
 					} {
 						set cb	[dict get $pending $jm_prev]
-						uplevel #0 $cb [list \
-								[$msg get type] \
-								[$msg get svc] \
-								[$msg get data] \
-								$m_seq \
-								$m_prev_seq]
+						switch -- $cb_mode {
+							"separate_args" {
+								coroutine coro_jm_req_[incr ::coro_seq] \
+										{*}$cb \
+										[$msg get type] \
+										[$msg get svc] \
+										[$msg get data] \
+										$m_seq \
+										$m_prev_seq
+							}
+
+							"msg_dict" {
+								coroutine coro_jm_req_[incr ::coro_seq] \
+										{*}$cb [$msg get_data]
+							}
+
+							default {
+								error "Invalid -cb_mode, expecting one of \"separate_args\" or \"msg_dict\""
+							}
+						}
 					} else {
 						#my log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
 					}
@@ -288,16 +305,18 @@ cflib::pclass create m2::api2 {
 								# Add profiling stamp if requested >>>
 								switch -- $cb_mode {
 									"separate_args" {
-										uplevel #0 $cb [list \
+										coroutine coro_resp_[incr ::coro_seq] \
+												{*}$cb \
 												[$msg get type] \
 												[$msg get svc] \
 												[$msg get data] \
 												$m_seq \
-												$prev_seq]
+												$prev_seq
 									}
 
 									"msg_dict" {
-										uplevel #0 $cb [list [$msg get_data]]
+										coroutine coro_resp_[incr ::coro_seq] \
+												{*}$cb [$msg get_data]
 									}
 
 									default {
@@ -348,7 +367,7 @@ cflib::pclass create m2::api2 {
 		}
 		if {[dict exists $e_pending $prev_seq]} {
 			#my log debug "encrypting ack with [my mungekey [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
-			set e_data	[crypto encrypt [dict get $e_pending $prev_seq] $data]
+			set e_data	[my crypto encrypt [dict get $e_pending $prev_seq] $data]
 		} else {
 			set e_data	$data
 		}
@@ -455,7 +474,7 @@ cflib::pclass create m2::api2 {
 			if {![dict exists $sent_key $prev_seq,$seq]} {
 				set key     	[my crypto register_or_get_chan $seq]
 				#my log debug "sending chan key: ([my mungekey $key])"
-				send [m2::msg new new \
+				my send [m2::msg new new \
 						svc			"" \
 						type		jm \
 						seq			$seq \
@@ -557,7 +576,7 @@ cflib::pclass create m2::api2 {
 		} else {
 			set e_data	$data
 		}
-		send [m2::msg new new \
+		my send [m2::msg new new \
 				svc			"" \
 				type		jm_req \
 				seq			$seq \
@@ -657,15 +676,29 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method encrypt {key data} { #<<<
+		my variable key_schedules
+		if {![info exists key_schedules] || ![dict exists $key_schedules $key]} {
+			# FIXME: leaks - not cleaned out
+			dict set key_schedules $key [crypto::blowfish::init_key $key]
+		}
+		set ks	[dict get $key_schedules $key]
+
 		set iv		[crypto::blowfish::csprng 8]
-		return $iv[crypto::blowfish::encrypt_cbc $key [zlib deflate [encoding convertto utf-8 $data] 3]]
+		return $iv[crypto::blowfish::encrypt_cbc $ks [zlib deflate [encoding convertto utf-8 $data] 3] $iv]
 	}
 
 	#>>>
 	method decrypt {key data} { #<<<
+		my variable key_schedules
+		if {![info exists key_schedules] || ![dict exists $key_schedules $key]} {
+			# FIXME: leaks - not cleaned out
+			dict set key_schedules $key [crypto::blowfish::init_key $key]
+		}
+		set ks	[dict get $key_schedules $key]
+
 		set iv		[string range $data 0 7]
 		set rest	[string range $data 8 end]
-		encoding convertfrom utf-8 [zlib inflate [crypto::blowfish::decrypt_cbc $key $rest]]
+		encoding convertfrom utf-8 [zlib inflate [crypto::blowfish::decrypt_cbc $ks $rest $iv]]
 	}
 
 	#>>>
@@ -711,7 +744,7 @@ cflib::pclass create m2::api2 {
 			encrypt { #<<<
 				lassign $args session_id msg
 
-				#my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
+				my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
 				return [my encrypt [dict get $session_keys $session_id] $msg]
 				#>>>
 			}
@@ -738,7 +771,7 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method mungekey {key} { #<<<
-		return "disabled"
+		#return "disabled"
 
 		set build	0
 		binary scan $key c* bytes
@@ -763,7 +796,8 @@ cflib::pclass create m2::api2 {
 					custom {
 						set cb			[lindex [dict get $chans $seq] 1]
 						if {$cb ne {}} {
-							uplevel #0 $cb [list cancelled {}]
+							coroutine coro_chan_cancelled_[incr ::coro_seq] \
+									{*}$cb cancelled {}
 						}
 					}
 
@@ -796,7 +830,8 @@ cflib::pclass create m2::api2 {
 						set cb			[lindex [dict get $chans $prev_seq] 1]
 						if {$cb ne {}} {
 							try {
-								uplevel #0 $cb [list req [list $seq $prev_seq $data [self]]]
+								coroutine coro_chanreq_[incr ::coro_seq] \
+									{*}$cb req [list $seq $prev_seq $data [self]]
 							} on error {errmsg options} {
 								my log error "Error in chan_cb ($cb): $errmsg\n[dict get $options -errorinfo]"
 								dict incr options -level

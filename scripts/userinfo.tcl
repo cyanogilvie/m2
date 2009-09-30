@@ -5,7 +5,8 @@
 #						  jm_can'ed (authenticator died, user kicked, etc)
 
 oo::class create m2::userinfo {
-	superclass cflib::handlers sop::signalsource cflib::baselog
+	#superclass cflib::handlers sop::signalsource cflib::baselog
+	superclass sop::signalsource cflib::handlers cflib::baselog
 
 	variable {*}{
 		username
@@ -15,7 +16,6 @@ oo::class create m2::userinfo {
 		perms
 		attribs
 		prefs
-		pbkey
 		userinfo_jmid
 		userinfo_prev_seq
 		type
@@ -23,6 +23,8 @@ oo::class create m2::userinfo {
 	}
 
 	constructor {a_username a_auth a_svc} { #<<<
+		if {[self next] ne ""} next
+
 		set username	$a_username
 		set auth		$a_auth
 		set svc			$a_svc
@@ -30,8 +32,6 @@ oo::class create m2::userinfo {
 		set perms		[dict create]
 		set attribs		[dict create]
 		set prefs		[dict create]
-
-		configure {*}$args
 
 		set typesplit	[split $username %]
 		if {[llength $typesplit] > 1} {
@@ -41,14 +41,8 @@ oo::class create m2::userinfo {
 			set type	"user"
 		}
 
-		switch -- $type {
-			"user" -
-			"svc" {
-			}
-
-			default {
-				throw [list invalid_user_type $type] "Invalid type: ($type)"
-			}
+		if {$type ni {"user" "svc"}} {
+			throw [list invalid_user_type $type] "Invalid type: ($type)"
 		}
 
 		set fqun	[join [list $type $username] %]
@@ -67,7 +61,7 @@ oo::class create m2::userinfo {
 		$signals(got_all) attach_input $signals(got_attribs)
 		$signals(got_all) attach_input $signals(got_prefs)
 
-		my _setup_userinfo_chan
+		coroutine coro_[incr ::coro_seq] my _setup_userinfo_chan
 	}
 
 	#>>>
@@ -138,11 +132,7 @@ oo::class create m2::userinfo {
 
 	#>>>
 	method get_pbkey {} { #<<<
-		if {![info exists pbkey]} {
-			set pbkey	[crypto::rsa_load_public_key [$auth get_user_pbkey $fqun]]
-		}
-
-		return $pbkey
+		$auth get_user_pbkey $fqun
 	}
 
 	#>>>
@@ -154,11 +144,11 @@ oo::class create m2::userinfo {
 
 	method _setup_userinfo_chan {} { #<<<
 		$auth enc_chan_req [list userinfo_setup $fqun] \
-				[namespace code {my _userinfo_resp}]
+				[namespace code {my _setup_userinfo_chan_resp}]
 	}
 
 	#>>>
-	method _userinfo_resp {msg_data} { #<<<
+	method _setup_userinfo_chan_resp {msg_data} { #<<<
 		dict with msg_data {}
 
 		switch -- $type {

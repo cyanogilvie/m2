@@ -176,13 +176,6 @@ oo::class create Userchans {
 			throw {duplicate_login} "User already logged in elsewhere"
 		}
 
-		foreach reqf {authtype password} {
-			if {![dict exists $uinfo $reqf]} {
-				throw [list required_field_missing $reqf] \
-						"required field missing: ($reqf)"
-			}
-		}
-
 		set upath_parts	[split [string trim [dict get $dat upath] /] /]
 		if {[lindex $upath_parts 0] ne "users"} {
 			throw [list unsupported_user_type [lindex $upath_parts 0]] \
@@ -216,7 +209,7 @@ oo::class create Userchans {
 
 		set profiles		{}
 		set profiles_dict	{}
-		foreach key [dict keys ucfg] {
+		foreach key [dict keys $ucfg] {
 			if {
 				[string match "perms.*" $key] ||
 				[string match "attribs.*" $key]

@@ -57,6 +57,7 @@ cflib::pclass create m2::authenticator {
 		$signals(login_allowed) attach_input $signals(authenticated) inverted
 		$signals(login_allowed) attach_input $signals(established)
 		
+		puts stderr "authenticator signals_available: ([my signals_available])"
 		my configure {*}$args
 
 		if {![file exists $pbkey]} {
@@ -101,8 +102,8 @@ cflib::pclass create m2::authenticator {
 			set session_prkey	$K
 			my rsj_req [lindex $login_chan 0] \
 					[list session_pbkey_update $pbkey] \
-					[my code _session_pbkey_chan] [info coroutine]
-			my log debug "awaiting session_pbkey_update response ($pbkey_seq)" -suppress password
+					[my code _session_pbkey_chan [info coroutine]]
+			my log debug "awaiting session_pbkey_update response" -suppress password
 			set resp	[yield]
 			my log debug "got session_pbkey_update response: ($resp)" -suppress password
 			if {[lindex $resp 0]} {
@@ -209,13 +210,13 @@ cflib::pclass create m2::authenticator {
 
 	#>>>
 	method connect_svc {svc} { #<<<
-		authenticator::connector new [self] $svc
+		m2::connector new [self] $svc
 	}
 
 	#>>>
 	method decrypt_with_session_prkey {data} { #<<<
 		set K	[dict with session_prkey {list $p $q $dP $dQ $qInv}]
-		crypto::rsa::RSAES-OAEP-Decrypt $K $data $crypto::rsa::sha1 $crypto::rsa::MGF]
+		crypto::rsa::RSAES-OAEP-Decrypt $K $data {} $crypto::rsa::sha1 $crypto::rsa::MGF
 	}
 
 	#>>>
@@ -443,8 +444,8 @@ cflib::pclass create m2::authenticator {
 
 		set n		[dict get $pubkey n]
 		set e		[dict get $pubkey e]
-		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) $crypto::rsa::sha1 $crypto::rsa::MGF]
-		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 		#my req "authenticator" [list crypt_setup \
 		#	[crypto::armour $e_key] \
@@ -823,9 +824,8 @@ cflib::pclass create m2::authenticator {
 			{coro args} {$coro $args}
 		} [info coroutine]]
 
-		my log trivia "waiting for reply to seq: ($seq)"
 		while {1} {
-			lassig [yield] msg_data
+			lassign [yield] msg_data
 			dict with msg_data {}
 
 			switch -- $type {

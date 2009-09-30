@@ -29,7 +29,7 @@ set hold	[pwd]
 cd $base
 cflib::config create cfg $argv {
 	variable uri				"tcp://localhost:5300"
-	variable prkey				"/etc/codeforge/authenticator/authenticator.priv"
+	variable prkey				"/etc/codeforge/authenticator/keys/authenticator.priv"
 	variable svc				"authenticator"
 	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
 	variable as_user			"codeforge"
@@ -128,9 +128,9 @@ proc init {} { #<<<
 
 	[m2 signal_ref connected] attach_output [list apply {
 		{newstate} {
-			daemon_log LOG_INFO "m2 connection state: [expr {$newstate ? "connected" : "not connected"}]"
+			log LOG_INFO "m2 connection state: [expr {$newstate ? "connected" : "not connected"}]"
 			if {$newstate} {
-				daemon_log LOG_INFO "Advertising service \"[cfg get svc]\""
+				log LOG_INFO "Advertising service \"[cfg get svc]\""
 				m2 handle_svc [cfg get svc] [list apply {
 					{seq data} {
 						set rest	[lassign $data op]
@@ -141,13 +141,13 @@ proc init {} { #<<<
 							}
 
 							default {
-								daemon_log LOG_ERR "Unhandled request type: ($op)"
+								log LOG_ERR "Unhandled request type: ($op)"
 							}
 						}
 					}
 				}]
 			} else {
-				#daemon_log LOG_INFO "Revoking service \"[cfg get svc]\""
+				#log LOG_INFO "Revoking service \"[cfg get svc]\""
 				#m2 handle_svc [cfg get svc] ""
 			}
 		}
