@@ -1,4 +1,4 @@
-set version	0.25
+set version	0.26
 
 tm "m2" { #<<<
 	version $::version
@@ -12,7 +12,7 @@ tm "m2" { #<<<
 
 	requires {
 		{Tcl 8.6}
-		{netdgram 0.5.2}
+		{netdgram 0.5.3}
 		{sop 1.2}
 		sha1
 	}
@@ -38,7 +38,7 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.2}
+		{netdgram 0.5.3}
 		netdgram::tcp
 		{sop 1.2}
 		netdgram::jssocket
@@ -69,8 +69,8 @@ application "m2_node" { #<<<
 	platform linux-glibc2.9-x86_64 {
 		requires {
 			{daemon 0.6}
-			{sockopt}
-			{unix_sockets}
+			sockopt
+			unix_sockets
 		}
 	}
 
@@ -85,7 +85,7 @@ application "authenticatord" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.2}
+		{netdgram 0.5.3}
 		{sop 1.2}
 		netdgram::tcp
 		cflib
@@ -111,7 +111,7 @@ application "authenticatord" { #<<<
 
 #>>>
 rpm "m2_node" { #<<<
-	version ${::version}.8
+	version ${::version}.0
 
 	summary "m2 messagebus node"
 
@@ -147,5 +147,18 @@ Provides service tag based routing for m2 messages
 }
 
 #>>>
+#inno_setup "M2 Node.exe" { #<<<
+#	applications {
+#		m2_node
+#	}
+#
+#	shortcuts {
+#		"%Desktop%/Start M2 Node" {
+#			target %app%/bin/cfkit8.6.exe %app/m2_node
+#		}
+#	}
+#}
+#
+##>>>
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

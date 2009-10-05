@@ -172,8 +172,9 @@ cflib::pclass create m2::component {
 				}
 
 				try {
-					uplevel #0 [dict get $op_handlers $rop] \
-							[list $auth $user $seq $rdata]
+					coroutine coro_handler_[incr ::coro_seq] \
+							{*}[dict get $op_handlers $rop] \
+							$auth $user $seq $rdata
 					my log debug "done rop: ($rop) cb: ([dict get $op_handlers $rop])"
 				} on error {errmsg options} {
 					my log error "error processing op ($rop): $errmsg\n[dict get $options -errorinfo]"
