@@ -75,7 +75,7 @@ oo::class create Userkeys {
 		dict unset userkeys $user
 		dict unset userchans $user
 		if {[dict exists $expires $user]} {
-			after cancel [dict $expires $user]
+			after cancel [dict get $expires $user]
 			dict unset expires $user
 		}
 	}
