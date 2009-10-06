@@ -73,7 +73,6 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method req {op rdata} { #<<<
-		my log debug
 		my waitfor authenticated
 
 		$auth rsj_req $e_chan [list $op $rdata] [list apply {
@@ -82,13 +81,13 @@ cflib::pclass create m2::connector {
 
 		while {1} {
 			lassign [yield] msg_data
-			dict with msg_data {}
+			set data	[dict get $msg_data data]
 
-			switch -- $type {
+			switch -- [dict get $msg_data type] {
 				ack		{return $data}
 				nack	{throw [list connector_req_failed $op $data] $data}
 				default {
-					my log warning "Not expecting response type: ($type)"
+					my log warning "Not expecting response type: ([dict get $msg_data type])"
 				}
 			}
 		}
@@ -97,7 +96,6 @@ cflib::pclass create m2::connector {
 	#>>>
 	method req_jm {op data cb} { #<<<
 		puts "my coro: ([info coroutine])"
-		my log debug
 		my waitfor authenticated
 		$auth rsj_req $e_chan [list $op $data] \
 				[my code _req_resp [info coroutine] $cb]
@@ -114,14 +112,12 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method chan_req_async {jmid data cb} { #<<<
-		my log debug
 		my waitfor authenticated
 		$auth rsj_req $jmid $data [my code _req_async_resp $cb]
 	}
 
 	#>>>
 	method chan_req {jmid rdata} { #<<<
-		my log debug
 		my waitfor authenticated
 		$auth rsj_req $jmid $rdata [list apply {
 			{coro args} {$coro $args}
@@ -129,13 +125,13 @@ cflib::pclass create m2::connector {
 
 		while {1} {
 			lassign [yield] msg_data
-			dict with msg_data {}
+			set data	[dict get $msg_data data]
 
-			switch -- $type {
+			switch -- [dict get $msg_data type] {
 				ack		{return $data}
 				nack	{throw [list chan_req_failed $jmid $rdata $data] $data}
 				default {
-					my log warning "Not expecting response type: ($type)"
+					my log warning "Not expecting response type: ([dict get $msg_data type])"
 				}
 			}
 		}
@@ -143,7 +139,6 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method chan_req_jm {jmid data cb} { #<<<
-		my log debug
 		my waitfor authenticated
 		$auth rsj_req $jmid $data [my code _req_resp [info coroutine] $cb]
 
@@ -158,13 +153,11 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method jm_disconnect {seq prev_seq} { #<<<
-		my log debug
 		$auth jm_disconnect $seq $prev_seq
 	}
 
 	#>>>
 	method disconnect {} { #<<<
-		my log debug
 		if {[$signals(connected) state]} {
 			$signals(authenticated) set_state 0
 			$signals(connected) set_state 0
@@ -209,8 +202,6 @@ cflib::pclass create m2::connector {
 		if {$newstate} {
 			my log debug "setting reconnect in motion"
 			$dominos(need_reconnect) tip
-		} else {
-			my log debug
 		}
 	}
 
@@ -242,16 +233,14 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method _resp {msg_data} { #<<<
-		dict with msg_data {}
-
-		switch -- $type {
+		switch -- [dict get $msg_data type] {
 			ack { #<<<
 				if {![info exists e_chan]} {
 					my log error "Incomplete encrypted channel setup: got ack but no pr_jm"
 					return
 				}
 				$signals(connected) set_state 1
-				set svc_cookie	[$auth decrypt_with_session_prkey $data]
+				set svc_cookie	[$auth decrypt_with_session_prkey [dict get $msg_data data]]
 				
 				my log debug "sending proof of identity" -suppress data
 				set seq		[$auth rsj_req $e_chan $svc_cookie [my code _auth_resp]]
@@ -264,25 +253,25 @@ cflib::pclass create m2::connector {
 				if {[info exists e_chan_prev_seq]} {
 					unset e_chan_prev_seq
 				}
-				my log error "Got nacked: ($data)"
+				my log error "Got nacked: ([dict get $msg_data data])"
 				#>>>
 			}
 			pr_jm { #<<<
 				if {![info exists e_chan]} {
-					set pdata	[$auth decrypt $skey $data]
+					set pdata	[$auth decrypt $skey [dict get $msg_data data]]
 					if {$pdata eq $cookie} {
-						set e_chan			$seq
-						set e_chan_prev_seq	$prev_seq
+						set e_chan			[dict get $msg_data seq]
+						set e_chan_prev_seq	[dict get $msg_data prev_seq]
 						my log debug "got matching cookie, storing e_chan ($e_chan) and registering it with auth::register_jm_key using ([$auth mungekey $skey])" -suppress data
 						$auth register_jm_key $e_chan $skey
 					} else {
-						my log error "did not get correct response from component: expecting: ([$auth mungekey $cookie]) got: ([$auth mungekey $pdata]), decrypted with ([$auth mungekey $skey])\nencrypted data: ([$auth mungekey $data])" -suppress data
+						my log error "did not get correct response from component: expecting: ([$auth mungekey $cookie]) got: ([$auth mungekey $pdata]), decrypted with ([$auth mungekey $skey])\nencrypted data: ([$auth mungekey [dict get $msg_data data]])" -suppress data
 					}
 				}
 				#>>>
 			}
 			jm_can { #<<<
-				if {[info exists e_chan] && $e_chan == $seq} {
+				if {[info exists e_chan] && $e_chan == [dict get $msg_data seq]} {
 					$signals(connected) set_state 0
 					$signals(authenticated) set_state 0
 					unset e_chan
@@ -291,7 +280,7 @@ cflib::pclass create m2::connector {
 				#>>>
 			}
 			default { #<<<
-				my log warning "Not expecting response type ($type)"
+				my log warning "Not expecting response type ([dict get $msg_data type])"
 				#>>>
 			}
 		}
@@ -299,49 +288,40 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method _auth_resp {msg_data} { #<<<
-		dict with msg_data {}
-
-		my log debug
-		switch -- $type {
+		switch -- [dict get $msg_data type] {
 			ack {
-				my log debug "got ack: ($data)"
+				my log debug "got ack: ([dict get $msg_data data])"
 				$signals(authenticated) set_state 1
 			}
 
 			nack {
-				my log error "got nack: ($data)"
+				my log error "got nack: ([dict get $msg_data data])"
 			}
 
 			default {
-				my log error "unexpected type: ($type)"
+				my log error "unexpected type: ([dict get $msg_data type])"
 			}
 		}
 	}
 
 	#>>>
 	method _req_async_resp {cb msg_data} { #<<<
-		dict with msg_data {}
-
-		my log debug
 		try {
 			uplevel #0 $cb [list $msg_data]
 		} on error {errmsg options} {
-			my log error "error invoking cb ($cb): $errmsg\n$::errorInfo"
+			my log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]"
 		}
 	}
 
 	#>>>
 	method _req_resp {coro cb msg_data} { #<<<
-		dict with msg_data {}
-
-		my log debug
-		switch -- $type {
+		switch -- [dict get $msg_data type] {
 			ack {
-				after idle [list $coro [list 1 $data]]
+				after idle [list $coro [list 1 [dict get $msg_data data]]]
 			}
 
 			nack {
-				after idle [list $coro [list 0 $data]]
+				after idle [list $coro [list 0 [dict get $msg_data data]]]
 			}
 
 			jm_req -
@@ -350,12 +330,12 @@ cflib::pclass create m2::connector {
 			jm_can {
 				if {$cb ne {}} {
 					try {
-						uplevel $cb [list $msg_data]
+						coroutine coro_resp_[incr ::coro_seq] {*}$cb $msg_data
 					} on error {errmsg options} {
 						if {[string match "*invalid command name \"::item*\"" $errmsg]} {
 							my log error "error invoking cb ($cb): item object died too soon?" -suppress data
 						} else {
-							my log error "error invoking cb ($cb): $errmsg\n$::errorInfo" -suppress data
+							my log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]" -suppress data
 						}
 					}
 				} else {
@@ -364,14 +344,13 @@ cflib::pclass create m2::connector {
 			}
 
 			default {
-				my log error "unexpected type: ($type)" -suppress data
+				my log error "unexpected type: ([dict get $msg_data type])" -suppress data
 			}
 		}
 	}
 
 	#>>>
 	method _authenticated_changed {newstate} { #<<<
-		my log debug
 		if {$newstate} {
 			try {
 				my log debug "requesting public key for ($svc) ..."

@@ -1,4 +1,4 @@
-set version	0.26
+set version	0.27
 
 tm "m2" { #<<<
 	version $::version
@@ -81,7 +81,8 @@ application "m2_node" { #<<<
 application "authenticatord" { #<<<
 	version 0.22.0
 
-	runtime cfkit8.6
+	#runtime cfkit8.6
+	runtime rozkit8.6
 
 	requires {
 		m2
