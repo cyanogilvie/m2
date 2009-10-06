@@ -1,0 +1,5 @@
+
+n Node		id: [self]
+	n Port	id: "m2_node [[$queue con] human_id]"
+		1 Queue
+			1 Con
