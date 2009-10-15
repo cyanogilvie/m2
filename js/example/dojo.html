@@ -42,7 +42,8 @@
 		<script type="text/javascript">
 			jsSocket.swf = 'jssocket/jsSocket.swf';
 			var api = new m2.api({
-				host: '10.41.68.115',
+				//host: '10.41.68.115',
+				host: '127.0.0.1',
 				port: 5301
 			});
 
@@ -64,7 +65,7 @@
 					<object data="images/FNB_Logo_grayscale.svg" id="logowatermark">
 					-->
 					<img src="images/FNB_Logo_grayscale_170.png" id="logowatermark" />
-					</object>
+					<!-- </object> -->
 					<div class="module" moduleName="login" onmouseover="moduleHighlight(this);" onmouseout="moduleLowlight(this);" onclick="openModule(this);">
 						<img src="images/login.png" /><br clear="all" />
 						<div class="moduleLabel">
@@ -73,7 +74,11 @@
 					</div>
 				</div>
 				<script type="text/javascript">
+					var debug_oldstate = null;
 					signals['ready'].attach_output(function(newstate) {
+						console.log('ready changed: '+debug_oldstate+' -> '+newstate);
+						if (debug_oldstate === newstate) return;
+						debug_oldstate = newstate;
 						var container = dijit.byId('modulesContainer');
 						/*
 						dojo.query('.module', container).forEach(function(child) {
@@ -102,6 +107,10 @@
 								}
 							});
 						} else {
+							dojo.query('.dynamicModule').forEach(function(node){
+								console.log('Culling dynamic module', node);
+								container.domNode.removeChild(node);
+							});
 						}
 					});
 				</script>
@@ -243,7 +252,7 @@
 					minfo = array2hash(parse_tcl_list(m.getItem(modulenames[i])));
 					newmodule = document.createElement('div');
 
-					newmodule.setAttribute('class', 'module');
+					newmodule.setAttribute('class', 'module dynamicModule');
 					newmodule.setAttribute('moduleName', modulenames[i]);
 					//newmodule.setAttribute('onmouseover', 'moduleHighlight(this);');
 					//newmodule.setAttribute('onmouseout', 'moduleLowlight(this);');
