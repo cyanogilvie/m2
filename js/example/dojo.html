@@ -21,23 +21,24 @@
 		<script type="text/javascript" src="sop/gate.js"></script>
 		<script type="text/javascript" src="m2/tcllist.js"></script>
 		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="webmodule.js"></script>
 		<script type="text/javascript">
 			dojo.registerModulePath('sitelocal', '../../sitelocal');
 
 			dojo.require('dijit.layout.BorderContainer');
 			dojo.require('dijit.layout.TabContainer');
 			dojo.require('dijit.layout.ContentPane');
-			dojo.require('dijit.Dialog');
-			dojo.require('sitelocal.ModuleLauncher');
-			dojo.require('dojox.grid.DataGrid');
+			//dojo.require('dijit.Dialog');
+			dojo.require('sitelocal.ModuleLauncherTest');
+			//dojo.require('dojox.grid.DataGrid');
 			dojo.require('sitelocal.dschanStore');
-			dojo.require('dojox.grid.compat._grid.publicEvents');
-			dojo.require('dijit.form.Form');
-			dojo.require('dijit.form.Button');
-			dojo.require('dijit.form.RadioButton');
-			dojo.require('dijit.form.ComboBox');
-			dojo.require('dijit.form.Textarea');
-			dojo.require('dijit.form.TextBox');
+			//dojo.require('dojox.grid.compat._grid.publicEvents');
+			//dojo.require('dijit.form.Form');
+			//dojo.require('dijit.form.Button');
+			//dojo.require('dijit.form.RadioButton');
+			//dojo.require('dijit.form.ComboBox');
+			//dojo.require('dijit.form.Textarea');
+			//dojo.require('dijit.form.TextBox');
 		</script>
 		<script type="text/javascript">
 			jsSocket.swf = 'jssocket/jsSocket.swf';
@@ -53,14 +54,72 @@
 				mode: 'and'
 			});
 
+			g_modules = {};
+
 			signals['ready'].attach_input(api.signal_ref('connected'));
-			signals['ready'].attach_input(api.svc_signal('modules'));
+			//signals['ready'].attach_input(api.svc_signal('modules'));
+
+			function init_modules() {
+				api.listen_event('svc_avail_changed', function(svcs) {
+					var i, keys, svc, name, modules_now;
+					modules_now = {};
+					keys = svcs.keys();
+					for (i=0; i<keys.length; i++) {
+						svc = keys[i];
+						if (svc.substr(0, 10) == "webmodule/") {
+							name = svc.substr(10);
+							if (
+								typeof g_modules[name] == "undefined" ||
+								g_modules[name] === false
+							) {
+								modules_now[name] = "new";
+								g_modules[name] = {
+									status: "new"
+								};
+							} else {
+								modules_now[name] = "existing";
+							}
+						}
+					}
+
+					for (name in g_modules) {
+						if (typeof modules_now[name] == "undefined") {
+							g_modules[name].status = "removed";
+						} else {
+							g_modules[name].status = modules_now[name];
+						}
+					}
+
+					for (name in g_modules) {
+						if (g_modules[name].status == "removed") {
+							g_modules[name].dijit.destroyRecursive();
+							g_modules[name] = g_modules[name].module.destroy();
+							delete g_modules[name];
+						} else if (g_modules[name].status == "new") {
+							g_modules[name] = {};
+							g_modules[name].module = new webmodule({
+								svc: 'webmodule/'+name,
+								api: api
+							});
+							g_modules[name].status = "existing";
+							g_modules[name].module.gotInfo = function() {
+								g_modules[name].dijit = modulescontainer.add_module(g_modules[name].module);
+							}
+						} else if (g_modules[name].status == "existing") {
+						}
+					}
+				});
+
+				// TODO: kick off initial svc scan?
+			}
+
+			dojo.addOnLoad(init_modules);
 		</script>
 	</head>
 	<body class="tundra">
 		<div dojoType="dijit.layout.BorderContainer" design="headline" style="width: 100%; height: 100%;" gutters="false">
 			<div region="center" dojoType="dijit.layout.TabContainer" id="tabs">
-				<div id="modulesContainer" class="modulesContainer" dojoType="dijit.layout.ContentPane" title="Modules" selected="true">
+				<div id="modulesContainer" class="modulesContainer" dojoType="dijit.layout.ContentPane" title="Modules" selected="true" jsId="modulescontainer">
 					<!--
 					<object data="images/FNB_Logo_grayscale.svg" id="logowatermark">
 					-->
@@ -72,6 +131,41 @@
 							Login
 						</div>
 					</div>
+					<script type="dojo/method">
+						console.log("Constructing modulesContainer");
+					</script>
+					<script type="dojo/method" event="add_module" args="module">
+						var ml, newmodule, container, iconurl, pageurl;
+
+						console.log(module);
+						iconurl = module.baseurl + module.icon;
+						pageurl = module.baseurl + module.page;
+						console.log('Calling sitelocal.ModuleLauncher with:');
+						console.log('page: ('+module.page+')');
+						console.log('pageurl: ('+pageurl+')');
+						console.log('modulename: ('+module.name+')');
+						console.log('icon: ('+iconurl+')');
+						console.log('label: ('+module.title+')');
+						console.log('svc: ('+module.svc+')');
+
+						container = dijit.byId('modulesContainer').domNode;
+						newmodule = document.createElement('div');
+						container.appendChild(newmodule);
+
+						ml = new sitelocal.ModuleLauncherTest({
+							modulename: module.name,
+							icon: iconurl,
+							label: module.title,
+							svc: module.svc,
+							pageurl: pageurl,
+							page: module.page,
+							baseurl: module.baseurl,
+							init: module.init,
+							cleanup: module.cleanup
+						}, newmodule);
+
+						return ml;
+					</script>
 				</div>
 				<script type="text/javascript">
 					var debug_oldstate = null;
@@ -89,6 +183,7 @@
 						});
 						*/
 						if (newstate) {
+							return;
 							api.req('modules', 'list', function(msg) {
 								console.log('modules list got response: '+msg.type);
 								switch (msg.type) {
