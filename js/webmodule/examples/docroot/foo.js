@@ -1,0 +1,3 @@
+function somejs() {
+	alert('Bang!');
+}

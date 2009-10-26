@@ -1,0 +1,19 @@
+tm "webmodule" {
+	version 0.1
+
+	requires {
+		m2
+		{oodaemons 0.2}
+		cflib
+	}
+
+	files {
+		webmodule.tcl
+		httpd.tcl
+	}
+
+	platform tcl
+}
+
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

@@ -14,7 +14,7 @@ m2.api = function(params) { //<<<
 			};
 		} else if (typeof dump != 'undefined') {
 			this.log = function(msg) {
-				dump(msg);
+				dump(msg+'\n');
 			};
 		} else {
 			this.log = function(msg) {};
@@ -281,7 +281,7 @@ m2.api.prototype._svc_avail = function(new_svcs) { //<<<
 		inf.sig.set_state(have_svc);
 	}
 
-	this._dispatch_event('svc_avail_changed', []);
+	this._dispatch_event('svc_avail_changed', this._svcs);
 };
 
 //>>>
@@ -301,7 +301,7 @@ m2.api.prototype._svc_revoke = function(revoked_svcs) { //<<<
 		inf.sig.set_state(have_svc);
 	}
 
-	this._dispatch_event('svc_avail_changed', []);
+	this._dispatch_event('svc_avail_changed', this._svcs);
 };
 
 //>>>
