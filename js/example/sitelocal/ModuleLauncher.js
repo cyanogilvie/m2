@@ -11,15 +11,15 @@ dojo.declare('sitelocal.ModuleLauncher', [dijit._Widget, dijit._Templated], {
 	svc: '',
 
 	postCreate: function() {
-		console.log('foo');
+		console.log('ml foo');
 		this.inherited(arguments);
-		console.log('bar');
+		console.log('ml bar');
 	},
 
 	startup: function() {
 		// Children are available now
 		this.inherited(arguments);
-		console.log('baz');
+		console.log('ml baz');
 	},
 
 	onClick: function(ev) {
