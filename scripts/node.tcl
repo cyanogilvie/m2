@@ -12,6 +12,7 @@ oo::class create m2::node {
 		set listen_on			{"tcp://:5307"}
 		set connection_retry	10
 		set upstream			{}
+		set evlog				""
 
 		dict for {k v} $args {
 			if {[string index $k 0] ne "-"} {
@@ -19,7 +20,7 @@ oo::class create m2::node {
 			}
 			set k	[string range $k 1 end]
 			if {$k ni {
-				listen_on connection_retry upstream
+				listen_on connection_retry upstream evlog
 			}} {
 				error "Invalid parameter: -$k"
 			}

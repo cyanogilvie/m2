@@ -37,6 +37,7 @@ proc cleanup {} { #<<<
 
 #>>>
 proc init {} { #<<<
+	m2::evlog create evlog
 	m2::node create server \
 			-listen_on	[cfg get listen_on] \
 			-upstream	[cfg get upstream]

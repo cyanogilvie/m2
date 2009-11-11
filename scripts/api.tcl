@@ -169,7 +169,6 @@ cflib::pclass create m2::api {
 
 	#>>>
 	method _attempt_connection {} { #<<<
-		my log notice
 		after cancel $connect_after_id; set connect_after_id	""
 
 		set last_connection_attempt	[clock seconds]

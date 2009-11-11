@@ -57,7 +57,6 @@ cflib::pclass create m2::authenticator {
 		$signals(login_allowed) attach_input $signals(authenticated) inverted
 		$signals(login_allowed) attach_input $signals(established)
 		
-		puts stderr "authenticator signals_available: ([my signals_available])"
 		my configure {*}$args
 
 		if {![file exists $pbkey]} {
@@ -95,7 +94,10 @@ cflib::pclass create m2::authenticator {
 			#set handle	[crypto::rsa_generate_key 1024 17]
 			#set pbkey	[crypto::rsa_get_public_key $handle]
 			#set session_prkey	$handle
+			set before	[clock microseconds]
 			set K		[crypto::rsa::RSAKG 1024 0x10001]
+			set after	[clock microseconds]
+			my log debug [format "1024 bit key generation time: %.3fms" [expr {($after - $before) / 1000.0}]] -suppress password
 			set pbkey	[dict create \
 					n		[dict get $K n] \
 					e		[dict get $K e]]
@@ -122,7 +124,6 @@ cflib::pclass create m2::authenticator {
 
 	#>>>
 	method login_svc {svc prkeyfn} { #<<<
-		my log debug
 		if {![$signals(login_allowed) state]} {
 			error "Cannot login at this time"
 		}
@@ -174,7 +175,6 @@ cflib::pclass create m2::authenticator {
 
 	#>>>
 	method logout {} { #<<<
-		my log debug
 		if {![$signals(authenticated) state]} {
 			error "Authenticator::logout: not logged in"
 		}
@@ -572,13 +572,17 @@ cflib::pclass create m2::authenticator {
 									set selected_profile \
 											[uplevel #0 $profile_cb [list $defined_profiles]]
 								}
-								my rsj_req $seq \
-										[list select_profile $selected_profile] \
-										[list apply {{args} {}}]
 							} on error {errmsg options} {
 								my log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
 								set selected_profile	""
 							}
+						}
+						try {
+							my rsj_req $seq \
+									[list select_profile $selected_profile] \
+									[list apply {{args} {}}]
+						} on error {errmsg options} {
+							my log error "Unhandled error trying to send selected profile to the backend: $errmsg\n[dict get $options -errorinfo]"
 						}
 						#>>>
 					}
@@ -722,7 +726,6 @@ cflib::pclass create m2::authenticator {
 	#>>>
 	method _session_pbkey_chan {coro msg_data} { #<<<
 		dict with msg_data {}
-		my log debug
 
 		switch -- $type {
 			ack { #<<<
@@ -844,7 +847,6 @@ cflib::pclass create m2::authenticator {
 				}
 			}
 		}
-		my log trivia "got reply"
 
 		return $res
 	}

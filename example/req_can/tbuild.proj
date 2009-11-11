@@ -1,0 +1,50 @@
+application "req_can_test_backend" { #<<<
+	version 0.1
+
+	runtime cfkit8.6
+
+	requires {
+		m2
+		sop
+		cflib
+		dsl
+		Tk
+		netdgram
+		netdgram::tcp
+		netdgram::uds
+	}
+
+	files {
+		backend.tcl
+	}
+
+	platform [this_platform]
+}
+
+#>>>
+application "req_can_test_frontend" { #<<<
+	version 0.1
+
+	runtime cfkit8.6
+
+	requires {
+		m2
+		sop
+		cflib
+		dsl
+		Tk
+		netdgram
+		netdgram::tcp
+		netdgram::uds
+	}
+
+	files {
+		frontend.tcl
+	}
+
+	platform [this_platform]
+}
+
+#>>>
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
