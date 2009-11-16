@@ -17,6 +17,7 @@ oo::class create m2::port {
 		jm_ports
 		jm_sport
 
+		queue_mode
 		mysvcs
 		outbound
 		signals
@@ -56,6 +57,11 @@ oo::class create m2::port {
 		} else {
 			error "Must set -server"
 		}
+		if {[dict exists $parms -queue_mode]} {
+			set queue_mode	[dict get $parms -queue_mode]
+		} else {
+			set queue_mode	"fancy"
+		}
 
 		switch -- $mode {
 			inbound				{set outbound	0; set advertise	1}
@@ -68,91 +74,110 @@ oo::class create m2::port {
 
 		$server register_port [self] $outbound $advertise
 
-		oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
-			switch -- $type {
-				rsj_req - req {
-					set seq
-				}
-
-				pr_jm {
-					my variable _pending_jm_setup
-					puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
-					dict set _pending_jm_setup $seq $prev_seq 1
-					set prev_seq
-				}
-				
-				jm - jm_can {
-					set seq
-				}
-
-				default {
-					set prev_seq
-				}
-			}
-		}
-
-		#>>>
-		oo::objdefine $queue method pick {queues} { #<<<
-			my variable _pending_jm_setup
-			if {![info exists _pending_jm_setup]} {
-				set _pending_jm_setup	[dict create]
-			}
-
-			set q		[next $queues]
-			set first	$q
-
-			# Skip queues for jms that were setup in requests for which
-			# we still haven't sent the ack or nack
-			while {[dict exists $_pending_jm_setup $q]} {
-				set q		[next $queues]
-				if {$q eq $first} {
-					set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
-					foreach p $queues {
-						if {[dict exists $_pending_jm_setup $p]} {
-							append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
-						} else {
-							append errmsg "\n\t($p): --"
-						}
+		if {$queue_mode eq "fancy"} {
+			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
+				switch -- $type {
+					rsj_req - req {
+						set seq
 					}
-					if {[info commands "dutils::daemon_log"] ne {}} {
-						dutils::daemon_log LOG_ERR $errmsg
-					} else {
-						puts stderr $errmsg
+
+					pr_jm {
+						my variable _pending_jm_setup
+						puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
+						dict set _pending_jm_setup $seq $prev_seq 1
+						set prev_seq
 					}
-					# Should never happen
-					break
+					
+					jm - jm_can {
+						set seq
+					}
+
+					default {
+						set prev_seq
+					}
 				}
 			}
 
-			return $q
-		}
-
-		#>>>
-		oo::objdefine $queue method sent {type seq prev_seq} { #<<<
-			if {$type in {
-				ack
-				nack
-			}} {
+			#>>>
+			oo::objdefine $queue method pick {queues} { #<<<
 				my variable _pending_jm_setup
 				if {![info exists _pending_jm_setup]} {
 					set _pending_jm_setup	[dict create]
 				}
 
-				dict for {s ps} $_pending_jm_setup {
-					foreach p [dict keys $ps] {
-						if {$p eq $prev_seq} {
-							puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
-							dict unset _pending_jm_setup $s $p
-							if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
-								dict unset _pending_jm_setup $s
+				set q		[next $queues]
+				set first	$q
+
+				# Skip queues for jms that were setup in requests for which
+				# we still haven't sent the ack or nack
+				while {[dict exists $_pending_jm_setup $q]} {
+					set q		[next $queues]
+					if {$q eq $first} {
+						set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
+						foreach p $queues {
+							if {[dict exists $_pending_jm_setup $p]} {
+								append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
+							} else {
+								append errmsg "\n\t($p): --"
+							}
+						}
+						if {[info commands "dutils::daemon_log"] ne {}} {
+							dutils::daemon_log LOG_ERR $errmsg
+						} else {
+							puts stderr $errmsg
+						}
+						# Should never happen
+						break
+					}
+				}
+
+				return $q
+			}
+
+			#>>>
+			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
+				if {$type in {
+					ack
+					nack
+				}} {
+					my variable _pending_jm_setup
+					if {![info exists _pending_jm_setup]} {
+						set _pending_jm_setup	[dict create]
+					}
+
+					dict for {s ps} $_pending_jm_setup {
+						foreach p [dict keys $ps] {
+							if {$p eq $prev_seq} {
+								puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
+								dict unset _pending_jm_setup $s $p
+								if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
+									dict unset _pending_jm_setup $s
+								}
 							}
 						}
 					}
 				}
 			}
-		}
 
-		#>>>
+			#>>>
+		} elseif {$queue_mode eq "fifo"} {
+			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
+				return "_fifo"
+			}
+
+			#>>>
+			oo::objdefine $queue method pick {queues} { #<<<
+				return "_fifo"
+			}
+
+			#>>>
+			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
+			}
+
+			#>>>
+		} else {
+			error "Invalid queue mode: ($queue_mode)"
+		}
 		oo::objdefine $queue forward receive {*}[namespace code {my _receive}]
 		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
 
@@ -423,8 +448,21 @@ oo::class create m2::port {
 			}
 
 			req { #<<<
-				set dport	[$server port_for_svc [$msg get svc] [self]]
-				my _send_dport $dport $msg
+				try {
+					$server port_for_svc [$msg get svc] [self]
+				} on error {errmsg options} {
+					log warning "Req collided with svc_revoke for [$msg get svc]"
+					set nack	[m2::msg new new \
+							type	nack \
+							svc		sys \
+							data	"svc unavailable - crashed into svc_revoke" \
+							seq		[$server unique_id] \
+							prev_seq	[$msg get seq] \
+					]
+					my _dispatch $nack
+				} on ok {dport} {
+					my _send_dport $dport $msg
+				}
 				#>>>
 			}
 

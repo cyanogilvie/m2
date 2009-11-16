@@ -13,6 +13,7 @@ oo::class create m2::node {
 		set connection_retry	10
 		set upstream			{}
 		set evlog				""
+		set queue_mode			fancy
 
 		dict for {k v} $args {
 			if {[string index $k 0] ne "-"} {
@@ -20,7 +21,7 @@ oo::class create m2::node {
 			}
 			set k	[string range $k 1 end]
 			if {$k ni {
-				listen_on connection_retry upstream evlog
+				listen_on connection_retry upstream evlog queue_mode
 			}} {
 				error "Invalid parameter: -$k"
 			}
@@ -58,6 +59,7 @@ oo::class create m2::node {
 		listen_on
 		connection_retry
 		upstream
+		queue_mode
 
 		listens
 		svcs
@@ -263,6 +265,7 @@ oo::class create m2::node {
 			set p	[m2::port new $contype [list \
 						-server [self] \
 						-use_keepalive $use_keepalive \
+						-queue_mode $queue_mode \
 					] \
 					$queue $params]
 			$p register_handler onclose \

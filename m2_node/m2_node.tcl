@@ -10,6 +10,7 @@ cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
 	variable upstream		{}
 	variable daemon			1
+	variable queue_mode		fancy
 	variable runas_user		"daemon"
 	variable runas_group	"daemon"
 }
@@ -40,7 +41,8 @@ proc init {} { #<<<
 	m2::evlog create evlog
 	m2::node create server \
 			-listen_on	[cfg get listen_on] \
-			-upstream	[cfg get upstream]
+			-upstream	[cfg get upstream] \
+			-queue_mode	[cfg get queue_mode]
 }
 
 #>>>
