@@ -42,6 +42,11 @@ cflib::pclass create m2::api {
 		$dominos(svc_avail_changed) attach_output [my code _svc_avail_changed]
 		$dominos(need_reconnect) attach_output [my code _attempt_connection]
 
+		package require netdgram::tcp
+		oo::define netdgram::connectionmethod::tcp method default_port {} {
+			return 5300
+		}
+
 		my configure {*}$args
 	}
 
@@ -122,7 +127,6 @@ cflib::pclass create m2::api {
 	#>>>
 
 	method _got_msg {msg} { #<<<
-		#puts "got_msg type: ([$msg type])"
 		switch -- [$msg type] {
 			svc_avail {
 				foreach svc [$msg data] {
@@ -197,6 +201,7 @@ cflib::pclass create m2::api {
 							set seq
 						} else {
 							my variable _pending_jm_setup
+							#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
 							dict set _pending_jm_setup $seq $prev_seq 1
 							set prev_seq
 						}
@@ -223,10 +228,18 @@ cflib::pclass create m2::api {
 				while {[dict exists $_pending_jm_setup $q]} {
 					set q		[next $queues]
 					if {$q eq $first} {
+						set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
+						foreach p $queues {
+							if {[dict exists $_pending_jm_setup $p]} {
+								append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
+							} else {
+								append errmsg "\n\t($p): --"
+							}
+						}
 						if {[info commands "dutils::daemon_log"] ne {}} {
-							dutils::daemon_log LOG_ERR "Eeek - all queues have the pending flag set, should never happen"
+							dutils::daemon_log LOG_ERR $errmsg
 						} else {
-							puts stderr "Eeek - all queues have the pending flag set, should never happen"
+							puts stderr $errmsg
 						}
 						# Should never happen
 						break

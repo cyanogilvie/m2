@@ -76,20 +76,25 @@ oo::class create m2::port {
 
 		if {$queue_mode eq "fancy"} {
 			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
+				#if {[info commands "dutils::daemon_log"] ne {}} {
+				#	dutils::daemon_log LOG_DEBUG "queueing $type $seq $prev_seq"
+				#} else {
+				#	puts stderr "queueing $type $seq $prev_seq"
+				#}
 				switch -- $type {
 					rsj_req - req {
 						set seq
 					}
 
-					pr_jm {
-						my variable _pending_jm_setup
-						puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
-						dict set _pending_jm_setup $seq $prev_seq 1
-						set prev_seq
-					}
-					
 					jm - jm_can {
-						set seq
+						if {$prev_seq eq 0} {
+							set seq
+						} else {
+							my variable _pending_jm_setup
+							#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
+							dict set _pending_jm_setup $seq $prev_seq 1
+							set prev_seq
+						}
 					}
 
 					default {
@@ -136,6 +141,11 @@ oo::class create m2::port {
 
 			#>>>
 			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
+				#if {[info commands "dutils::daemon_log"] ne {}} {
+				#	dutils::daemon_log LOG_DEBUG "sent $type $seq $prev_seq"
+				#} else {
+				#	puts stderr "sent $type $seq $prev_seq"
+				#}
 				if {$type in {
 					ack
 					nack

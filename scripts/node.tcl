@@ -8,8 +8,13 @@ oo::class create m2::node {
 		set advertise_ports					[dict create]
 		set outbound_connection_afterids	[dict create]
 
+		package require netdgram::tcp
+		oo::define netdgram::connectionmethod::tcp method default_port {} {
+			return 5300
+		}
+
 		# Defaults
-		set listen_on			{"tcp://:5307"}
+		set listen_on			{"tcp://:5300"}
 		set connection_retry	10
 		set upstream			{}
 		set evlog				""

@@ -12,7 +12,7 @@ tm "m2" { #<<<
 
 	requires {
 		{Tcl 8.6}
-		{netdgram 0.5.3}
+		{netdgram 0.5.4}
 		{sop 1.2}
 		sha1
 	}
@@ -38,11 +38,11 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.3}
-		netdgram::tcp
+		{netdgram 0.5.4}
+		{netdgram::tcp 0.5.4}
+		{netdgram::jssocket 0.5.4}
+		{netdgram::uds 0.5.4}
 		{sop 1.2}
-		netdgram::jssocket
-		netdgram::uds
 		cflib
 		dsl
 	}
@@ -57,7 +57,7 @@ application "m2_node" { #<<<
 
 	platform linux-glibc2.3-ix86 {
 		requires {
-			daemon
+			{daemon 0.6}
 			sockopt
 			unix_sockets
 		}
@@ -86,9 +86,10 @@ application "authenticatord" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.3}
 		{sop 1.2}
-		netdgram::tcp
+		{netdgram 0.5.4}
+		{netdgram::tcp 0.5.4}
+		{netdgram::uds 0.5.4}
 		cflib
 		sop
 		dsl
