@@ -112,6 +112,25 @@ application "authenticatord" { #<<<
 }
 
 #>>>
+application "m2_keys" { #<<<
+	version $::version
+
+	runtime cfkit8.6
+
+	requires {
+		crypto
+		cflib
+		dsl
+	}
+
+	files {
+		tools/keys.tcl
+	}
+
+	platform tcl
+}
+
+#>>>
 rpm "m2_node" { #<<<
 	version ${::version}.0
 
