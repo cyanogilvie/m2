@@ -20,4 +20,12 @@
 		</thead>
 	</table>
 </div>
-
+<script type="text/javascript">
+	api.svc_signal('foo').attach_output(function(newstate) {
+		if (newstate) {
+			// Do something
+		} else {
+			// Do something else
+		}
+	});
+</script>

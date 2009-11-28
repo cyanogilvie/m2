@@ -66,7 +66,7 @@ oo::class create webmodule::webmodule {
 
 		set baseurl	"http://$myhost:$myport/"
 
-		set httpd	[webmodule::httpd new -port $myport -docroot $docroot]
+		set httpd	[my make_httpd -port $myport -docroot $docroot]
 	}
 
 	#>>>
@@ -83,6 +83,11 @@ oo::class create webmodule::webmodule {
 
 	#>>>
 
+	method make_httpd {args} { #<<<
+		webmodule::httpd new {*}$args
+	}
+
+	#>>>
 	method _connected_changed {newstate} { #<<<
 		if {$newstate} {
 			$auth handle_svc $svc [namespace code {my _handle_svc}]

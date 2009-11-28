@@ -1,6 +1,6 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-package require webmodule
+package require webmodule 0.2
 package require m2
 package require cflib
 
@@ -22,6 +22,24 @@ proc log {lvl msg args} { #<<<
 
 proc init {} { #<<<
 	m2::authenticator create auth -uri [cfg get uri] -pbkey [cfg get pbkey]
+
+	oo::define webmodule::webmodule method make_httpd {args} {
+		set obj	[webmodule::httpd new {*}$args]
+		oo::objdefine $obj method got_req {req} {
+			log notice "Intercepted got_req"
+			set uri	[$req request_uri]
+			set r	[$uri as_dict]
+			set params	[$uri query_decode [dict get $r query]]
+			log notice "Got request: [dict get $r path], ($params)"
+			log notice "Passing through to original handler"
+			try {
+				next $req
+			} finally {
+				log notice "Finished pass-through"
+			}
+		}
+		return $obj
+	}
 
 	webmodule::webmodule create webmodule \
 			-auth		auth \
