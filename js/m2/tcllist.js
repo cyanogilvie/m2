@@ -2,6 +2,7 @@
 
 function is_space(char) { //<<<
 	// Not perfect
+	/* This breaks ie - it things that '\v' is 'v'
 	if (
 		char == ' ' ||
 		char == '\t' ||
@@ -9,6 +10,12 @@ function is_space(char) { //<<<
 		char == '\r' ||
 		char == '\v'
 	) {
+		return true;
+	} else {
+		return false;
+	}
+	*/
+	if (char == ' ' || char == '\t' || char == '\n' || char == '\r') {
 		return true;
 	} else {
 		return false;
@@ -67,7 +74,7 @@ function char_is_hex(char) { //<<<
 //>>>
 function parse_tcl_list(str) { //<<<
 	var ofs = -1;
-	var parts = new Array();
+	var parts = [];
 	var elem = '';
 	var in_elem = false;
 	var braced = false;
@@ -86,6 +93,7 @@ function parse_tcl_list(str) { //<<<
 	var cont = false;
 	var acc;
 	var pow;
+	var lsd;
 
 	var hexmap = {
 		'a': 10,
@@ -116,7 +124,9 @@ function parse_tcl_list(str) { //<<<
 		}
 		//>>>
 		if (!in_elem) { // fallthrough if c not a space <<<
-			if (is_space(c)) continue;
+			if (is_space(c)) {
+				continue;
+			}
 			in_elem = true;
 			elemstart = true;
 		}
@@ -134,11 +144,11 @@ function parse_tcl_list(str) { //<<<
 				elem += c;
 			}
 			elemstart = false;
-			continue
+			continue;
 		}
 		//>>>
 		if (escaped) { // sometimes falls through <<<
-			if (escape_mode == '') { //<<<
+			if (escape_mode === '') { //<<<
 				switch (c) {
 					case 'a':
 						elem += '\u0007';
@@ -229,7 +239,7 @@ function parse_tcl_list(str) { //<<<
 					acc = 0;
 					pow = 0;
 					while (escape_seq.length > 0) {
-						var lsd = escape_seq.substr(-1,1);
+						lsd = escape_seq.substr(-1,1);
 						escape_seq = escape_seq.slice(0,-1);
 						acc += lsd * Math.pow(8, pow);
 						pow++;
@@ -238,14 +248,16 @@ function parse_tcl_list(str) { //<<<
 					escape_mode = '';
 					escaped = false;
 				}
-				if (cont) continue;
+				if (cont) {
+					continue;
+				}
 				//>>>
 			} else if (escape_mode == 'hex') { //<<<
 				if (char_is_hex(c)) {
 					escape_seq += c;
 					continue;
 				} else {
-					if (escape_seq.length == 0) {
+					if (escape_seq.length === 0) {
 						elem += 'x'+c;
 						escaped = false;
 						escape_mode = '';
@@ -277,7 +289,7 @@ function parse_tcl_list(str) { //<<<
 				}
 
 				if (finished) {
-					if (escape_seq.length == 0) {
+					if (escape_seq.length === 0) {
 						elem += 'u';
 					} else {
 						while (escape_seq.length < 4) {
@@ -290,7 +302,9 @@ function parse_tcl_list(str) { //<<<
 					escaped = false;
 				}
 
-				if (cont) continue
+				if (cont) {
+					continue;
+				}
 				//>>>
 			} else {
 				throw 'Error in escape sequence parser state: invalid state "'+escape_mode+'"';
@@ -308,7 +322,7 @@ function parse_tcl_list(str) { //<<<
 				bracedepth++;
 			} else if (c == '}') {
 				bracedepth--;
-				if (bracedepth == 0) {
+				if (bracedepth === 0) {
 					braced = false;
 					needspace = true;
 					in_elem = false;
@@ -376,7 +390,7 @@ function parse_tcl_list(str) { //<<<
 				acc = 0;
 				pow = 0;
 				while (escape_seq.length > 0) {
-					var lsd = escape_seq.substr(-1,1);
+					lsd = escape_seq.substr(-1,1);
 					escape_seq = escape_seq.slice(0,-1);
 					acc += lsd * Math.pow(8, pow);
 					pow++;
@@ -387,7 +401,7 @@ function parse_tcl_list(str) { //<<<
 				break;
 
 			case 'hex':
-				if (escape_seq.length == 0) {
+				if (escape_seq.length === 0) {
 					elem += 'x';
 				} else {
 					if (escape_seq.length > 2) {
@@ -400,7 +414,7 @@ function parse_tcl_list(str) { //<<<
 				break;
 
 			case 'unicode':
-				if (escape_seq.length == 0) {
+				if (escape_seq.length === 0) {
 					elem += 'u';
 				} else {
 					while (escape_seq.length < 4) {
@@ -443,8 +457,7 @@ function serialize_tcl_list(arr) { //<<<
 			elem.indexOf('\t') == -1 &&
 			elem.indexOf('\n') == -1 &&
 			elem.indexOf('\r') == -1 &&
-			elem.indexOf('\v') == -1
-		) {
+			elem.indexOf('\v') == -1) {
 			if (elem.indexOf('\\') == -1) {
 				staged.push(elem);
 			} else {
@@ -455,21 +468,15 @@ function serialize_tcl_list(arr) { //<<<
 			if (
 				elem.indexOf('}') == -1 &&
 				elem.indexOf('{') == -1 &&
-				elem.charAt(elem.length-1) != '\\'
-			) {
+				elem.charAt(elem.length-1) != '\\') {
 				staged.push('{'+elem+'}');
 			} else {
 				// Replace all <special> with \<special>
-				staged.push(elem.replace(/\\| |"|}|{|\t|\n|\r|\v/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
+				staged.push(elem.replace(/\\| |"|\}|\{|\t|\n|\r|\v/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
 			}
 		}
 	}
 	return staged.join(' ');
-}
-
-//>>>
-function list2dict(list) { //<<<
-	return array2dict(parse_tcl_list(list));
 }
 
 //>>>
@@ -489,10 +496,15 @@ function array2dict(arr) { //<<<
 }
 
 //>>>
-function array2hash(arr) { //<<<
-	var h;
+function list2dict(list) { //<<<
+	return array2dict(parse_tcl_list(list));
+}
 
-	h = new Hash;
+//>>>
+function array2hash(arr) { //<<<
+	var h, i;
+
+	h = new Hash();
 
 	for (i=0; i<arr.length; i+=2) {
 		var k, v;
