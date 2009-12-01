@@ -2,7 +2,6 @@ function m2() {} // namespace
 
 m2.api = function(params) { //<<<
 	if (typeof params == 'undefined') {
-		console.log('lame');
 		return;
 	}
 	// Public
@@ -25,8 +24,6 @@ m2.api = function(params) { //<<<
 		}
 	}
 
-	console.log('Constructing m2.api: ', params);
-
 	if (typeof params != 'undefined') {
 		if (typeof params.host != 'undefined') {
 			this.host = params.host;
@@ -43,19 +40,22 @@ m2.api = function(params) { //<<<
 	var self;
 	self = this;
 	this._unique_id = 0;
-	this._handlers = new Hash;
-	this._event_handlers = new Hash;
-	this._pending = new Hash;
-	this._ack_pend = new Hash;
-	this._jm = new Hash;
-	this._jm_prev_seq = new Hash;
+	this._handlers = new Hash();
+	this._event_handlers = new Hash();
+	this._pending = new Hash();
+	this._ack_pend = new Hash();
+	this._jm = new Hash();
+	this._jm_prev_seq = new Hash();
 	this._socket = null;
-	this._signals = new Hash;
-	this._svcs = new Hash;
-	this._svc_signals = new Hash;
-	this._defrag_buf = new Hash;
+	this._signals = new Hash();
+	this._svcs = new Hash();
+	this._svc_signals = new Hash();
+	this._defrag_buf = new Hash();
 	this._msgid_seq = 0;
-	this._queues = new Hash;
+	this._queues = new Hash();
+	this._jm_keys = new Hash();
+	this._key_schedules = new Hash();
+	this._pending_keys = new Hash();
 
 	this.log('attempting to connect to m2_node on ('+this.host+') ('+this.port+')');
 	this._signals.setItem('connected', new Signal({
@@ -67,7 +67,6 @@ m2.api = function(params) { //<<<
 		logger: this.log,
 		debug: false
 	});
-	console.log('====== API constructed new jsSocket: ', this._socket);
 
 	this._socket.onData = function(data) {
 		self._receive_raw(data);
@@ -75,7 +74,7 @@ m2.api = function(params) { //<<<
 	//this._socket.onData = this._receive_raw;
 	this._socket.onStatus = function(type, val) {
 		self._socket_onStatus(type, val);
-	}
+	};
 	//this._socket.onStatus = this._socket_onStatus;
 
 	this._socket.onLoaded = function(data) {
@@ -122,10 +121,14 @@ m2.api.prototype.svc_avail = function(svc) { //<<<
 };
 
 //>>>
-m2.api.prototype.req = function(svc, data, cb) { //<<<
+m2.api.prototype.req = function(svc, data, cb, withkey) { //<<<
 	var seq;
 
 	seq = this._unique_id++;
+
+	if (typeof withkey != 'undefined') {
+		data = this._encrypt(withkey, data);
+	}
 
 	this._send({
 		svc:	svc,
@@ -144,16 +147,24 @@ m2.api.prototype.req = function(svc, data, cb) { //<<<
 
 //>>>
 m2.api.prototype.rsj_req = function(jm_seq, data, cb) { //<<<
-	var seq;
+	var seq, e_data, key;
 
 	seq = this._unique_id++;
+
+	if (this._jm_keys.hasItem(jm_seq)) {
+		key = this._jm_keys.getItem(jm_seq);
+		this._pending_keys.setItem(seq, key);
+		e_data = this._encrypt(key, data);
+	} else {
+		e_data = data;
+	}
 
 	this._send({
 		svc:		'',
 		type:		'rsj_req',
 		seq:		seq,
 		prev_seq:	jm_seq,
-		data:		data
+		data:		e_data
 	});
 
 	this._pending.setItem(seq, cb);
@@ -204,6 +215,40 @@ m2.api.prototype.jm_disconnect = function(jm_seq, prev_seq) { //<<<
 };
 
 //>>>
+m2.api.prototype._register_jm_key = function(jm_seq, key) { //<<<
+	this._jm_keys.setItem(jm_seq, key);
+};
+
+//>>>
+m2.api.prototype._encrypt = function(key, data) { //<<<
+	var ks, iv, csprng;
+
+	if (!this._key_schedules.hasItem(key)) {
+		this._key_schedules.setItem(key, new cfcrypto.blowfish(key));
+	}
+	ks = this._key_schedules.getItem(key);
+	csprng = new cfcrypto.csprng();
+	iv = csprng.getbytes(8);
+
+	return iv+ks.encrypt_cbc(Utf8.encode(data), iv);
+
+};
+
+//>>>
+m2.api.prototype._decrypt = function(key, data) { //<<<
+	var ks, iv, rest;
+
+	if (!this._key_schedules.hasItem(key)) {
+		this._key_schedules.setItem(key, new cfcrypto.blowfish(key));
+	}
+	ks = this._key_schedules.getItem(key);
+	iv = data.substr(0, 8);
+	rest = data.substr(8);
+
+	return ks.decrypt_cbc(rest, iv);
+};
+
+//>>>
 m2.api.prototype.listen_event = function(event, cb) { //<<<
 	var existing;
 	if (this._event_handlers.hasItem(event)) {
@@ -242,7 +287,7 @@ m2.api.prototype._set_default_msg_fields = function(msg) { //<<<
 //>>>
 m2.api.prototype._receive_msg = function(msg_raw) { //<<<
 	var lineend, pre_raw, pre, fmt, hdr_len, data_len, hdr, data, ofs, msg;
-	this.log('received complete message: ('+msg_raw+')');
+	//this.log('received complete message: ('+msg_raw+')');
 
 	lineend = msg_raw.indexOf("\n");
 	if (lineend == -1) {
@@ -258,13 +303,15 @@ m2.api.prototype._receive_msg = function(msg_raw) { //<<<
 	data_len = Number(pre[2]);
 	hdr = parse_tcl_list(msg_raw.substr(lineend + 1, hdr_len));
 	ofs = lineend + 1 + hdr_len;
+	/*
 	var i;
 	for (i=0; i<hdr.length; i++) {
 		this.log('hdr: '+i+' = ('+hdr[i]+')');
 	}
+	*/
 	data = msg_raw.substr(ofs, data_len);
-	this.log('ofs: '+ofs+', data_len: '+data_len+', data: '+data);
-	this.log('msg_raw.substr('+ofs+'): ('+msg_raw.substr(ofs)+')');
+	//this.log('ofs: '+ofs+', data_len: '+data_len+', data: '+data);
+	//this.log('msg_raw.substr('+ofs+'): ('+msg_raw.substr(ofs)+')');
 	msg = {
 		'svc':		hdr[0],
 		'type':		hdr[1],
@@ -318,7 +365,7 @@ m2.api.prototype._svc_revoke = function(revoked_svcs) { //<<<
 
 //>>>
 m2.api.prototype._jm_can = function(msg) { //<<<
-	var prev_seq_arr, i, tmp, prev_seq, cb, e;
+	var prev_seq_arr, i, tmp, prev_seq, cb;
 
 	if (this._jm_prev_seq.hasItem(msg.seq)) {
 		this._jm_prev_seq.removeItem(msg.seq);
@@ -355,7 +402,7 @@ m2.api.prototype._jm_can = function(msg) { //<<<
 //>>>
 m2.api.prototype._response = function(msg) { //<<<
 	//this.log('_response: ', msg);
-	var prev_seq_arr, i, prev_seq, cb, msgcopy, e;
+	var prev_seq_arr, i, prev_seq, cb, msgcopy;
 
 	msgcopy = msg;
 	prev_seq_arr = parse_tcl_list(msg.prev_seq);
@@ -396,6 +443,7 @@ m2.api.prototype._response = function(msg) { //<<<
 
 //>>>
 m2.api.prototype._got_msg = function(msg) { //<<<
+	/*
 	this.log('got m2 msg:');
 	this.log('msg.svc: ('+msg.svc+')');
 	this.log('msg.type: ('+msg.type+')');
@@ -405,6 +453,68 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 	this.log('msg.oob_type: ('+msg.oob_type+')');
 	this.log('msg.oob_data: ('+msg.oob_data+')');
 	this.log('msg.data: ('+msg.data+')');
+	*/
+
+	// Decrypt any encrypted data, store jm_keys for new jm channels <<<
+	switch (msg.type) {
+		case 'ack':
+			this._ack_pend.removeItem(msg.prev_seq);
+			if (this._pending_keys.hasItem(msg.prev_seq)) {
+				msg.data = this._decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data);
+				this._pending_keys.removeItem(msg.prev_seq);
+			}
+			break;
+
+		case 'nack':
+			this._ack_pend.removeItem(msg.prev_seq);
+			this._pending_keys.removeItem(msg.prev_seq);
+			break;
+
+		case 'pr_jm':
+			this._jm.setItem(msg.prev_seq, this._jm.getItem(msg.prev_seq) + 1);
+
+			if (!this._jm_prev_seq.hasItem(msg.seq)) {
+				this._jm_prev_seq.setItem(msg.seq, [msg.prev_seq]);
+			} else if (this._jm_prev_seq.getItem(msg.seq).indexOf(msg.prev_seq) == -1) {
+				this._jm_prev_seq.setItem(msg.seq,
+						this._jm_prev_seq.getItem(msg.seq).push(msg.prev_seq));
+			}
+
+			if (this._pending_keys.hasItem(msg.prev_seq)) {
+				msg.data = this._decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data);
+				if (!this._jm_keys.hasItem(msg.seq)) {
+					if (msg.data.length != 56) {
+						this.log('pr_jm: dubious looking key: ('+Base64.encode(msg.data)+')');
+					}
+					this._register_jm_key(msg.seq, msg.data);
+					return;
+				} else {
+					if (msg.data.length == 56) {
+						if (msg.data === this._jm_keys.getItem(msg.seq)) {
+							this.log('pr_jm: jm('+msg.seq+') got channel key setup twice!');
+							return;
+						} else {
+							this.log('pr_jm: got what may be another key on this jm ('+msg.seq+'), that differs from the first');
+						}
+					}
+				}
+			}
+			break;
+
+		case 'jm':
+			if (this._jm_keys.hasItem(msg.seq)) {
+				msg.data = this._decrypt(this._jm_keys.getItem(msg.seq), msg.data);
+			}
+			break;
+
+		case 'jm_req':
+			if (this._jm_keys.hasItem(msg.prev_seq)) {
+				msg.data = this._decrypt(this._jm_keys.getItem(msg.prev_seq), msg.data);
+			}
+			break;
+	}
+	// Decrypt any encrypted data, store jm_keys for new jm channels >>>
+
 	switch (msg.type) {
 		case 'svc_avail':
 			this._svc_avail(parse_tcl_list(msg.data));
@@ -418,8 +528,11 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 			this._jm_can(msg);
 			break;
 
+		case 'jm_req':
+			// TODO
+			break;
+
 		case 'pr_jm':
-			this._jm.setItem(msg.prev_seq, this._jm.getItem(msg.prev_seq) + 1);
 		case 'ack':
 		case 'nack':
 		case 'jm':
@@ -466,17 +579,16 @@ m2.api.prototype._serialize_msg = function(msg) { //<<<
 m2.api.prototype._send = function(msg) { //<<<
 	var sdata;
 
-	console.log('Got request to send msg: ', msg);
+	//console.log('Got request to send msg: ', msg);
 	this._set_default_msg_fields(msg);
 	sdata = this._serialize_msg(msg);
-	this.log('Serialized '+sdata.length+' bytes of data to send');
 	this._enqueue(sdata, msg);
 };
 
 //>>>
 m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 	var complete, so_far;
-	this.log('_receive_fragment: msgid: ('+msgid+'), is_tail: ('+is_tail+'), frag: ('+frag+')');
+	//this.log('_receive_fragment: msgid: ('+msgid+'), is_tail: ('+is_tail+'), frag: ('+frag+')');
 	if (this._defrag_buf.hasItem(msgid)) {
 		so_far = this._defrag_buf.getItem(msgid);
 	} else {
@@ -496,7 +608,7 @@ m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 	var packet;
 	packet = Utf8.decode(Base64.decode(packet_base64));
-	this.log('_queue_receive_raw: ('+packet+')');
+	//this.log('_queue_receive_raw: ('+packet+')');
 	var lineend, head, msgid, is_tail, fragment_len, frag, rest;
 	rest = packet;
 	while (rest.length > 0) {
@@ -516,7 +628,7 @@ m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 
 //>>>
 m2.api.prototype._enqueue = function(sdata, msg) { //<<<
-	var msgid, payload, udata;
+	var msgid, payload;
 	/* ----- Queueing requires that we get writable notifications -----
 	var target, msgid, target_queue;
 
@@ -545,9 +657,6 @@ m2.api.prototype._enqueue = function(sdata, msg) { //<<<
 
 	msgid = this._msgid_seq++;
 
-	//udata = Utf8.encode(sdata);
-
-	//payload = Base64.encode(String(msgid)+' 1 '+udata.length+'\n'+udata);
 	payload = Base64.encode(String(msgid)+' 1 '+sdata.length+'\n'+sdata);
 	//payload = Base64.encode(Utf8.encode(String(msgid)+'\n'+sdata));
 	this._socket.send(payload);
@@ -555,7 +664,7 @@ m2.api.prototype._enqueue = function(sdata, msg) { //<<<
 
 //>>>
 m2.api.prototype._socket_onStatus = function(type, val) { //<<<
-	var e, keys, i, inf;
+	var keys, i, inf;
 	switch (type) {
 		case 'connecting':
 			break;
@@ -567,7 +676,7 @@ m2.api.prototype._socket_onStatus = function(type, val) { //<<<
 			});
 
 			try {
-				this.log('API setting connected to true');
+				//this.log('API setting connected to true');
 				this._signals.getItem('connected').set_state(true);
 				this._dispatch_event('connected', true);
 			} catch (e) {
@@ -583,11 +692,11 @@ m2.api.prototype._socket_onStatus = function(type, val) { //<<<
 					inf = this._svc_signals.getItem(keys[i]);
 					inf.sig.set_state(false);
 				}
-				this.log('API setting connected to false');
+				//this.log('API setting connected to false');
 				this._signals.getItem('connected').set_state(false);
 				this._dispatch_event('connected', false);
-			} catch (e) {
-				this.log('dispatching disconnected event went badly: '+e);
+			} catch (e2) {
+				this.log('dispatching disconnected event went badly: '+e2);
 			}
 			break;
 

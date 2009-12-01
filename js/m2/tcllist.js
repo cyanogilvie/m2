@@ -454,15 +454,20 @@ function serialize_tcl_list(arr) { //<<<
 			elem.indexOf('"') == -1 &&
 			elem.indexOf('}') == -1 &&
 			elem.indexOf('{') == -1 &&
+			elem.indexOf('$') == -1 &&
+			elem.indexOf(';') == -1 &&
 			elem.indexOf('\t') == -1 &&
+			elem.indexOf('\f') == -1 &&
 			elem.indexOf('\n') == -1 &&
 			elem.indexOf('\r') == -1 &&
-			elem.indexOf('\v') == -1) {
+			elem.indexOf('\v') == -1 &&
+			elem.indexOf('\[') == -1 &&
+			elem.indexOf('\]') == -1) {
 			if (elem.indexOf('\\') == -1) {
 				staged.push(elem);
 			} else {
 				// Replace all \ with \\
-				staged.push(elem.replace(/\\/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
+				staged.push(elem.replace(/\\/g, '\\\\'));	// WARNING: flags are a spidermonkey extension
 			}
 		} else {
 			if (
@@ -472,7 +477,14 @@ function serialize_tcl_list(arr) { //<<<
 				staged.push('{'+elem+'}');
 			} else {
 				// Replace all <special> with \<special>
-				staged.push(elem.replace(/\\| |"|\}|\{|\t|\n|\r|\v/g, '\\$&'));	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\\| |"|\[|\]|\}|\{|\$|;/g, '\\$&');	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\n/g, '\\n');	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\r/g, '\\r');	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\f/g, '\\f');	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\t/g, '\\t');	// WARNING: flags are a spidermonkey extension
+				//elem = elem.replace('/'+String.fromCharCode(0xb)+'/g', '\\v');	// WARNING: flags are a spidermonkey extension
+				elem = elem.replace(/\v/g, '\\v');	// WARNING: flags are a spidermonkey extension
+				staged.push(elem);
 			}
 		}
 	}

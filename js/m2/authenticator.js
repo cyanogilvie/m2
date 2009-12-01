@@ -1,7 +1,14 @@
+/*
+ * TODO
+ * session_pbkey keypair generation
+ * upgrade jsSocket to new version that doesn't have jQuery dependency
+ */
+
+
 m2.authenticator = function(params) { //<<<
-	console.log('Constructing m2.authenticator: ', params);
+	//console.log('Constructing m2.authenticator: ', params);
 	m2.api.call(this, params);
-	console.log('this is ', this);
+	//console.log('this is ', this);
 
 	// Public
 	this.pbkey = 'authenticator.pub';
@@ -39,14 +46,20 @@ m2.authenticator = function(params) { //<<<
 	this._signals.setItem('got_attribs', new Signal({name: 'got_attribs'}));
 	this._signals.setItem('got_prefs', new Signal({name: 'got_prefs'}));
 
-	/* TODO: find out why this is flipflopping
 	this._signals.getItem('login_allowed').attach_input(
 		this._signals.getItem('login_pending'), 'inverted');
 	this._signals.getItem('login_allowed').attach_input(
 		this._signals.getItem('authenticated'), 'inverted');
 	this._signals.getItem('login_allowed').attach_input(
 		this._signals.getItem('established'));
-	*/
+
+	this._signals.getItem('connected').attach_output(function(newstate) {
+		if (!newstate) {
+			// Reset login_pending if our connection is dropped while a login
+			// request was in flight
+			self._signals.getItem('login_pending').set_state(false);
+		}
+	});
 
 	// Set this to something that initiates a profile selection process
 	// with the user, and calls this.select_profile(seq, profilename) when done.
@@ -119,7 +132,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 		throw('Cannot login at this time');
 	}
 
-	this._signals('login_pending').set_state(true);
+	this._signals.getItem('login_pending').set_state(true);
 
 	self = this;
 	this.rsj_req(this.enc_chan, serialize_tcl_list(['login', username, password]), function(msg) {
@@ -127,7 +140,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 		switch (msg.type) {
 			case 'ack':
-				if (typeof self.login_chan === null) {
+				if (self.login_chan === null) {
 					self.log('got ack, but no login_chan!');
 				}
 
@@ -212,11 +225,11 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 					switch (msg.type) {
 						case 'ack':
-							self._signals('authenticated').set_state(true);
-							self._signals('login_pending').set_state(false);
+							self._signals.getItem('authenticated').set_state(true);
+							self._signals.getItem('login_pending').set_state(false);
 							break;
 						case 'nack':
-							self._signals('login_pending').set_state(false);
+							self._signals.getItem('login_pending').set_state(false);
 							break;
 					}
 				});
@@ -225,6 +238,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 			case 'nack':
 				self.last_login_message = msg.data;
 				self.log('Error logging in: '+msg.data);
+				self._signals.getItem('login_pending').set_state(false);
 				break;
 
 			case 'pr_jm':
@@ -378,7 +392,7 @@ m2.authenticator.prototype.get_user_pbkey = function(fqun, cb) { //<<<
 	if (!this._signals.getItem('established').state()) {
 		throw('No encrypted channel to the authenticator established yet');
 	}
-	this.log('sending request on '+this.enc_chan);
+	//this.log('sending request on '+this.enc_chan);
 	self = this;
 	this.rsj_req(this.enc_chan, serialize_tcl_list(['get_user_pbkey', fqun]), function(msg) {
 		switch (msg.type) {
@@ -559,7 +573,7 @@ m2.authenticator.prototype._generate_key = function(bytes) { //<<<
 
 //>>>
 m2.authenticator.prototype._crypt_setup = function() { //<<<
-	var pending_cookie, n, e, e_key, e_cookie, self;
+	var pending_cookie, n, e, e_key, e_cookie, self, tmp;
 
 	pending_cookie = this._generate_key();
 
@@ -567,56 +581,59 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 	e = this._pubkey.e;
 	e_key = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, this._keys.main, "");
 	e_cookie = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, pending_cookie, "");
-	this.log('//// _crypt_setup, e_key.len: '+e_key.length+', e_cookie: '+e_cookie.length);
 
 	self = this;
-	this.req('authenticator', serialize_tcl_list(['crypt_setup', e_key, e_cookie]), function(msg) {
+	tmp = serialize_tcl_list(['crypt_setup', e_key, e_cookie]);
+	this.req('authenticator', tmp, function(msg) {
 		var pdata, was_encrypted;
+		try {
+			switch (msg.type) {
+				case 'ack':
+				case 'jm':
+					try {
+						pdata = self._decrypt(self._keys.main, msg.data);
+						was_encrypted = true;
+					} catch(e) {
+						self.log('error decrypting message: '+e);
+						return;
+					}
+					break;
 
-		switch (msg.type) {
-			case 'ack':
-			case 'jm':
-				try {
-					pdata = self.decrypt(self._keys.main, msg.data);
-					was_encrypted = true;
-				} catch(e) {
-					self.log('error decrypting message: '+e);
-					return;
-				}
-				break;
+				default:
+					pdata = msg.data;
+					was_encrypted = false;
+					break;
+			}
 
-			default:
-				pdata = msg.data;
-				was_encrypted = false;
-				break;
-		}
+			switch (msg.type) {
+				case 'ack':
+					if (pdata === pending_cookie) {
+						self._signals.getItem('established').set_state(true);
+					} else {
+						self.log('cookie challenge from server did not match');
+					}
+					break;
 
-		switch (msg.type) {
-			case 'ack':
-				if (pdata === pending_cookie) {
-					self._signals.getItem('established').set_state(true);
-				} else {
-					self.log('cookie challenge from server did not match');
-				}
-				break;
+				case 'nack':
+					self.log('got nack: '+msg.data);
+					break;
 
-			case 'nack':
-				self.log('got nack: '+msg.data);
-				break;
+				case 'pr_jm':
+					self._register_jm_key(msg.seq, self._keys.main);
+					if (self.enc_chan === null) {
+						self.enc_chan = msg.seq;
+					} else {
+						self.log('already have enc_chan??');
+					}
+					break;
 
-			case 'pr_jm':
-				self.register_jm_key(msg.seq, self._keys.main);
-				if (typeof self.enc_chan === null) {
-					self.enc_chan = msg.seq;
-				} else {
-					self.log('already have enc_chan??');
-				}
-				break;
-
-			case 'jm_can':
-				self._signals.getItem('established').set_state(false);
-				self.enc_chan = null;
-				break;
+				case 'jm_can':
+					self._signals.getItem('established').set_state(false);
+					self.enc_chan = null;
+					break;
+			}
+		} catch(e2) {
+			self.log('Error handling authenticator response ('+msg.type+'): '+e2);
 		}
 	});
 };
@@ -630,7 +647,7 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 	tag = parts[0];
 	switch (tag) {
 		case 'login_chan':
-			if (typeof this.login_chan === null) {
+			if (this.login_chan === null) {
 				this.login_chan = [msg.seq, msg.prev_seq];
 			} else {
 				this.log('got a login_chan pr_jm ('+msg.seq+') when we already have a login_chan set ('+this.login_chan+')');
@@ -643,7 +660,7 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 				this.select_profile(msg.seq, defined_profiles[0]);
 			} else {
 				try {
-					if (typeof this.profile_cb === null) {
+					if (this.profile_cb === null) {
 						this.log('Asked to select a profile but no profile_cb was defined');
 						this.select_profile(msg.seq, '');
 					} else {
@@ -665,7 +682,7 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 			break;
 
 		case 'session_chan':
-			heartbeat_interval = parts[0];
+			heartbeat_interval = parts[1];
 			key = msg.seq + '/' + msg.prev_seq;
 			// Isn't strictly a sub channel of login_chan...
 			this.login_subchans.setItem(key, 'session_chan');
@@ -725,7 +742,7 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 			break;
 
 		case 'attribs':
-			attribs = list2dict(data[1]);
+			attribs = array2hash(parse_tcl_list(data[1]));
 			attribs.forEach(function(attrib, value) {
 				switch (attrib.charAt(0)) {
 					case '-':
@@ -745,7 +762,7 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 			break;
 
 		case 'prefs':
-			prefs = list2dict(data[1]);
+			prefs = array2hash(parse_tcl_list(data[1]));
 			prefs.forEach(function(pref, value) {
 				switch (pref.charAt(0)) {
 					case '-':
@@ -761,7 +778,7 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 						break;
 				}
 			});
-			this._signals.getItem('get_prefs').set_state(true);
+			this._signals.getItem('got_prefs').set_state(true);
 			break;
 
 		default:

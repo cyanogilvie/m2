@@ -99,7 +99,7 @@ cflib::pclass create m2::api2 {
 					} else {
 						if {[string length [$msg get data]] == 56} {
 							if {[$msg get data] eq [dict get $jm_keys $m_seq]} {
-								my log error "pr_jm: jm($m_seq)) got channel key setup twice!"
+								my log error "pr_jm: jm($m_seq) got channel key setup twice!"
 								return
 							} else {
 								my log warning "pr_jm: got what may be another key on this jm ($m_seq), that differs from the first"
@@ -126,7 +126,6 @@ cflib::pclass create m2::api2 {
 				if {[dict exists $jm_keys $m_prev_seq]} {
 					#my log debug "Decrypting data with [my mungekey [dict get $jm_keys $m_prev_seq]]" -suppress data
 					$msg data [my decrypt [dict get $jm_keys $m_prev_seq] [$msg get data]]
-					dict set set m data	[$msg data]
 				}
 				#>>>
 			}
@@ -684,7 +683,8 @@ cflib::pclass create m2::api2 {
 		set ks	[dict get $key_schedules $key]
 
 		set iv		[crypto::blowfish::csprng 8]
-		return $iv[crypto::blowfish::encrypt_cbc $ks [zlib deflate [encoding convertto utf-8 $data] 3] $iv]
+		#return z$iv[crypto::blowfish::encrypt_cbc $ks [zlib deflate [encoding convertto utf-8 $data] 3] $iv]
+		return $iv[crypto::blowfish::encrypt_cbc $ks [encoding convertto utf-8 $data] $iv]
 	}
 
 	#>>>
@@ -698,7 +698,8 @@ cflib::pclass create m2::api2 {
 
 		set iv		[string range $data 0 7]
 		set rest	[string range $data 8 end]
-		encoding convertfrom utf-8 [zlib inflate [crypto::blowfish::decrypt_cbc $ks $rest $iv]]
+		#encoding convertfrom utf-8 [zlib inflate [crypto::blowfish::decrypt_cbc $ks $rest $iv]]
+		encoding convertfrom utf-8 [crypto::blowfish::decrypt_cbc $ks $rest $iv]
 	}
 
 	#>>>
