@@ -1,3 +1,8 @@
 tm
 out
 *.xpi
+js/example/dojo*
+app
+tm
+*.swp
+core
