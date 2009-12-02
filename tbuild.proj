@@ -1,4 +1,4 @@
-set version	0.28
+set version	0.29
 
 tm "m2" { #<<<
 	version $::version
@@ -12,7 +12,7 @@ tm "m2" { #<<<
 
 	requires {
 		{Tcl 8.6}
-		{netdgram 0.5.4}
+		{netdgram 0.5.5}
 		{sop 1.2}
 		sha1
 	}
@@ -38,10 +38,10 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.4}
-		{netdgram::tcp 0.5.4}
-		{netdgram::jssocket 0.5.4}
-		{netdgram::uds 0.5.4}
+		{netdgram 0.5.5}
+		{netdgram::tcp 0.5.5}
+		{netdgram::jssocket 0.5.5}
+		{netdgram::uds 0.5.5}
 		{sop 1.2}
 		cflib
 		dsl
@@ -87,9 +87,9 @@ application "authenticatord" { #<<<
 	requires {
 		m2
 		{sop 1.2}
-		{netdgram 0.5.4}
-		{netdgram::tcp 0.5.4}
-		{netdgram::uds 0.5.4}
+		{netdgram 0.5.5}
+		{netdgram::tcp 0.5.5}
+		{netdgram::uds 0.5.5}
 		cflib
 		sop
 		dsl
