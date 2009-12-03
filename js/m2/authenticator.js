@@ -147,9 +147,9 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 				self.fqun = username;
 				self.log('Logged in ok, generating key');
 				before = new Date();
-				K = cfcrypto.rsa.RSAKG(1024, new BigInteger('10001', 16));
+				K = cfcrypto.rsa.RSAKG(512, new BigInteger('10001', 16));
 				after = new Date();
-				self.log('1024 bit key generation time: '+(after-before)+'ms');
+				self.log('512 bit key generation time: '+(after-before)+'ms');
 				pbkey = [
 					'n', K.n,
 					'e', K.e
@@ -177,9 +177,9 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 									self.log('jm(session_pbkey_chan): got notifiction to renew session keypair');
 									self.log('jm(session_pbkey_chan): generating keypair');
 									before = new Date();
-									K = cfcrypto.rsa.RSAKG(1024, new BigInteger('10001', 16));
+									K = cfcrypto.rsa.RSAKG(512, new BigInteger('10001', 16));
 									after = new Date();
-									self.log('1024 bit key generation time: '+(after-before)+'ms');
+									self.log('512 bit key generation time: '+(after-before)+'ms');
 									pbkey = [
 										'n', K.n,
 										'e', K.e
