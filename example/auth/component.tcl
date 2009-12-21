@@ -2,11 +2,11 @@ package require m2
 package require cflib
 package require sop
 package require dsl
+package require cachevfs
 
 cflib::config create cfg $argv {
 	variable uri			"tcp://localhost:5300"
-	variable pbkey			"/etc/codeforge/authenticator/authenticator.pub"
-	variable crypto_devmode	0
+	variable pbkey			"/etc/codeforge/authenticator/keys/authenticator.pb"
 }
 
 
@@ -22,12 +22,15 @@ dict for {signal sigobj} [auth signals_available] {
 m2::component create comp \
 		-svc		"examplecomponent" \
 		-auth		auth \
-		-prkeyfn	[file join [pwd] "examplecomponent.priv"] \
+		-prkeyfn	"/etc/codeforge/authenticator/keys/examplecomponent.pr"  \
 		-login		0
+
+cachevfs::backend create cachevfs -comp comp
+cachevfs register_pool testpool [file join [pwd] pools testpools]
 
 comp handler "hello" [list apply {
 	{auth user seq rdata} {
-		auth ack $seq "world, [$user name]"
+		auth ack $seq "world, [$user name]: ($rdata)"
 	}
 }]
 
