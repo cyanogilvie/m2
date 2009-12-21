@@ -47,9 +47,6 @@ cflib::pclass create m2::connector {
 
 		$dominos(need_reconnect) attach_output [my code _reconnect]
 		$signals(connect_ready) attach_output [my code _connect_ready_changed]
-
-		#$auth register_handler svc_avail_changed [my code _svc_avail_changed]
-		#my _svc_avail_changed		;# Initialize the state
 	}
 
 	#>>>
@@ -57,7 +54,6 @@ cflib::pclass create m2::connector {
 		my log debug "[self] svc: [expr {[info exists svc] ? $svc : {not set}}]"
 		[$auth signal_ref authenticated] detach_output \
 				[my code _authenticated_changed]
-		$auth deregister_handler svc_avail_changed [my code _svc_avail_changed]
 		$dominos(need_reconnect) detach_output [my code _reconnect]
 		$signals(connect_ready) detach_output [my code _connect_ready_changed]
 		my disconnect
@@ -203,14 +199,6 @@ cflib::pclass create m2::connector {
 			my log debug "setting reconnect in motion"
 			$dominos(need_reconnect) tip
 		}
-	}
-
-	#>>>
-	method _svc_avail_changed {} { #<<<
-		my log debug [self]
-		set is_avail	[$auth svc_avail $svc]
-		my log notice "$svc available: ($is_avail)"
-		$signals(available) set_state $is_avail
 	}
 
 	#>>>
