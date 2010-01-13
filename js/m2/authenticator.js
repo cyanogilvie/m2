@@ -70,10 +70,10 @@ m2.authenticator = function(params) { //<<<
 	//this._pubkey = cfcrypto.rsa.load_asn1_pubkey_from_value(this.pbkey);
 	this._pubkey = this._load_pbkey(this.pbkey);
 	this._keys = {};
-	this._keys.main = this._generate_key();
+	this._keys.main = this.generate_key();
 	this.enc_chan = null;
 	this.login_chan = null;
-	this.fqun = null;
+	this._fqun = null;
 	this.session_prkey = null;
 	this.login_subchans = new Hash();
 	this.perms = new Hash();
@@ -139,32 +139,43 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 		var before, after, K, pbkey, key, parts, op;
 
 		switch (msg.type) {
-			case 'ack':
+			case 'ack': //<<<
 				if (self.login_chan === null) {
 					self.log('got ack, but no login_chan!');
 				}
 
-				self.fqun = username;
+				self._fqun = username;
 				self.log('Logged in ok, generating key');
 				before = new Date();
-				K = cfcrypto.rsa.RSAKG(512, new BigInteger('10001', 16));
+				K = cfcrypto.rsa.RSAKG(512, 0x10001);
 				after = new Date();
 				self.log('512 bit key generation time: '+(after-before)+'ms');
 				pbkey = [
 					'n', K.n,
 					'e', K.e
 				];
+				//console.log('session_prkey: ', K);
+				//console.log('n: '+K.n.toString(10)+', e: '+K.e.toString(10));
 				self.session_prkey = K;
 				self.rsj_req(self.login_chan[0], serialize_tcl_list(['session_pbkey_update', serialize_tcl_list(pbkey)]), function(msg) {
 					switch (msg.type) {
-						case 'pr_jm':
+						case 'ack': //<<<
+							self._signals.getItem('authenticated').set_state(true);
+							self._signals.getItem('login_pending').set_state(false);
+							break; //>>>
+
+						case 'nack': //<<<
+							self._signals.getItem('login_pending').set_state(false);
+							break; //>>>
+
+						case 'pr_jm': //<<<
 							if (self.session_pbkey_chan !== null) {
 								self.log('Already have session_pbkey_chan: ('+self.session_pbkey_chan+')');
 							}
 							self.session_pbkey_chan = [msg.seq, msg.prev_seq];
-							break;
+							break; //>>>
 
-						case 'jm':
+						case 'jm': //<<<
 							if (self.session_pbkey_chan === null || msg.seq != self.session_pbkey_chan[0]) {
 								self.log('unrecognised jm chan: ('+msg.seq+')');
 								return;
@@ -177,7 +188,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 									self.log('jm(session_pbkey_chan): got notifiction to renew session keypair');
 									self.log('jm(session_pbkey_chan): generating keypair');
 									before = new Date();
-									K = cfcrypto.rsa.RSAKG(512, new BigInteger('10001', 16));
+									K = cfcrypto.rsa.RSAKG(512, 0x10001, 16);
 									after = new Date();
 									self.log('512 bit key generation time: '+(after-before)+'ms');
 									pbkey = [
@@ -207,45 +218,35 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 								default:
 									break;
 							}
-							break;
+							break; //>>>
 
-						case 'jm_can':
+						case 'jm_can': //<<<
 							if (self.session_pbkey_chan !== null && self.session_pbkey_chan[0] == msg.seq) {
 								self.session_pbkey_chan = null;
 								self.logout();
 							} else {
 								self.log('error: non session_pbkey_chan jm cancelled');
 							}
-							break;
+							break; //>>>
 
-						default:
+						default: //<<<
 							self.log('Unexpected response type to session_pbkey_update request: ('+msg.type+')');
-							break;
-					}
-
-					switch (msg.type) {
-						case 'ack':
-							self._signals.getItem('authenticated').set_state(true);
-							self._signals.getItem('login_pending').set_state(false);
-							break;
-						case 'nack':
-							self._signals.getItem('login_pending').set_state(false);
-							break;
+							break; //>>>
 					}
 				});
-				break;
+				break; //>>>
 
-			case 'nack':
+			case 'nack': //<<<
 				self.last_login_message = msg.data;
 				self.log('Error logging in: '+msg.data);
 				self._signals.getItem('login_pending').set_state(false);
-				break;
+				break; //>>>
 
-			case 'pr_jm':
+			case 'pr_jm': //<<<
 				self._login_resp_pr_jm(msg);
-				break;
+				break; //>>>
 
-			case 'jm':
+			case 'jm': //<<<
 				key = msg.seq + '/' + msg.prev_seq;
 				if (!self.login_subchans.hasItem(key)) {
 					self.log('not sure what to do with jm: ('+msg.svc+','+msg.seq+','+msg.prev_seq+') ('+msg.data+')');
@@ -265,9 +266,9 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 						self.log('registered but unhandled login subchan seq: ('+key+') type: ('+self.login_subchans.getItem(key)+')');
 						break;
 				}
-				break;
+				break; //>>>
 
-			case 'jm_can':
+			case 'jm_can': //<<<
 				if (self.login_chan !== null && self.login_chan[0] == msg.seq) {
 					self.login_clan = null;
 					self.log('Got login_chan cancel, calling logout');
@@ -305,11 +306,11 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 						self.log('unexpected jm_can: seq: ('+msg.seq+')');
 					}
 				}
-				break;
+				break; //>>>
 
-			default:
+			default: //<<<
 				self.log('Unexpected response type to login request: '+msg.type);
-				break;
+				break; //>>>
 		}
 	});
 };
@@ -371,7 +372,7 @@ m2.authenticator.prototype.connect_svc = function(svc) { //<<<
 };
 
 //>>>
-m2.authenticator.prototype.decrypt_with_session_key = function(data) { //<<<
+m2.authenticator.prototype.decrypt_with_session_prkey = function(data) { //<<<
 	return cfcrypto.rsa.RSAES_OAEP_Decrypt(this.session_prkey, data, '');
 };
 
@@ -380,7 +381,7 @@ m2.authenticator.prototype.fqun = function() { //<<<
 	if (!this._signals.getItem('authenticated').state()) {
 		throw('Not authenticated yet');
 	}
-	return this.fqun;
+	return this._fqun;
 };
 
 //>>>
@@ -562,7 +563,7 @@ m2.authenticator.prototype.admin = function(op, data, cb) { //<<<
 };
 
 //>>>
-m2.authenticator.prototype._generate_key = function(bytes) { //<<<
+m2.authenticator.prototype.generate_key = function(bytes) { //<<<
 	var csprng;
 	if (typeof bytes == 'undefined') {
 		bytes = 56;
@@ -575,7 +576,7 @@ m2.authenticator.prototype._generate_key = function(bytes) { //<<<
 m2.authenticator.prototype._crypt_setup = function() { //<<<
 	var pending_cookie, n, e, e_key, e_cookie, self, tmp;
 
-	pending_cookie = this._generate_key();
+	pending_cookie = this.generate_key();
 
 	n = this._pubkey.n;
 	e = this._pubkey.e;
@@ -591,7 +592,7 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 				case 'ack':
 				case 'jm':
 					try {
-						pdata = self._decrypt(self._keys.main, msg.data);
+						pdata = self.decrypt(self._keys.main, msg.data);
 						was_encrypted = true;
 					} catch(e) {
 						self.log('error decrypting message: '+e);
@@ -619,7 +620,8 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 					break;
 
 				case 'pr_jm':
-					self._register_jm_key(msg.seq, self._keys.main);
+					self.register_jm_key(msg.seq, self._keys.main);
+					//self.log('Got pr_jm: '+msg.seq+', registering key base64: '+self._keys.main);
 					if (self.enc_chan === null) {
 						self.enc_chan = msg.seq;
 					} else {

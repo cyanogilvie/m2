@@ -94,7 +94,7 @@ m2.api.prototype.destroy = function() { //<<<
 // Public
 m2.api.prototype.signal_ref = function(name) { //<<<
 	if (!this._signals.hasItem(name)) {
-		throw('Signal "'+name+'" does\'t exist');
+		throw('Signal "'+name+'" doesn\'t exist');
 	}
 	return this._signals.getItem(name);
 };
@@ -127,7 +127,7 @@ m2.api.prototype.req = function(svc, data, cb, withkey) { //<<<
 	seq = this._unique_id++;
 
 	if (typeof withkey != 'undefined') {
-		data = this._encrypt(withkey, data);
+		data = this.encrypt(withkey, data);
 	}
 
 	this._send({
@@ -154,7 +154,7 @@ m2.api.prototype.rsj_req = function(jm_seq, data, cb) { //<<<
 	if (this._jm_keys.hasItem(jm_seq)) {
 		key = this._jm_keys.getItem(jm_seq);
 		this._pending_keys.setItem(seq, key);
-		e_data = this._encrypt(key, data);
+		e_data = this.encrypt(key, data);
 	} else {
 		e_data = data;
 	}
@@ -215,12 +215,13 @@ m2.api.prototype.jm_disconnect = function(jm_seq, prev_seq) { //<<<
 };
 
 //>>>
-m2.api.prototype._register_jm_key = function(jm_seq, key) { //<<<
+m2.api.prototype.register_jm_key = function(jm_seq, key) { //<<<
+	//this.log('Registering jm_key for '+jm_seq+', base64: '+Base64.encode(key));
 	this._jm_keys.setItem(jm_seq, key);
 };
 
 //>>>
-m2.api.prototype._encrypt = function(key, data) { //<<<
+m2.api.prototype.encrypt = function(key, data) { //<<<
 	var ks, iv, csprng;
 
 	if (!this._key_schedules.hasItem(key)) {
@@ -230,12 +231,11 @@ m2.api.prototype._encrypt = function(key, data) { //<<<
 	csprng = new cfcrypto.csprng();
 	iv = csprng.getbytes(8);
 
-	return iv+ks.encrypt_cbc(Utf8.encode(data), iv);
-
+	return iv+ks.encrypt_cbc(data, iv);
 };
 
 //>>>
-m2.api.prototype._decrypt = function(key, data) { //<<<
+m2.api.prototype.decrypt = function(key, data, hint) { //<<<
 	var ks, iv, rest;
 
 	if (!this._key_schedules.hasItem(key)) {
@@ -244,6 +244,8 @@ m2.api.prototype._decrypt = function(key, data) { //<<<
 	ks = this._key_schedules.getItem(key);
 	iv = data.substr(0, 8);
 	rest = data.substr(8);
+
+	//this.log('Decrypting msg with iv: '+Base64.encode(iv)+', key: '+Base64.encode(key), ', hint: '+hint);
 
 	return ks.decrypt_cbc(rest, iv);
 };
@@ -460,7 +462,7 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 		case 'ack':
 			this._ack_pend.removeItem(msg.prev_seq);
 			if (this._pending_keys.hasItem(msg.prev_seq)) {
-				msg.data = this._decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data);
+				msg.data = this.decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data, 'ack of '+msg.prev_seq);
 				this._pending_keys.removeItem(msg.prev_seq);
 			}
 			break;
@@ -481,12 +483,12 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 			}
 
 			if (this._pending_keys.hasItem(msg.prev_seq)) {
-				msg.data = this._decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data);
+				msg.data = this.decrypt(this._pending_keys.getItem(msg.prev_seq), msg.data, 'pr_jm for '+msg.seq+', resp to '+msg.prev_seq);
 				if (!this._jm_keys.hasItem(msg.seq)) {
 					if (msg.data.length != 56) {
 						this.log('pr_jm: dubious looking key: ('+Base64.encode(msg.data)+')');
 					}
-					this._register_jm_key(msg.seq, msg.data);
+					this.register_jm_key(msg.seq, msg.data);
 					return;
 				} else {
 					if (msg.data.length == 56) {
@@ -503,13 +505,13 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 
 		case 'jm':
 			if (this._jm_keys.hasItem(msg.seq)) {
-				msg.data = this._decrypt(this._jm_keys.getItem(msg.seq), msg.data);
+				msg.data = this.decrypt(this._jm_keys.getItem(msg.seq), msg.data, 'jm '+msg.seq);
 			}
 			break;
 
 		case 'jm_req':
 			if (this._jm_keys.hasItem(msg.prev_seq)) {
-				msg.data = this._decrypt(this._jm_keys.getItem(msg.prev_seq), msg.data);
+				msg.data = this.decrypt(this._jm_keys.getItem(msg.prev_seq), msg.data);
 			}
 			break;
 	}
@@ -589,6 +591,7 @@ m2.api.prototype._send = function(msg) { //<<<
 m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 	var complete, so_far;
 	//this.log('_receive_fragment: msgid: ('+msgid+'), is_tail: ('+is_tail+'), frag: ('+frag+')');
+	//this.log('_receive_fragment: msgid: ('+msgid+'), is_tail: ('+is_tail+'), frag length: ('+frag.length+')');
 	if (this._defrag_buf.hasItem(msgid)) {
 		so_far = this._defrag_buf.getItem(msgid);
 	} else {
