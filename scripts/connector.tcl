@@ -214,7 +214,7 @@ cflib::pclass create m2::connector {
 		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		set ks		[crypto::blowfish::init_key $skey]
 		set iv		[crypto::blowfish::csprng 8]
-		set tail	[crypto::blowfish::encrypt_cbc $ks [list $cookie [$auth fqun] $iv] $iv]
+		set tail	[crypto::blowfish::encrypt_cbc $ks [encoding convertto utf-8 [list $cookie [$auth fqun] $iv]] $iv]
 
 		$auth req $svc "setup [list $msg $tail $iv]" [my code _resp]
 	}

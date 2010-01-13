@@ -366,8 +366,10 @@ cflib::pclass create m2::api2 {
 		}
 		if {[dict exists $e_pending $prev_seq]} {
 			#my log debug "encrypting ack with [my mungekey [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
+			#my log debug "== encrypting ack with [binary encode base64 [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
 			set e_data	[my crypto encrypt [dict get $e_pending $prev_seq] $data]
 		} else {
+			#my log debug "== No key registered for prev_seq: ($prev_seq) [binary encode base64 $data]"
 			set e_data	$data
 		}
 		set msg		[m2::msg new new \

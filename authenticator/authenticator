@@ -29,7 +29,7 @@ set hold	[pwd]
 cd $base
 cflib::config create cfg $argv {
 	variable uri				"tcp://localhost:5300"
-	variable prkey				"/etc/codeforge/authenticator/keys/authenticator.priv"
+	variable prkey				"/etc/codeforge/authenticator/keys/authenticator.pr"
 	variable svc				"authenticator"
 	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
 	variable as_user			"codeforge"

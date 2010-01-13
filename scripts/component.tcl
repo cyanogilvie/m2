@@ -90,25 +90,26 @@ cflib::pclass create m2::component {
 	#>>>
 
 	method _svc_handler {seq data} { #<<<
-		my log debug "got ($svc)"
 		try {
 			if {[string range $data 0 5] == "setup "} {
 				lassign [string range $data 6 end] e_skey e_tail iv
+				#my log debug "e_skey (base64): [binary encode base64 $e_skey]"
 
 				set skey	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+				#my log debug "skey base64: [binary encode base64 $skey]"
 				set ks		[crypto::blowfish::init_key $skey]
-				set tail	[crypto::blowfish::decrypt_cbc $ks $e_tail $iv]
+				set tail	[encoding convertfrom utf-8 [crypto::blowfish::decrypt_cbc $ks $e_tail $iv]]
 
 				lassign $tail cookie fqun
 			} else {
-				log warning "Deprecated user session setup"
-				set tmp	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $data {} $crypto::rsa::sha1 $crypto::rsa::MGF]
-				lassign $tmp cookie skey fqun
+				throw {obsolete} "Obsolete user session setup"
 			}
 		} on error {errmsg options} {
 			my log error "error decrypting request: [dict get $options -errorinfo]"
 			$auth nack $seq ""
 			return
+		} on ok {} {
+			#my log debug "Decrypted _svc_handler \"setup \" request ok, cookie base64: [binary encode base64 $cookie]"
 		}
 
 		# Create a user object <<<
@@ -120,17 +121,20 @@ cflib::pclass create m2::component {
 		$auth crypto register_chan $chan $skey
 		$auth chans register_chan $chan \
 				[my code _userchan_cb $userobj $chan $mycookie]
-		my log debug "sending pr_jm ($chan) with cookie ([$auth mungekey $cookie]) encrypted with skey ([$auth mungekey $skey])"
+		#my log debug "sending pr_jm ($chan) with cookie ([$auth mungekey $cookie]) encrypted with skey ([$auth mungekey $skey])"
+		#my log debug "sending pr_jm ($chan) with cookie [binary encode base64 $cookie] encrypted with skey [binary encode base64 $skey]"
 		$auth pr_jm $chan $seq $cookie
 		try {
-			set user_pbkey	[$userobj get_pbkey]
+			$userobj get_pbkey
 		} on error {errmsg options} {
 			my log warning "nacking $seq: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq "Cannot get public key for \"$fqun\""
-		} on ok {} {
+		} on ok {user_pbkey} {
 			my log debug "got user pbkey, encrypting mycookie with it and acking"
 			set n	[dict get $user_pbkey n]
 			set e	[dict get $user_pbkey e]
+			#my log debug "Encrypting cookie2 with n: $n, e: $e"
+			#my log debug "cookie2: [binary encode base64 $mycookie]"
 			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		}
 	}

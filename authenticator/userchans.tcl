@@ -173,6 +173,7 @@ oo::class create Userchans {
 	#>>>
 	method check_login_person {seq password} { #<<<
 		if {[dict exists $::online [dict get $dat fqun]]} {
+			my log debug "online users: [dict keys $::online]"
 			throw {duplicate_login} "User already logged in elsewhere"
 		}
 

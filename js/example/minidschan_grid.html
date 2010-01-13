@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>JS Authenticator Test</title>
+		<script type="text/javascript">
+			console = {};
+			console.log = function(){};
+			console.debug = function(){};
+			console.warn = function(){};
+			console.error = function(){};
+		</script>
+		<script type="text/javascript" src="webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="sop/domino.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="m2/authenticator.js"></script>
+		<script type="text/javascript" src="m2/connector.js"></script>
+		<script type="text/javascript" src="datasource/3rd_party/webtoolkit.info/sprintf.js"></script>
+		<script type="text/javascript" src="datasource/datasource.js"></script>
+		<script type="text/javascript" src="datasource/datasource_chan.js"></script>
+
+		<link rel="stylesheet" type="text/css" href="dojo/dojo/resources/dojo.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dijit/themes/soria/soria.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dojox/grid/resources/Grid.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dojox/grid/resources/soriaGrid.css" />
+		<link rel="stylesheet" type="text/css" href="styles.css" />
+		<script type="text/javascript" src="dojo/dojo/dojo.js"
+			djConfig="isDebug: true, parseOnLoad: true, defaultTestTheme: 'soria', locale: 'en-us', preventBackButtonFix: false"></script>
+
+		<script type="text/javascript">
+			dojo.registerModulePath('ds', '../../datasource/dojo');
+
+			dojo.require('dijit.layout.BorderContainer');
+			dojo.require('dijit.layout.ContentPane');
+			dojo.require('dojox.grid.DataGrid');
+			dojo.require('ds.dschanStore');
+		</script>
+
+		<script type="text/javascript">
+			g_rng = new cfcrypto.rng();
+
+			jsSocket.swf = "jssocket/jsSocket.swf";
+			var auth = new m2.authenticator({
+				host: document.location.hostname,
+				port: 5301,
+				pbkey: 'n 109879284801697714217394212616874093694166893613226529108115851493256815971310007370648192718523246075391910097362413395343533968989884816638444536955933121939481660633537191582249333500412197445056473083773167793637923350939104828240739348955125989345828942592567669953999620453499138188188424586325504062667 e 65537'
+			});
+
+			examplecomponent_connect();
+
+			function attempt_login() {
+				var form, un, pw;
+
+				form = document.getElementById('authtest');
+				un = form.username.value;
+				pw = form.password.value;
+
+				auth.login(un, pw);
+			}
+
+			function init() {
+				auth.signal_ref('login_allowed').attach_output(function(newstate){
+					var form;
+					form = document.getElementById('authtest');
+					if (newstate) {
+						form.do_login.disabled = false;
+					} else {
+						form.do_login.disabled = true;
+					}
+				});
+			}
+
+			function examplecomponent_connect() {
+				examplecomponent_connector = auth.connect_svc('examplecomponent');
+
+				_ds = new ds.dschan({
+					connector: examplecomponent_connector,
+					tag: 'test_ds'
+				});
+
+				dschanstore = new ds.dschanStore({
+					ds: _ds
+				});
+			}
+
+			dojo.addOnLoad(init);
+		</script>
+	</head>
+	<body class="soria" onclick="g_rng.add_entropy_timestamp();">
+		<div dojoType="dijit.layout.BorderContainer" design="sidebar" style="width: 100%; height: 100%;" gutters="true">
+			<div dojoType="dijit.layout.ContentPane" region="center">
+				<form id="authtest" action="" onsubmit="return false;">
+					<div>
+						Username <input type="text" id="username" /> Password <input type="password" id="password" /><button type="button" id="do_login" onclick="attempt_login();">Login</button>
+					</div>
+					<h3>Authenticated Services</h3>
+					<div>
+						Connector request: <input type="text" id="reqdata" value="hello, world" /><button type="button" id="send_con_req_button" onclick="send_con_req();">Req</button><br />
+						Response: <div id="con_resp" style="display: inline; margin: 4px; border: 1px solid grey;"></div><br />
+						<script type="text/javascript">
+							examplecomponent_connector.signal_ref('authenticated').attach_output(function(newstate){
+								var node;
+
+								node = document.getElementById('send_con_req_button');
+
+								if (newstate) {
+									node.disabled = false;
+								} else {
+									node.disabled = true;
+								}
+							});
+							function send_con_req() {
+								var node;
+								node = document.getElementById('reqdata');
+								examplecomponent_connector.req_async('hello', node.value, function(msg){
+									var respnode;
+									respnode = document.getElementById('con_resp');
+									respnode.innerHTML = msg.data;
+								});
+							}
+						</script>
+					</div>
+				</form>
+			</div>
+			<div dojoType="dijit.layout.ContentPane" region="right" style="width: 400px;">
+				<table dojoType="dojox.grid.DataGrid" store="dschanstore">
+					<thead>
+						<tr>
+							<th field="ID" width="40px">ID</th>
+							<th field="Foo" width="220px">Foo</th>
+							<th field="Bar" width="auto">Bar</th>
+						</tr>
+					</thead>
+				</table>
+			</div>
+		</div>
+	</body>
+</html>

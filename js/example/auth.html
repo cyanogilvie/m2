@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>JS Authenticator Test</title>
+		<script type="text/javascript" src="webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="sop/domino.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="m2/authenticator.js"></script>
+		<script type="text/javascript" src="m2/connector.js"></script>
+		<script type="text/javascript" src="datasource/3rd_party/webtoolkit.info/sprintf.js"></script>
+		<script type="text/javascript" src="datasource/datasource.js"></script>
+		<script type="text/javascript" src="datasource/datasource_chan.js"></script>
+		<script type="text/javascript">
+			g_rng = new cfcrypto.rng();
+
+			jsSocket.swf = "jssocket/jsSocket.swf";
+			console.log('Initiating m2.authenticator construction');
+			var auth = new m2.authenticator({
+				host: document.location.hostname,
+				port: 5301,
+				pbkey: 'n 109879284801697714217394212616874093694166893613226529108115851493256815971310007370648192718523246075391910097362413395343533968989884816638444536955933121939481660633537191582249333500412197445056473083773167793637923350939104828240739348955125989345828942592567669953999620453499138188188424586325504062667 e 65537'
+/*
+'-----BEGIN RSA PUBLIC KEY-----\n' +
+'MIICCAKCAgEA0ATBScTTdKYMQtt57QzAZucoomkyzRy5/HzCOz8yW+42TX1XWUmB\n' +
+'hF9C/3Rm5WNxrCMS7dcvVK1o6hpwdGlc+tMF5q3pWjbcI0X7aXEkqdCkhz+lqyuz\n' +
+'70nEEttjs+G9/lkjq+SERTePAcow/Q5I7kQ3CD144EwvBtQvI9MfEcX0guoRu9N/\n' +
+'DBt1t9m3ZMKGhHQEIKHjNFEqBSsHMqsD8TtA+NlsQqhb/PfjYliUreN/+H+F40oX\n' +
+'0+hQlaWYQwVM5K9Ljw06RfoS04yJMVqBD384EArEFuspqSM497wo42Ji3T93zp4B\n' +
+'GKujkFiOxYAMP6XozL9SZMwKmvVuTNzfV7Xj1Aq+SEiaMPUDqi6zT4C+C+LEgZyU\n' +
+'zXIny221cwOhQUZ/vIhVyVtlMTxuTivq7f1p7LY3h1sQQvQ8cXozljBkUh9i6Qx+\n' +
+'L3Lu36EN2ZziObzK1LS/NQYzE38uh+Qxk7wMs4GTwzndABZSn0FHgkHOGsWxCMlK\n' +
+'QiXc0Hob1rfblt3YRxrw/Fk5TP1+TR6RqDzZw/pGaZtHV3TpdAUZnBmSxua4jv9o\n' +
+'9K88SDOAsKMSUDht1ip1lvII1pA+TkMkErlYdGmujcMK+j4TIdpHBjBNjdSQJjsd\n' +
+'AkVkRXMW8LmEvx7GVXHuu0Z4+0forbeUGGYzZVgdkZ5ZtIav5Ifg91kCARE=\n' +
+'-----END RSA PUBLIC KEY-----\n'
+*/
+			});
+
+			signals = {};
+
+			signals.ready = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			signals.ready.attach_input(auth.signal_ref('connected'));
+
+			function signal_display(id, state) {
+				var node;
+				node = document.getElementById(id);
+				console.log('@@ auth signal '+id+' state changed: '+state);
+				if (node === null) {
+					console.error('No such node: ('+id+')');
+				} else {
+					if (state) {
+						node.innerHTML = '<font color="green">TRUE<\/font>';
+					} else {
+						node.innerHTML = '<font color="red">FALSE<\/font>';
+					}
+				}
+			}
+
+			function attempt_login() {
+				var form, un, pw;
+
+				form = document.getElementById('authtest');
+				un = form.username.value;
+				pw = form.password.value;
+
+				auth.login(un, pw);
+			}
+
+			function login_allowed_changed(newstate) {
+				var form;
+				form = document.getElementById('authtest');
+				if (newstate) {
+					form.do_login.disabled = false;
+				} else {
+					form.do_login.disabled = true;
+				}
+			}
+
+			function init() {
+				auth.signal_ref('connected').attach_output(function(newstate){
+						signal_display('connected', newstate);
+				});
+				auth.signal_ref('available').attach_output(function(newstate){
+						signal_display('available', newstate);
+				});
+				auth.signal_ref('established').attach_output(function(newstate){
+						signal_display('established', newstate);
+				});
+				auth.signal_ref('authenticated').attach_output(function(newstate){
+						signal_display('authenticated', newstate);
+				});
+				auth.signal_ref('login_pending').attach_output(function(newstate){
+						signal_display('login_pending', newstate);
+				});
+				auth.signal_ref('login_allowed').attach_output(function(newstate){
+						signal_display('login_allowed', newstate);
+				});
+				auth.signal_ref('got_perms').attach_output(function(newstate){
+						signal_display('got_perms', newstate);
+				});
+				auth.signal_ref('got_attribs').attach_output(function(newstate){
+						signal_display('got_attribs', newstate);
+				});
+				auth.signal_ref('got_prefs').attach_output(function(newstate){
+						signal_display('got_prefs', newstate);
+				});
+				auth.signal_ref('login_allowed').attach_output(login_allowed_changed);
+
+				examplecomponent_connector = auth.connect_svc('examplecomponent');
+
+				examplecomponent_connector.signal_ref('available').attach_output(function(newstate){
+						signal_display('con_available', newstate);
+				});
+				examplecomponent_connector.signal_ref('got_svc_pbkey').attach_output(function(newstate){
+						signal_display('con_got_svc_pbkey', newstate);
+				});
+				examplecomponent_connector.signal_ref('connected').attach_output(function(newstate){
+						signal_display('con_connected', newstate);
+				});
+				examplecomponent_connector.signal_ref('authenticated').attach_output(function(newstate){
+						signal_display('con_authenticated', newstate);
+				});
+
+				examplecomponent_connector.signal_ref('authenticated').attach_output(function(newstate){
+					var node;
+					node = document.getElementById('send_con_req_button');
+					if (newstate) {
+						node.disabled = false;
+					} else {
+						node.disabled = true;
+					}
+				});
+
+				ds = new ds.dschan({
+					connector: examplecomponent_connector,
+					tag: 'test_ds'
+				});
+				ds.register_handler('onchange', ds_changed);
+				ds.register_handler('init', ds_changed);
+			}
+		</script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();" onload="init();">
+		<form id="authtest" action="" onsubmit="return false;">
+			<div>
+				Username <input type="text" id="username" /> Password <input type="password" id="password" /><button id="do_login" onclick="attempt_login();">Login</button>
+			</div>
+			<h3>Signals</h3>
+			<ul>
+				<li>Connected <span id="connected">undefined</span></li>
+				<li>Available <span id="available">undefined</span></li>
+				<li>Established <span id="established">undefined</span></li>
+				<li>Login Allowed <span id="login_allowed">undefined</span></li>
+				<li>Login Pending <span id="login_pending">undefined</span></li>
+				<li>Authenticated <span id="authenticated">undefined</span></li>
+				<li>Got Perms <span id="got_perms">undefined</span></li>
+				<li>Got Attribs <span id="got_attribs">undefined</span></li>
+				<li>Got Prefs <span id="got_prefs">undefined</span></li>
+			</ul>
+			<h3>Authenticated Services</h3>
+			<div>
+				Examplecomponent
+				<ul>
+					<li>Connector(examplecomponent).available <span id="con_available">undefined</span></li>
+					<li>Connector(examplecomponent).got_svc_pbkey <span id="con_got_svc_pbkey">undefined</span></li>
+					<li>Connector(examplecomponent).connected <span id="con_connected">undefined</span></li>
+					<li>Connector(examplecomponent).authenticated <span id="con_authenticated">undefined</span></li>
+				</ul>
+				Connector request: <input type="text" id="reqdata" value="hello, world" /><button id="send_con_req_button" onclick="send_con_req();">Req</button><br />
+				Response: <div id="con_resp" style="display: inline; margin: 4px; border: 1px solid grey;"></div><br />
+				<script type="text/javascript">
+					function send_con_req() {
+						var node;
+						node = document.getElementById('reqdata');
+						examplecomponent_connector.req_async('hello', node.value, function(msg){
+							var respnode;
+							respnode = document.getElementById('con_resp');
+							respnode.innerHTML = msg.data;
+							console.log('Got examplecomponent request response: ', msg);
+						});
+					}
+
+					(function(){
+						signals.examplecomponent_ready = new Gate({
+							name: 'examplecomponent_ready',
+							mode: 'and'
+						});
+						signals.examplecomponent_ready.attach_input(auth.signal_ref('authenticated'));
+						signals.examplecomponent_ready.attach_input(auth.svc_signal('examplecomponent'));
+					})();
+				</script>
+				<button onclick="explain_connect_ready();">Explain connect_ready</button>
+				<script type="text/javascript">
+					function explain_connect_ready() {
+						console.log(examplecomponent_connector.signal_ref('connect_ready').explain_txt());
+					}
+				</script>
+			</div>
+		</form>
+		<h3>OAEP Decode Test</h3>
+		<form id="oaeptest" action="" onsubmit="return false;">
+			<div>
+				<p>
+					Encoded (Base64):<br />
+					<textarea id="oaep_encoded" rows="3" cols="70">6lqIgkyCLdOHn8UQPwRB+FZoUxuEHO0h7gqHfhtatKeatT2x0uTsCFQpnm3ahSmJ2ZFe8ZeKhwv/AwRg/OCcLzQbPXuIEeaQx0/wCOpLaOrHewfGriEtL0PVEoldm3vUliyx5aZjKKOJ83EHjQeQCzCKb8+aFNk3XdqP21UCIQ==</textarea>
+				</p>
+				<p>
+					Decoded (base64):<br />
+					<textarea id="oaep_decoded" rows="3" cols="70"></textarea>
+				</p>
+				<button onclick="oaep_decode();">Decode</button>
+				<script type="text/javascript">
+					function oaep_decode() {
+						var in_node, out_node;
+
+						in_node = document.getElementById('oaep_encoded');
+						out_node = document.getElementById('oaep_decoded');
+						out_node.value = Base64.encode(cfcrypto.rsa.oaepDecode(Base64.decode(in_node.value), ''));
+					}
+				</script>
+			</div>
+		</form>
+		<form id="session_prkey_test" action="" onsubmit="return false;">
+			<h3>Session Private Key</h3>
+			<div>
+				<p>
+					Encoding parameters (string)<br />
+					<textarea id="params" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					Plaintext (string)<br />
+					<input type="text" id="plaintext" value="hello, world" size="60" /><br />
+					<button onclick="do_encrypt();">encrypt</button>
+				</p>
+				<p>
+					Ciphertext (hex):<br />
+					<textarea id="ciphertext" rows="4" cols="70"></textarea><br />
+					<button onclick="do_decrypt();">decrypt</button>
+				</p>
+				<p>
+					Decrypted Plaintext (string):<br />
+					<input type="text" id="decrypted" size="60" /><br />
+				</p>
+				<p>
+					Status:<br />
+					<input type="text" id="status" size="60" />
+				</p>
+				<hr />
+
+				<h2>RSA private key</h2>
+				<p>
+					Modulus (hex):<br />
+					<textarea id="n" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					Public exponent (hex)<br />
+					<input type="text" id="e" value="10001" />
+				</p>
+				<p>
+					Private exponent (hex):<br />
+					<textarea id="d" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					P (hex):<br />
+					<textarea id="p" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					Q (hex):<br />
+					<textarea id="q" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					dP (hex):<br />
+					<textarea id="dP" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					dQ (hex):<br />
+					<textarea id="dQ" rows="4" cols="70"></textarea>
+				</p>
+				<p>
+					qInv (hex):<br />
+					<textarea id="qInv" rows="4" cols="70"></textarea>
+				</p>
+				<script type="text/javascript">
+					function do_encrypt() {
+						var e, n, plaintext, params, c, before, after, form;
+
+						form = document.getElementById('session_prkey_test');
+						e = new BigInteger(form.e.value, 16);
+						n = new BigInteger(form.n.value, 16);
+						plaintext = Utf8.encode(form.plaintext.value);
+						params = Utf8.encode(form.params.value);
+
+						before = new Date();
+						c = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, plaintext, params);
+						form.ciphertext.value = cfcrypto.hexfold(cfcrypto.hexencode(c));
+						after = new Date();
+
+						form.status.value = 'Encryption time: ' + (after - before) + 'ms';
+					}
+
+					function do_decrypt() {
+						var K, ciphertext, params, plaintext, before, after, form;
+
+						form = document.getElementById('session_prkey_test');
+						ciphertext = cfcrypto.hexdecode(form.ciphertext.value);
+						params = Utf8.encode(form.params.value);
+						K = {};
+						//K.n = new BigInteger(form.n.value, 16);
+						K.p = new BigInteger(form.p.value, 16);
+						K.q = new BigInteger(form.q.value, 16);
+						K.dP = new BigInteger(form.dP.value, 16);
+						K.dQ = new BigInteger(form.dQ.value, 16);
+						K.qInv = new BigInteger(form.qInv.value, 16);
+						before = new Date();
+						plaintext = Utf8.decode(cfcrypto.rsa.RSAES_OAEP_Decrypt(K, ciphertext, params));
+						after = new Date();
+						form.decrypted.value = plaintext;
+
+						form.status.value = 'Decryption time: '+(after - before)+'ms';
+					}
+
+					auth.signal_ref('authenticated').attach_output(function(newstate){
+						var form;
+						form = document.getElementById('session_prkey_test');
+						if (newstate) {
+							form.params.value = "";
+							form.plaintext.value = "";
+							form.ciphertext.value = "";
+							form.decrypted.value = "";
+							form.status.value = "Authenticated";
+							form.n.value = auth.session_prkey.n.toString(16);
+							form.e.value = auth.session_prkey.e.toString(16);
+							form.d.value = auth.session_prkey.d.toString(16);
+							form.p.value = auth.session_prkey.p.toString(16);
+							form.q.value = auth.session_prkey.q.toString(16);
+							form.dP.value = auth.session_prkey.dP.toString(16);
+							form.dQ.value = auth.session_prkey.dQ.toString(16);
+							form.qInv.value = auth.session_prkey.qInv.toString(16);
+						} else {
+							form.params.value = "";
+							form.plaintext.value = "";
+							form.ciphertext.value = "";
+							form.decrypted.value = "";
+							form.status.value = "Not authenticated";
+							form.n.value = "";
+							form.e.value = "";
+							form.d.value = "";
+							form.p.value = "";
+							form.q.value = "";
+							form.dP.value = "";
+							form.dQ.value = "";
+							form.qInv.value = "";
+						}
+					});
+				</script>
+			</div>
+		</form>
+		<p>
+			<h3>Datasource_chan test</h3>
+			<table border="1">
+				<tbody id="ds_items">
+				</tbody>
+			</table>
+			<script type="text/javascript">
+				function ds_changed() {
+					var i, j, items, table, tr, td, th, headers, b;
+
+					table = document.getElementById('ds_items');
+
+					while (table.firstChild) {
+						table.removeChild(table.firstChild);
+					}
+
+					items = ds.get_list({});
+					headers = ds.get_headers();
+					tr = document.createElement('tr');
+					table.appendChild(tr);
+					for (i=0; i<headers.length; i++) {
+						th = document.createElement('th');
+						tr.appendChild(th);
+						th.appendChild(document.createTextNode(headers[i]));
+					}
+					for (i=0; i<items.length; i++) {
+						tr = document.createElement('tr');
+						table.appendChild(tr);
+						for (j=0; j<items[i].length; j++) {
+							td = document.createElement('td');
+							tr.appendChild(td);
+							if (j == ds.id_column) {
+								b = document.createElement('b');
+								td.appendChild(b);
+								b.appendChild(document.createTextNode(items[i][j]));
+							} else {
+								td.appendChild(document.createTextNode(items[i][j]));
+							}
+						}
+					}
+				}
+			</script>
+		</p>
+	</body>
+</html>

@@ -573,7 +573,20 @@ oo::class create m2::port {
 
 			rsj_req { #<<<
 				if {![dict exists $jm_sport $m_prev_seq]} {
-					error "No such junkmail for rsj_req: [$msg display]"
+					#error "No such junkmail for rsj_req: [$msg display]"
+					log error "No such junkmail for rsj_req: [$msg display]"
+					set nack	[m2::msg new new \
+							type	nack \
+							svc		sys \
+							data	"No such junkmail for rsj_req" \
+							seq		[$server unique_id] \
+							prev_seq	$m_seq \
+					]
+					try {
+						my _dispatch $nack
+					} on error {errmsg options} {
+						log error "Error sending nack for rsj_req: [dict get $options -errorinfo]"
+					}
 				}
 				
 				[dict get $jm_sport $m_prev_seq] send [self] $msg

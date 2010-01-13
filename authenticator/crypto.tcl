@@ -32,27 +32,25 @@ oo::class create Crypto {
 		set hash	$crypto::rsa::sha1
 		set mgf		$crypto::rsa::MGF
 		try {
-			#set session_key	[crypto::rsa_private_decrypt $priv_key $e_key]
-			set session_key	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_key {} $hash $mgf]
-			my log debug "session_key: ([mungekey $session_key])" -suppress data
+			crypto::rsa::RSAES-OAEP-Decrypt $K $e_key {} $hash $mgf
 		} on error {errmsg options} {
 			my log error "could not decrypt session_key: $errmsg" -suppress data
 			m2 nack $seq "Could not decrypt session_key"
 			return
-		}
+		} on ok {session_key} {}
+		my log debug "session_key: ([mungekey $session_key])" -suppress data
 
 		try {
-			#set cookie		[crypto::rsa_private_decrypt $priv_key $e_cookie]
-			set cookie		[crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie {} $hash $mgf]
+			crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie {} $hash $mgf
 		} on error {errmsg options} {
 			my log error "could not decrypt cookie: $errmsg" -suppress data
 			m2 nack $seq "Could not decrypt cookie"
 			return
-		}
+		} on ok {cookie} {}
 
 		set session_id	[m2 unique_id]
 		my log debug "allocated session_id: $session_id" -suppress data
-		
+
 		m2 crypto register_chan $session_id $session_key
 		m2 chans register_chan $session_id \
 				[namespace code [list my _session_chan]]
