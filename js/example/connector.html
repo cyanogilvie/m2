@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Connector Test</title>
+		<link rel="stylesheet" type="text/css" href="styles.css" />
+		<script type="text/javascript" src="cfcrypto/webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="cfcrypto/jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="cfcrypto/jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="sop/domino.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="m2/authenticator.js"></script>
+		<script type="text/javascript" src="m2/connector.js"></script>
+		<script type="text/javascript">
+			g_rng = new cfcrypto.rng();
+		</script>
+		<script type="text/javascript">
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			console.log('host is ('+document.location.hostname+')');
+			var api = new m2.authenticator({
+				host: document.location.hostname,
+				port: 5301,
+				pbkey: 'n 109879284801697714217394212616874093694166893613226529108115851493256815971310007370648192718523246075391910097362413395343533968989884816638444536955933121939481660633537191582249333500412197445056473083773167793637923350939104828240739348955125989345828942592567669953999620453499138188188424586325504062667 e 65537'
+			});
+
+			signals = {};
+			signals['ready'] = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			g_modules = {};
+			g_svcs = new Hash();
+
+			signals['ready'].attach_input(api.signal_ref('connected'));
+		</script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();">
+		<h2>Testing connector mechanism</h2>
+		<script type="text/javascript">
+			console.log('Hello from the console');
+		</script>
+	</body>
+</html>

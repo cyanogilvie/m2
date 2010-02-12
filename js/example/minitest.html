@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Mini test</title>
+		<link rel="stylesheet" type="text/css" href="dojo/dojo/resources/dojo.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dijit/themes/tundra/tundra.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dojox/grid/resources/Grid.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dojox/grid/resources/tundraGrid.css" />
+		<link rel="stylesheet" type="text/css" href="styles.css" />
+		<script type="text/javascript" src="dojo/dojo/dojo.js"
+			djConfig="isDebug: true, parseOnLoad: true, defaultTestTheme: 'tundra', locale: 'en-us', preventBackButtonFix: false"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="webmodule.js"></script>
+		<script type="text/javascript">
+			dojo.registerModulePath('sitelocal', '../../sitelocal');
+
+			dojo.require('dijit.layout.BorderContainer');
+			dojo.require('dijit.layout.TabContainer');
+			dojo.require('dijit.layout.ContentPane');
+			dojo.require('dijit.Dialog');
+			//dojo.require('sitelocal.ModuleLauncher');
+			dojo.require('sitelocal.ModuleLauncherTest');
+			dojo.require('dojox.grid.DataGrid');
+			dojo.require('sitelocal.dschanStore');
+			dojo.require('dojox.grid.compat._grid.publicEvents');
+			dojo.require('dijit.form.Form');
+			dojo.require('dijit.form.Button');
+			dojo.require('dijit.form.RadioButton');
+			dojo.require('dijit.form.ComboBox');
+			dojo.require('dijit.form.Textarea');
+			dojo.require('dijit.form.TextBox');
+		</script>
+		<script type="text/javascript">
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			var api = new m2.api({
+				//host: '10.41.68.115',
+				host: '127.0.0.1',
+				port: 5301
+			});
+
+			signals = {};
+			signals['ready'] = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			g_modules = {};
+
+			signals['ready'].attach_input(api.signal_ref('connected'));
+			//signals['ready'].attach_input(api.svc_signal('modules'));
+
+			function init_modules() {
+				api.listen_event('svc_avail_changed', function(svcs) {
+					var i, keys, svc, name, modules_now;
+					modules_now = {};
+					keys = svcs.keys();
+					for (i=0; i<keys.length; i++) {
+						svc = keys[i];
+						if (svc.substr(0, 10) == "webmodule/") {
+							name = svc.substr(10);
+							if (
+								typeof g_modules[name] == "undefined" ||
+								g_modules[name] === false
+							) {
+								modules_now[name] = "new";
+								g_modules[name] = {
+									status: "new"
+								};
+							} else {
+								modules_now[name] = "existing";
+							}
+						}
+					}
+
+					for (name in g_modules) {
+						if (typeof modules_now[name] == "undefined") {
+							g_modules[name].status = "removed";
+						} else {
+							g_modules[name].status = modules_now[name];
+						}
+					}
+
+					for (name in g_modules) {
+						if (g_modules[name].status == "removed") {
+							g_modules[name].dijit.destroyRecursive();
+							g_modules[name] = g_modules[name].module.destroy();
+							delete g_modules[name];
+						} else if (g_modules[name].status == "new") {
+							g_modules[name] = {};
+							g_modules[name].module = new webmodule({
+								svc: 'webmodule/'+name,
+								api: api
+							});
+							g_modules[name].status = "existing";
+							g_modules[name].module.gotInfo = function() {
+								g_modules[name].dijit = modulescontainer.add_module(g_modules[name].module);
+							}
+						} else if (g_modules[name].status == "existing") {
+						}
+					}
+				});
+
+				// TODO: kick off initial svc scan?
+			}
+
+			dojo.addOnLoad(init_modules);
+		</script>
+	</head>
+	<body class="tundra">
+		<div dojoType="dijit.layout.BorderContainer" design="headline" style="width: 100%; height: 100%;" gutters="false">
+			<div id="modulesContainer" class="modulesContainer" dojoType="dijit.layout.ContentPane" title="Modules" selected="true" jsId="modulescontainer" region="center">
+				<script type="dojo/method">
+					console.log("Constructing modulesContainer");
+				</script>
+
+				<script type="dojo/method" event="add_module" args="module">
+					var ml, newmodule, container, iconurl;
+
+					console.log("Would add module");
+					console.log('Calling sitelocal.ModuleLauncher with:');
+					iconurl = module.baseurl + module.icon;
+					console.log('modulename: ('+module.name+')');
+					console.log('icon: ('+iconurl+')');
+					console.log('label: ('+module.title+')');
+					console.log('svc: ('+module.svc+')');
+
+					container = dijit.byId('modulesContainer').domNode;
+					newmodule = document.createElement('div');
+					container.appendChild(newmodule);
+
+					ml = new sitelocal.ModuleLauncherTest({
+						modulename: module.name,
+						icon: iconurl,
+						label: module.title,
+						svc: module.svc
+					}, newmodule);
+
+					return ml;
+				</script>
+			</div>
+		</div>
+	</body>
+</html>

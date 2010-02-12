@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title>JS Authenticator Test</title>
+		<script type="text/javascript" src="webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<!--<script type="text/javascript" src="m2/authenticator.js"></script>-->
+		<script type="text/javascript"><![CDATA[
+			g_rng = new cfcrypto.rng();
+
+			jsSocket.swf = "jssocket/jsSocket.swf";
+			console.log('Initiating m2.authenticator construction');
+			var auth = new m2.api({
+				host: '127.0.0.1',
+				port: 5301,
+				pbkey: 'n 109879284801697714217394212616874093694166893613226529108115851493256815971310007370648192718523246075391910097362413395343533968989884816638444536955933121939481660633537191582249333500412197445056473083773167793637923350939104828240739348955125989345828942592567669953999620453499138188188424586325504062667 e 65537'
+/*
+'-----BEGIN RSA PUBLIC KEY-----\n' +
+'MIICCAKCAgEA0ATBScTTdKYMQtt57QzAZucoomkyzRy5/HzCOz8yW+42TX1XWUmB\n' +
+'hF9C/3Rm5WNxrCMS7dcvVK1o6hpwdGlc+tMF5q3pWjbcI0X7aXEkqdCkhz+lqyuz\n' +
+'70nEEttjs+G9/lkjq+SERTePAcow/Q5I7kQ3CD144EwvBtQvI9MfEcX0guoRu9N/\n' +
+'DBt1t9m3ZMKGhHQEIKHjNFEqBSsHMqsD8TtA+NlsQqhb/PfjYliUreN/+H+F40oX\n' +
+'0+hQlaWYQwVM5K9Ljw06RfoS04yJMVqBD384EArEFuspqSM497wo42Ji3T93zp4B\n' +
+'GKujkFiOxYAMP6XozL9SZMwKmvVuTNzfV7Xj1Aq+SEiaMPUDqi6zT4C+C+LEgZyU\n' +
+'zXIny221cwOhQUZ/vIhVyVtlMTxuTivq7f1p7LY3h1sQQvQ8cXozljBkUh9i6Qx+\n' +
+'L3Lu36EN2ZziObzK1LS/NQYzE38uh+Qxk7wMs4GTwzndABZSn0FHgkHOGsWxCMlK\n' +
+'QiXc0Hob1rfblt3YRxrw/Fk5TP1+TR6RqDzZw/pGaZtHV3TpdAUZnBmSxua4jv9o\n' +
+'9K88SDOAsKMSUDht1ip1lvII1pA+TkMkErlYdGmujcMK+j4TIdpHBjBNjdSQJjsd\n' +
+'AkVkRXMW8LmEvx7GVXHuu0Z4+0forbeUGGYzZVgdkZ5ZtIav5Ifg91kCARE=\n' +
+'-----END RSA PUBLIC KEY-----\n'
+*/
+			});
+
+			signals = {};
+
+			signals.ready = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			signals.ready.attach_input(auth.signal_ref('connected'));
+
+			function signal_display(id, state) {
+				var node;
+				node = document.getElementById(id);
+				console.log('@@ auth signal '+id+' state changed: '+state);
+				if (node === null) {
+					console.error('No such node: ('+id+')');
+				} else {
+					if (state) {
+						node.innerHTML = '<font color="green">TRUE<\/font>';
+					} else {
+						node.innerHTML = '<font color="red">FALSE<\/font>';
+					}
+				}
+			}
+
+			function do_login() {
+				var form, un, pw;
+
+				form = document.getElementById('authtest');
+				un = form.username.value;
+				pw = form.password.value;
+
+				auth.login(un, pw);
+			}
+
+			function login_allowed_changed(newstate) {
+				form = document.getElementById('authtest');
+				if (newstate) {
+					form.do_login.disabled = false;
+				} else {
+					form.do_login.disabled = true;
+				}
+			}
+
+			function init() {
+				var form;
+
+				auth.signal_ref('connected').attach_output(function(newstate){
+						signal_display('connected', newstate);
+				});
+				/*
+				auth.signal_ref('available').attach_output(function(newstate){
+						signal_display('available', newstate);
+				});
+				auth.signal_ref('established').attach_output(function(newstate){
+						signal_display('established', newstate);
+				});
+				auth.signal_ref('authenticated').attach_output(function(newstate){
+						signal_display('authenticated', newstate);
+				});
+				auth.signal_ref('login_pending').attach_output(function(newstate){
+						signal_display('login_pending', newstate);
+				});
+				auth.signal_ref('login_allowed').attach_output(function(newstate){
+						signal_display('login_allowed', newstate);
+				});
+				auth.signal_ref('got_perms').attach_output(function(newstate){
+						signal_display('got_perms', newstate);
+				});
+				auth.signal_ref('got_attribs').attach_output(function(newstate){
+						signal_display('got_attribs', newstate);
+				});
+				auth.signal_ref('got_prefs').attach_output(function(newstate){
+						signal_display('got_prefs', newstate);
+				});
+				auth.signal_ref('login_allowed').attach_output(login_allowed_changed);
+				*/
+			}
+		]]></script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();" onload="init();">
+		<form id="authtest" action="" onsubmit="return false;">
+			<div>
+				Username <input type="text" id="username" /> Password <input type="password" id="password" /><button id="do_login" onclick="do_login();">Login</button>
+			</div>
+			<h3>Signals</h3>
+			<ul>
+				<li>Connected <span id="connected">undefined</span></li>
+				<li>Available <span id="available">undefined</span></li>
+				<li>Established <span id="established">undefined</span></li>
+				<li>Login Allowed <span id="login_allowed">undefined</span></li>
+				<li>Login Pending <span id="login_pending">undefined</span></li>
+				<li>Authenticated <span id="authenticated">undefined</span></li>
+				<li>Got Perms <span id="got_perms">undefined</span></li>
+				<li>Got Attribs <span id="got_attribs">undefined</span></li>
+				<li>Got Prefs <span id="got_prefs">undefined</span></li>
+			</ul>
+		</form>
+	</body>
+</html>

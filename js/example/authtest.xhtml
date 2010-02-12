@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title>M2 Authenticator Login Test</title>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript" src="crypto/webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="crypto/webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="crypto/jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="crypto/jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="crypto/crypto.js"></script>
+		<script type="text/javascript" src="m2/authenticator.js"></script>
+		<script type="text/javascript"><![CDATA[
+			g_rng = new cfcrypto.rng();
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			api = new m2.authenticator({
+				host: '127.0.0.1',
+				port: 5301
+			});
+
+			function init() {
+			}
+		]]></script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();" onload="init();">
+		<h2>This is old, use <a href="auth.xhtml">auth.xhtml</a> instead</h2>
+	</body>
+</html>
