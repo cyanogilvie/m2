@@ -185,7 +185,7 @@ oo::class create Users {
 					[info object isa object $userobj]
 				} {
 					try {
-						delete object $userobj
+						$userobj destroy
 						unset userobj
 					} on error {errmsg options} {
 						my log error "Error destroying userobj: $errmsg\n[dict get $options -errorinfo]"

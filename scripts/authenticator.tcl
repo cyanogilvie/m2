@@ -150,7 +150,13 @@ cflib::pclass create m2::authenticator {
 		# Get a cookie from auth backend >>>
 
 		#set e_cookie	[crypto::rsa_private_encrypt $prkey $cookie]
-		set e_cookie	[crypto::rsa::RSAES-OAEP-Sign $prkey $cookie]
+		set e_cookie	[crypto::rsa::RSAES-OAEP-Sign \
+				[dict get $prkey n] \
+				[dict get $prkey d] \
+				$cookie \
+				{} \
+				$::crypto::rsa::sha1 \
+				$::crypto::rsa::MGF]
 
 		my rsj_req $enc_chan \
 				[list login_svc $svc $cookie_idx $e_cookie] \

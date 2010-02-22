@@ -105,8 +105,9 @@ oo::class create User {
 		$userchans_obj set_dat type "svc"
 
 		set svc_pbkey	[svckeys get_pbkey $svc]
-		set K			[dict with svc_pbkey {list $p $q $dP $dQ $qInv}]
-		set d_e_cookie	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set n			[dict get $svc_pbkey n]
+		set e			[dict get $svc_pbkey e]
+		set d_e_cookie	[crypto::rsa::RSAES-OAEP-Verify $n $e $e_cookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 
 		set pending		[users pending_cookie $cookie_idx]
 		lassign $pending cookie pend_svc

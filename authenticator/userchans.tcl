@@ -313,10 +313,10 @@ oo::class create Userchans {
 
 	method _get_info {} { #<<<
 		set upath_parts	[split [string trim [dict get $dat upath] /] /]
-		if {[lindex $upath_parts 0] ne "users"} {
-			throw [list unsupported_user_type [lindex $upath_parts 0]] \
-					"Can only auth real users"
-		}
+		#if {[lindex $upath_parts 0] ne "users"} {
+		#	throw [list unsupported_user_type [lindex $upath_parts 0]] \
+		#			"Can only auth real users"
+		#}
 		set simple_username	[lindex $upath_parts end]
 		set subdomain		[join [lrange $upath_parts 1 end-1] /]
 
