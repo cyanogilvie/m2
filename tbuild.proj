@@ -1,4 +1,4 @@
-set version	0.30
+set version	0.31
 
 tm "m2" { #<<<
 	version $::version
@@ -101,6 +101,13 @@ application "authenticatord" { #<<<
 	files {
 		authenticator/authenticator
 		authenticator/*
+	}
+
+	platform linux-glibc2.3-ix86 {
+		requires {
+			sqlite3
+			{daemon 0.6}
+		}
 	}
 
 	platform linux-glibc2.9-x86_64 {

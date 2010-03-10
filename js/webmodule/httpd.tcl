@@ -1,8 +1,8 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 package require cflib
-package require oodaemons 0.2
-package require oodaemons::httpd 0.2
+package require oodaemons 0.3
+package require oodaemons::httpd 0.3
 
 if {[info commands ::??] ne "::??"} {
 	proc ?? {args} {}

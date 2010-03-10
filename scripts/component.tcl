@@ -104,6 +104,10 @@ cflib::pclass create m2::component {
 			} else {
 				throw {obsolete} "Obsolete user session setup"
 			}
+		} trap obsolete {errmsg} {
+			my log error "Obsolete user session setup: ([string range $data 0 5]) != (setup )"
+			$auth nack $seq "Obsolete user session setup"
+			return
 		} on error {errmsg options} {
 			my log error "error decrypting request: [dict get $options -errorinfo]"
 			$auth nack $seq ""
@@ -156,10 +160,9 @@ cflib::pclass create m2::component {
 				if {![dict exists $chan_auth $chan]} {
 					if {$msg eq $mycookie} {
 						dict set chan_auth $chan	1
-						$auth ack $seq ""
 						my invoke_handlers user_login_bare $user
 						[$user signal_ref got_all] attach_output \
-								[my code _user_permissioned $user]
+								[my code _user_permissioned $auth $seq $user]
 					} else {
 						$auth nack $seq "Cookie is bad"
 					}
@@ -203,12 +206,18 @@ cflib::pclass create m2::component {
 	}
 
 	#>>>
-	method _user_permissioned {user newstate} { #<<<
+	method _user_permissioned {a_auth seq user newstate} { #<<<
 		if {$newstate} {
 			try {
 				my invoke_handlers user_login $user
+			} trap deny {errmsg options} {
+				my log notice "Denying user \"[$user name]\" access: $errmsg"
+				$a_auth nack $seq "Permission denied"
 			} on error {errmsg options} {
 				my log error "error invoking user_login handlers: $errmsg\n[dict get $options -errorinfo]"
+				$a_auth nack $seq "Internal error"
+			} on ok {} {
+				$a_auth ack $seq ""
 			}
 		}
 	}

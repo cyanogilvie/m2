@@ -320,6 +320,11 @@ cflib::pclass create m2::authenticator {
 	}
 
 	#>>>
+	method perms {} { #<<<
+		array names perms
+	}
+
+	#>>>
 	method attrib {attrib args} { #<<<
 		if {![$signals(got_attribs) state]} {
 			my log warning "haven't gotten attribs update yet, waiting..."

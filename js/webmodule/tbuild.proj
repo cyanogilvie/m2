@@ -1,5 +1,5 @@
 tm "webmodule" {
-	version 0.2
+	version 0.3
 
 	requires {
 		m2
@@ -8,6 +8,7 @@ tm "webmodule" {
 	}
 
 	files {
+		authwebmodule.tcl
 		webmodule.tcl
 		httpd.tcl
 	}
