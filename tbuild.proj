@@ -1,5 +1,12 @@
 set version	0.31
 
+set summary "m2 messagebus node"
+
+set description {
+Provides service tag based routing for m2 messages
+}
+
+
 tm "m2" { #<<<
 	version $::version
 
@@ -66,7 +73,7 @@ application "m2_node" { #<<<
 	#	requires {daemon}
 	#}
 
-	platform linux-glibc2.9-x86_64 {
+	platform linux-glibc2.10-x86_64 {
 		requires {
 			{daemon 0.6}
 			sockopt
@@ -141,11 +148,9 @@ application "m2_keys" { #<<<
 rpm "m2_node" { #<<<
 	version ${::version}.0
 
-	summary "m2 messagebus node"
+	summary $::summary
 
-	description {
-Provides service tag based routing for m2 messages
-	}
+	description $::description
 
 	applications {
 		m2_node
@@ -172,6 +177,26 @@ Provides service tag based routing for m2 messages
 	}
 
 	target i586-linux-gnu linux-glibc2.3-ix86
+}
+
+#>>>
+deb "m2node" { #<<<
+	version ${::version}
+
+	summary $::summary
+
+	description $::description
+
+	applications {
+		m2_node
+	}
+
+	files {
+		upstart/m2_node.conf /etc/init/
+	}
+
+	target i386 linux-glibc2.3-ix86
+	target amd64 linux-glibc2.10-x86_64
 }
 
 #>>>
