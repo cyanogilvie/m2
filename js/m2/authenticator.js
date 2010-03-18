@@ -270,7 +270,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 			case 'jm_can': //<<<
 				if (self.login_chan !== null && self.login_chan[0] == msg.seq) {
-					self.login_clan = null;
+					self.login_chan = null;
 					self.log('Got login_chan cancel, calling logout');
 					self.logout();
 				} else {
