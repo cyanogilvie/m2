@@ -346,6 +346,10 @@ cflib::pclass create m2::api {
 	method _connection_lost {} { #<<<
 		$signals(connected) set_state 0
 		set svcs	[dict create]
+		foreach svc [array names svc_signals] {
+			puts "Connection lost, setting svc_signal($svc) to false"
+			$svc_signals($svc) set_state 0
+		}
 		$dominos(svc_avail_changed) tip
 		$dominos(svc_avail_changed) force_if_pending
 		my invoke_handlers lost_connection

@@ -1,4 +1,4 @@
-set version	0.31
+set version	0.32.2
 
 set summary "m2 messagebus node"
 
@@ -42,6 +42,8 @@ application "m2_node" { #<<<
 	version ${::version}.2
 
 	runtime cfkit8.6
+
+	fs trofs
 
 	requires {
 		m2
@@ -117,7 +119,7 @@ application "authenticatord" { #<<<
 		}
 	}
 
-	platform linux-glibc2.9-x86_64 {
+	platform linux-glibc2.10-x86_64 {
 		requires {
 			sqlite3
 			{daemon 0.6}

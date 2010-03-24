@@ -29,7 +29,7 @@ set hold	[pwd]
 cd $base
 cflib::config create cfg $argv {
 	variable uri				"tcp://localhost:5300"
-	variable prkey				"/etc/codeforge/authenticator/keys/authenticator.pr"
+	variable prkey				"/etc/codeforge/authenticator/keys/env/authenticator.pr"
 	variable svc				"authenticator"
 	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
 	variable as_user			"codeforge"
@@ -163,8 +163,8 @@ proc cleanup {} { #<<<
 if {[cfg get daemon]} {
 	dutils::daemon create daemon \
 			-name 			"authenticatord" \
-			-as_user		"as_user" \
-			-as_group		"as_group" \
+			-as_user		[cfg get as_user] \
+			-as_group		[cfg get as_group] \
 			-gen_pid_file	{return "/var/tmp/authenticator.pid"}
 
 	proc log {lvl msg args} { #<<<

@@ -10,6 +10,21 @@ cflib::pclass create m2::api2 {
 	property oob_type	"none"
 	property cb_mode	"msg_dict" ;# set to separate_args for the old behaviour
 
+	variable {*}{
+		e_pending
+		sent_key
+		svc_handlers
+		pending
+		jm
+		jm_prev_seq
+		jm_keys
+		ack_pend
+		session_keys
+		pending_keys
+		chans
+		outstanding_reqs
+	}
+
 	constructor {args} { #<<<
 		set e_pending			[dict create]
 		set sent_key			[dict create]
@@ -32,26 +47,12 @@ cflib::pclass create m2::api2 {
 
 		my register_handler incoming [my code _incoming]
 
+		my register_handler lost_connection [my code _lost_connection]
 		#$dominos(outstanding_reqs_changed) attach_output \
 		#		[my code _outstanding_reqs_changed]
 	}
 
 	#>>>
-
-	variable {*}{
-		e_pending
-		sent_key
-		svc_handlers
-		pending
-		jm
-		jm_prev_seq
-		jm_keys
-		ack_pend
-		session_keys
-		pending_keys
-		chans
-		outstanding_reqs
-	}
 
 	method _incoming {msg} { #<<<
 		#my log debug [$msg get type]
@@ -906,6 +907,36 @@ cflib::pclass create m2::api2 {
 				$point \
 				[my cached_station_id]]
 		set so_far
+	}
+
+	#>>>
+	method _lost_connection {} { #<<<
+		set msg	[m2::msg new new \
+				type	jm_can \
+				svc		sys \
+		]
+		dict for {m_seq m_prev_seq} $jm_prev_seq {
+			$msg seq		$m_seq
+			$msg prev_seq	$m_prev_seq
+			my _incoming $msg
+		}
+		dict for {seq info} $chans {
+			set rest	[lassign $info type]
+			if {$type eq "custom"} {
+				set cb	[lindex $rest 0]
+				if {$cb ne {}} {
+					try {
+						coroutine coro_chan_cancelled_[incr ::coro_seq] \
+								{*}$cb cancelled {}
+					} on error {errmsg options} {
+						my log error "_lost_connection channel cancel handler failed: [dict get $options -errorinfo]"
+					}
+				}
+			} else {
+				my log error "Unhandled channel type \"$type\""
+			}
+		}
+		set chans	[dict create]
 	}
 
 	#>>>

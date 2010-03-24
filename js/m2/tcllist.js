@@ -530,4 +530,8 @@ function array2hash(arr) { //<<<
 }
 
 //>>>
+function list2hash(list) { //<<<
+	return array2hash(list);
+};
 
+//>>>

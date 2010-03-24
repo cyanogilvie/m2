@@ -1,4 +1,4 @@
-#!/usr/bin/env kbskit8.6
+#!/usr/bin/env cfkit8.6
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
@@ -13,7 +13,7 @@ cflib::config create cfg $argv {
 	variable queue_mode		fancy
 	variable runas_user		"daemon"
 	variable runas_group	"daemon"
-}
+} /etc/codeforge/m2_node.conf
 
 proc log {lvl msg args} { #<<<
 	puts $msg
@@ -23,7 +23,8 @@ proc log {lvl msg args} { #<<<
 
 interp bgerror {} [list apply {
 	{errmsg options} {
-		log error "$errmsg"
+		#log error "$errmsg"
+		log error [dict get $options -errorinfo]
 		#array set o	$options
 		#parray o
 	}
