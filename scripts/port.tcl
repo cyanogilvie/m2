@@ -638,12 +638,13 @@ oo::class create m2::port {
 
 			jm_disconnect { #<<<
 				if {![dict exists $jm_sport $m_seq]} {
-					error "No such junkmail for jm_disconnect: [$msg display]"
-				}
-				
-				if {[[dict get $jm_sport $m_seq] send [self] $msg]} {
-					# The above returns true if we don't receive this channel any more
-					dict unset jm_sport $m_seq
+					log error "No such junkmail for jm_disconnect: [$msg display]"
+					#error "No such junkmail for jm_disconnect: [$msg display]"
+				} else {
+					if {[[dict get $jm_sport $m_seq] send [self] $msg]} {
+						# The above returns true if we don't receive this channel any more
+						dict unset jm_sport $m_seq
+					}
 				}
 				#>>>
 			}

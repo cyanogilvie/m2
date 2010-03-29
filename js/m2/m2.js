@@ -281,7 +281,7 @@ m2.api.prototype._set_default_msg_fields = function(msg) { //<<<
 	if (msg.type === undefined)		{msg.type		= 'req';}
 	if (msg.seq === undefined)		{msg.seq		= '';}
 	if (msg.prev_seq === undefined)	{msg.prev_seq	= '0';}
-	if (msg.meta === undefined)		{msg.meta		= {};}
+	if (msg.meta === undefined)		{msg.meta		= '';}
 	if (msg.oob_type === undefined)	{msg.oob_type	= '1';}
 	if (msg.oob_data === undefined)	{msg.oob_data	= '1';}
 };
@@ -564,6 +564,7 @@ m2.api.prototype._serialize_msg = function(msg) { //<<<
 		msg.oob_type,
 		msg.oob_data
 	]);
+	//this.log('serialized msg hdr: ('+hdr+'), msg.seq: ('+msg.seq+')');
 	udata = Utf8.encode(msg.data);
 	//udata = msg.data;
 	//window.udata = udata;
@@ -621,7 +622,16 @@ m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 		}
 		head = parse_tcl_list(rest.substr(0, lineend));
 		msgid = Number(head[0]);
-		is_tail = Boolean(head[1]);
+		//is_tail = Boolean(head[1]);
+		//is_tail = Boolean(Number(head[1]));
+		/*
+		if (Number(head[1]) === 0) {
+			is_tail = false;
+		} else {
+			is_tail = true;
+		}
+		*/
+		is_tail = Boolean(Number(head[1]));
 		fragment_len = Number(head[2]);
 		frag = rest.substr(lineend + 1, fragment_len);
 		rest = rest.substr(lineend + 1 + fragment_len);
