@@ -103,7 +103,7 @@ m2.authenticator.prototype.constructor = m2.authenticator;
 
 m2.authenticator.prototype.destroy = function() { //<<<
 	// TODO: all the things that must happen here ;)
-	return null;
+	return m2.api.destroy.call(this);;
 };
 
 //>>>

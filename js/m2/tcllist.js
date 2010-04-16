@@ -531,7 +531,7 @@ function array2hash(arr) { //<<<
 
 //>>>
 function list2hash(list) { //<<<
-	return array2hash(list);
+	return array2hash(parse_tcl_list(list));
 };
 
 //>>>

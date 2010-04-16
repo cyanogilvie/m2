@@ -1,5 +1,5 @@
 tm "webmodule" {
-	version 0.3
+	version 0.4
 
 	requires {
 		m2

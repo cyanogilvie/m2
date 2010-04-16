@@ -27,7 +27,8 @@ m2.connector = function(a_auth, a_svc, params) { //<<<<
 	this.signals.connect_ready.attach_input(this.signals.got_svc_pbkey);
 	this.signals.connect_ready.attach_input(this.signals.available);
 
-	this.auth.signal_ref('authenticated').attach_output(function(newstate) {
+	this.signal_hooks = {};
+	this.signal_hooks.authenticated_changed = this.auth.signal_ref('authenticated').attach_output(function(newstate) {
 		self._authenticated_changed(newstate);
 	});
 	this.dominos.need_reconnect.attach_output(function(){
@@ -44,6 +45,10 @@ m2.connector.prototype.constructor = m2.connector;
 
 m2.connector.prototype.destroy = function() { //<<<<
 	// TODO: the stuff that goes here
+	this.auth.signal_ref('authenticated').detach_output(this.signal_hooks.authenticated_changed);
+	this.dominos.need_reconnect = this.dominos.need_reconnect.destroy();
+	this.signals.connect_ready = this.signals.connect_ready.destroy();
+	this.disconnect();
 	return null;
 };
 

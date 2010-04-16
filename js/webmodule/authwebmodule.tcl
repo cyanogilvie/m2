@@ -25,14 +25,14 @@ oo::class create webmodule::authwebmodule {
 		package require m2
 
 		set settings		[dict merge {
-			-auth			"auth"
-			-myhost			""
-			-myport			""
-			-required_perms	{}
-			-page			"main.html"
-			-docroot		"docroot"
-			-init_script	"init.js"
-			-cleanup_script	"cleanup.js"
+			-auth				"auth"
+			-myhost				""
+			-myport				""
+			-required_perms		{}
+			-page				"main.html"
+			-docroot			"docroot"
+			-init_script		"init.js"
+			-cleanup_script		"cleanup.js"
 		} $args]
 
 		dict for {key val} $settings {
@@ -78,6 +78,7 @@ oo::class create webmodule::authwebmodule {
 
 		$comp handler module_info [namespace code {my _module_info}]
 		$comp handler http_get [namespace code {my _http_get}]
+		oo::objdefine [self] forward handler [namespace which -command $comp] handler
 	}
 
 	#>>>
@@ -94,6 +95,11 @@ oo::class create webmodule::authwebmodule {
 
 	#>>>
 
+	method comp {} { #<<<
+		set comp
+	}
+
+	#>>>
 	method make_httpd {args} { #<<<
 		webmodule::httpd new {*}$args
 	}
@@ -122,8 +128,8 @@ oo::class create webmodule::authwebmodule {
 	#>>>
 	method _module_info {auth user seq data} { #<<<
 		try {
-			set init_fn		[file join $docroot $init_script]
-			set cleanup_fn	[file join $docroot $cleanup_script]
+			set init_fn			[file join $docroot $init_script]
+			set cleanup_fn		[file join $docroot $cleanup_script]
 			if {[file exists $init_fn]} {
 				set init	[cflib::readfile $init_fn]
 			} else {
