@@ -42,7 +42,7 @@ cflib::config create cfg $argv {
 		"unix"	{variable db	"/var/lib/codeforge/authenticator/authenticator.sqlite3"}
 		default	{variable db	"authenticator.sqlite3"}
 	}
-	variable daemon				1
+	variable daemon				0
 }
 cd $hold
 
@@ -52,15 +52,9 @@ proc log {lvl msg args} { #<<<
 
 #>>>
 
-if {[::tcl::pkgconfig get threaded]} {
-	puts stderr "Cannot daemonize in a threaded interpreter"
-	exit 1
-}
-
 package require sqlite3
 package require cflib
 package require sop
-package require daemon 0.6
 package require m2
 
 source "crypto.tcl"
@@ -161,6 +155,8 @@ proc cleanup {} { #<<<
 #>>>
 
 if {[cfg get daemon]} {
+	puts "foo"
+	package require daemon 0.6
 	dutils::daemon create daemon \
 			-name 			"authenticatord" \
 			-as_user		[cfg get as_user] \

@@ -1,4 +1,4 @@
-set version	0.32.4
+set version	0.32.5
 
 set summary "m2 messagebus node"
 
@@ -66,7 +66,6 @@ application "m2_node" { #<<<
 
 	platform linux-glibc2.3-ix86 {
 		requires {
-			{daemon 0.6}
 			sockopt
 			unix_sockets
 		}
@@ -77,7 +76,6 @@ application "m2_node" { #<<<
 
 	platform linux-glibc2.10-x86_64 {
 		requires {
-			{daemon 0.6}
 			sockopt
 			unix_sockets
 		}
@@ -115,14 +113,12 @@ application "authenticatord" { #<<<
 	platform linux-glibc2.3-ix86 {
 		requires {
 			sqlite3
-			{daemon 0.6}
 		}
 	}
 
 	platform linux-glibc2.10-x86_64 {
 		requires {
 			sqlite3
-			{daemon 0.6}
 		}
 	}
 }

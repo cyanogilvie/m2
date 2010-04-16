@@ -9,7 +9,7 @@ package require cflib
 cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
 	variable upstream		{}
-	variable daemon			1
+	variable daemon			0
 	variable queue_mode		fancy
 	variable runas_user		"daemon"
 	variable runas_group	"daemon"
@@ -49,6 +49,7 @@ proc init {} { #<<<
 #>>>
 
 if {[cfg get daemon]} {
+	package require daemon 0.8
 	dutils::daemon create daemon \
 			-name			"m2_node" \
 			-as_user		[cfg get runas_user] \
