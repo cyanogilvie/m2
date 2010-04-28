@@ -22,8 +22,6 @@ cflib::pclass create m2::locks::component {
 	}
 
 	constructor {args} { #<<<
-		my log debug $this
-
 		set locks	[dict create]
 
 		my configure {*}$args
@@ -39,7 +37,6 @@ cflib::pclass create m2::locks::component {
 
 	#>>>
 	destructor { #<<<
-		my log debug $this
 		set auth	[$comp cget -auth]
 		dict for {key val} $locks {
 			after cancel [dict get $val heartbeat]
@@ -52,7 +49,6 @@ cflib::pclass create m2::locks::component {
 	#>>>
 
 	method breaklock {id} { #<<<
-		my log debug
 		if {![dict exists $locks $id]} {
 			throw [list no_lock $id] "No lock info for $id"
 		}
@@ -99,7 +95,6 @@ cflib::pclass create m2::locks::component {
 	#>>>
 
 	method _getlock {auth user seq rest} { #<<<
-		my log debug
 		set id		$rest
 		
 		if {[dict exists $locks $id]} {
@@ -145,7 +140,6 @@ cflib::pclass create m2::locks::component {
 
 	#>>>
 	method _lock_cb {user un id type rest} { #<<<
-		my log debug
 		switch -- $type {
 			cancelled { #<<<
 				if {![dict exists $locks $id]} {
