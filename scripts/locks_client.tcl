@@ -31,7 +31,7 @@ cflib::pclass create m2::locks::client {
 		my configure {*}$args
 
 		foreach reqf {tag connector id} {
-			if {![set $reqf] eq ""} {
+			if {[set $reqf] eq ""} {
 				error "Must set -$reqf"
 			}
 		}

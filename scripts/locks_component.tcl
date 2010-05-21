@@ -27,7 +27,7 @@ cflib::pclass create m2::locks::component {
 		my configure {*}$args
 
 		foreach reqf {comp tag} {
-			if {![set $reqf] eq ""} {
+			if {[set $reqf] eq ""} {
 				error "Must set -$reqf"
 			}
 		}
