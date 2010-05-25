@@ -148,36 +148,34 @@ oo::class create m2::userinfo {
 	}
 
 	#>>>
-	method _setup_userinfo_chan_resp {msg_data} { #<<<
-		dict with msg_data {}
-
-		switch -- $type {
+	method _setup_userinfo_chan_resp {msg} { #<<<
+		switch -- [dict get $msg type] {
 			ack { #<<<
 				my log debug "ok!"
 				#>>>
 			}
 
 			nack { #<<<
-				my log error "were denied userinfo channel setup: ($data)"
+				my log error "were denied userinfo channel setup: ([dict get $msg data])"
 				$signals(userinfo_chan_valid) set_state 0
 				#>>>
 			}
 
 			pr_jm { #<<<
 				if {![info exists userinfo_jmid]} {
-					set userinfo_jmid		$seq
-					set userinfo_prev_seq	$prev_seq
+					set userinfo_jmid		[dict get $msg seq]
+					set userinfo_prev_seq	[dict get $msg prev_seq]
 					$signals(userinfo_chan_valid) set_state 1
-				} elseif {$userinfo_jmid != $seq} {
-					my log error "Got another channel setup ($seq), already have userinfo_jmid: ($userinfo_jmid)"
+				} elseif {$userinfo_jmid != [dict get $msg seq]} {
+					my log error "Got another channel setup ([dict get $msg seq]), already have userinfo_jmid: ($userinfo_jmid)"
 				}
 
-				my _update_userinfo $data
+				my _update_userinfo [dict get $msg data]
 				#>>>
 			}
 
 			jm { #<<<
-				my _update_userinfo $data
+				my _update_userinfo [dict get $msg data]
 				#>>>
 			}
 
@@ -186,7 +184,7 @@ oo::class create m2::userinfo {
 					my log error "no userinfo_jmid set, but got jm_can"
 					return
 				}
-				if {$seq != $userinfo_jmid} {
+				if {[dict get $msg seq] != $userinfo_jmid} {
 					my log error "unknown channel cancelled"
 					return
 				}
@@ -200,7 +198,7 @@ oo::class create m2::userinfo {
 			}
 
 			default { #<<<
-				my log error "unexpected type: ($type)"
+				my log error "unexpected type: ([dict get $msg type])"
 				#>>>
 			}
 		}

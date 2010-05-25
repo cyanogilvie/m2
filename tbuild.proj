@@ -1,4 +1,4 @@
-set version	0.33.0
+set version	0.33.1
 
 set summary "m2 messagebus node"
 
@@ -173,11 +173,6 @@ rpm "m2_node" { #<<<
 	applications {
 		m2_node
 		m2_node_install		/usr/lib/m2_node/install
-	}
-
-	files {
-		sysv/m2_node		/etc/init.d/m2_node
-		sysv/config			/etc/sysconfig/m2_node
 	}
 
 	post_scriptlet {
