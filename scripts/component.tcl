@@ -179,10 +179,11 @@ cflib::pclass create m2::component {
 				}
 
 				try {
+					?? {my log debug "Calling component req handler for ($rop): [dict get $op_handlers $rop]"}
 					coroutine coro_handler_[incr ::coro_seq] \
 							{*}[dict get $op_handlers $rop] \
 							$auth $user $seq $rdata
-					my log debug "done rop: ($rop) cb: ([dict get $op_handlers $rop])"
+					?? {my log debug "done rop: ($rop) cb: ([dict get $op_handlers $rop]), answered: [$auth answered $seq]"}
 				} on error {errmsg options} {
 					my log error "error processing op ($rop): $errmsg\n[dict get $options -errorinfo]"
 					$auth nack $seq "Internal error"

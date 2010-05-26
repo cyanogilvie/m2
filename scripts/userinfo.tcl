@@ -75,6 +75,8 @@ oo::class create m2::userinfo {
 			unset userinfo_jmid
 			unset userinfo_prev_seq
 		}
+
+		if {[self next] ne ""} next
 	}
 
 	#>>>

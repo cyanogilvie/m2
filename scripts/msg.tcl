@@ -77,7 +77,8 @@ oo::class create m2::msg {
 		append display "Msg ([self]):\n"
 		foreach attr {svc type seq prev_seq meta oob_type oob_data data} {
 			if {$attr eq "data"} {
-				append display "  $attr: \[[string length [dict get $dat $attr]]\]\n"
+				package require hash
+				append display "  $attr: [binary encode base64 [hash::md5 [dict get $dat $attr]]] \[[string length [dict get $dat $attr]]\]\n"
 			} else {
 				append display "  $attr: ([dict get $dat $attr])\n"
 			}

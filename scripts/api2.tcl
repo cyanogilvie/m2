@@ -55,7 +55,7 @@ cflib::pclass create m2::api2 {
 	#>>>
 
 	method _incoming {msg} { #<<<
-		#my log debug [$msg get type]
+		?? {my log debug "-> Got [$msg display]"}
 
 		set m_seq		[$msg get seq]
 		set m_prev_seq	[$msg get prev_seq]
@@ -623,6 +623,8 @@ cflib::pclass create m2::api2 {
 					if {[dict get $jm $prev_seq] <= 0} {
 						dict unset pending $prev_seq
 						dict unset jm $prev_seq
+					} else {
+						#puts "after jm_disconnect: jm($prev_seq): [dict get $jm $prev_seq]"
 					}
 					dict set jm_prev_seq $jm_seq	[lreplace [dict get $jm_prev_seq $jm_seq] $idx $idx]
 					if {[llength [dict get $jm_prev_seq $jm_seq]] == 0} {
@@ -883,7 +885,7 @@ cflib::pclass create m2::api2 {
 			}
 
 			default {
-				error "Not implemented"
+				error "Not implemented: ($op)"
 			}
 		}
 	}

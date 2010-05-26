@@ -29,11 +29,16 @@ cflib::pclass create m2::api {
 	variable {*}{
 		signals
 		svc_signals
+		neighbour_info
 	}
 
 	constructor {args} { #<<<
 		array set dominos		{}
 		array set svc_signals	{}
+		set neighbour_info	[dict create \
+				type		application \
+				debug_name	[file tail $::argv0] \
+		]
 
 		sop::domino new dominos(need_reconnect) -name "[self] need_reconnect"
 		sop::signal new signals(connected) -name "[self] connected"
@@ -115,6 +120,7 @@ cflib::pclass create m2::api {
 		my invoke_handlers send $msg
 		my invoke_handlers send,[$msg type] $msg
 
+		?? {puts "<- Enqueuing msg: [$msg display]"}
 		set sdata	[$msg serialize]
 		$queue enqueue $sdata [$msg get type] [$msg get seq] [$msg get prev_seq]
 	}
@@ -293,7 +299,7 @@ cflib::pclass create m2::api {
 			# handled efficiently without it.
 			set msg	[m2::msg new new \
 					type	neighbour_info \
-					data	[list type application] \
+					data	$neighbour_info \
 			]
 			my send $msg
 
@@ -370,6 +376,23 @@ cflib::pclass create m2::api {
 		}
 		set connect_after_id	[after $after_interval \
 				[my code _attempt_connection]]
+	}
+
+	#>>>
+	method neighbour_info {dict} { #<<<
+		if {[dict exists $dict type] && [dict get $dict type] ne "application"} {
+			error "neighbour info key \"type\" is reserved and must be \"application\""
+		}
+
+		set neighbour_info	[dict merge \
+				$neighbour_info[unset neighbour_info] \
+				$dict]
+
+		set msg	[m2::msg new new \
+				type	neighbour_info \
+				data	$dict \
+		]
+		my send $msg
 	}
 
 	#>>>

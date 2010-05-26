@@ -1,4 +1,4 @@
-set version	0.33.1
+set version	0.34.0
 
 set summary "m2 messagebus node"
 
@@ -47,10 +47,10 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.5.5}
-		{netdgram::tcp 0.5.5}
-		{netdgram::jssocket 0.5.5}
-		{netdgram::uds 0.5.5}
+		{netdgram 0.6.1}
+		{netdgram::tcp 0.6.1}
+		{netdgram::jssocket 0.6.1}
+		{netdgram::uds 0.6.1}
 		{sop 1.2}
 		cflib
 		dsl
@@ -74,7 +74,7 @@ application "m2_node" { #<<<
 	#	requires {daemon}
 	#}
 
-	platform linux-glibc2.10-x86_64 {
+	platform [this_platform] {
 		requires {
 			sockopt
 			unix_sockets

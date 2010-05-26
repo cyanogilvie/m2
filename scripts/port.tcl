@@ -46,7 +46,8 @@ oo::class create m2::port {
 		set jm_sport		[dict create]
 		set mysvcs			[dict create]
 		set neighbour_info	[dict create \
-			type	node \
+			type		node \
+			debug_name	"" \
 		]
 
 		set connected		0
@@ -421,6 +422,7 @@ oo::class create m2::port {
 
 	#>>>
 	method _got_msg {msg} { #<<<
+		?? {log debug "-> Got msg ([my cached_station_id]) [$msg display]"}
 		# Add profiling stamp if requested <<<
 		if {[$msg get oob_type] eq "profiling"} {
 			$msg set oob_data [my _add_profile_stamp \
@@ -451,8 +453,11 @@ oo::class create m2::port {
 
 			neighbour_info { #<<<
 				#log debug "-- [my cached_station_id] got neighbour_info: [$msg get data]"
-				set neighbour_info \
-						[dict merge $neighbour_info [$msg get data]]
+				set neighbour_info	[dict merge \
+						$neighbour_info[unset neighbour_info] \
+						[$msg get data]]
+				my variable station_id
+				if {[info exists station_id]} {unset station_id}
 				#log debug "---- [my cached_station_id], neighbour_info type: ([dict get $neighbour_info type]), keys: ([dict keys $neighbour_info])"
 				#>>>
 			}
@@ -616,7 +621,8 @@ oo::class create m2::port {
 			jm_can { #<<<
 				if {![dict exists $jm $m_seq]} {
 					#parray jm
-					error "No such junkmail channel ([$msg seq])"
+					log error "No such junkmail channel ([$msg seq])"
+					return
 				}
 				set jmid		[dict get $jm $m_seq]
 				
@@ -727,6 +733,7 @@ oo::class create m2::port {
 		}
 
 		try {
+			?? {log debug "<- Sending msg ([my cached_station_id]) [$msg display]"}
 			# Add profiling stamp if requested <<<
 			if {[$msg get oob_type] eq "profiling"} {
 				$msg set oob_data [my _add_profile_stamp \
@@ -802,7 +809,7 @@ oo::class create m2::port {
 
 	#>>>
 	method station_id {} { #<<<
-		return "m2_node [[$queue con] human_id]"
+		return "m2_node [[$queue con] human_id] \"[dict get $neighbour_info debug_name]\""
 	}
 
 	#>>>
