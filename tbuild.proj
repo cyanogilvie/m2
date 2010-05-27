@@ -54,6 +54,7 @@ application "m2_node" { #<<<
 		{sop 1.2}
 		cflib
 		dsl
+		hash
 	}
 
 	files {
@@ -121,6 +122,7 @@ application "authenticatord" { #<<<
 		sop
 		dsl
 		crypto
+		hash
 
 		sha1
 	}

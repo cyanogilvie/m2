@@ -27,7 +27,8 @@ cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
 	variable upstream		{}
 	variable queue_mode		fancy
-	variable debug			1
+	variable debug			0
+	variable deamon			0		;# Obsolete
 } /etc/codeforge/m2_node.conf
 
 proc log {lvl msg args} { #<<<

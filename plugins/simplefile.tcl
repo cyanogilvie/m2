@@ -126,33 +126,40 @@ oo::class create Plugin {
 	superclass pluginbase
 
 	variable {*}{
-		fn
 		cfg
+		default_details
 	}
 
 	constructor {args} { #<<<
 		if {[self next] ne ""} next
 
-		set cfg	[cflib::config new $args {
-			variable fn			"/etc/codeforge/users"
-			variable ignorecase	{}	;# list of "username", "password"
-		}]
+		set default_details	[dict create \
+				attribs	{} \
+				perms	{} \
+				prefs	{} \
+		]
 
-		if {![file readable [$cfg get fn]]} {
-			error "User file \"[$cfg get $fn]\" isn't readable"
+		cflib::config create cfg $args {
+			variable fn			"/etc/codeforge/users"
+			variable detailsfn	"/etc/codeforge/userdetails"
+			variable ignorecase	{}	;# list of "username", "password"
+		}
+
+		if {![file readable [cfg get fn]]} {
+			error "User file \"[cfg get fn]\" isn't readable"
 		}
 	}
 
 	#>>>
 	method check_auth {username subdomain credentials} { #<<<
-		set fp	[open [$cfg get fn] r]
+		set fp	[open [cfg get fn] r]
 		try {
 			foreach line [split [chan read $fp] \n] {
 				set line	[string trim $line]
 				if {[string index $line 0] eq "#"} continue
 				if {$line eq ""} continue
 				lassign [split $line :] un pw
-				if {"username" in [$cfg get ignorecase]} {
+				if {"username" in [cfg get ignorecase]} {
 					if {[string tolower $username] eq [string tolower $un]} {
 						return [my _check_pw $credentials $pw]
 					}
@@ -171,7 +178,7 @@ oo::class create Plugin {
 
 	#>>>
 	method _check_pw {pw1 pw2} { #<<<
-		if {"password" in [$cfg get ignorecase]} {
+		if {"password" in [cfg get ignorecase]} {
 			return [expr {
 				[string tolower $pw1] eq [string tolower $pw2]
 			}]
@@ -184,10 +191,30 @@ oo::class create Plugin {
 
 	#>>>
 	method get_info {username subdomain} { #<<<
-		dict create \
-				attribs	{} \
-				perms	{} \
-				prefs	{}
+		puts "get_info for \"$username\" subdomain: \"$subdomain\" ------------"
+		if {![file readable [cfg get detailsfn]]} {
+			puts "details file \"[cfg get detailsfn]\" doesn't exist"
+			return $default_details
+		}
+
+		set dat	[dsl::decomment [my _readfile [cfg get detailsfn]]]
+
+		if {[dict exists $dat $username]} {
+			puts "Returning attribs for \"$username\": [dict get $dat $username]"
+			dict get $dat $username
+		} else {
+			set default_details
+		}
+	}
+
+	#>>>
+	method _readfile {fn} { #<<<
+		set h	[open $fn r]
+		try {
+			chan read $h
+		} finally {
+			chan close $h
+		}
 	}
 
 	#>>>
