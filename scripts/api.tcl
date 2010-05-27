@@ -3,10 +3,10 @@
 # Signals:
 #	connected()					- fired when connection is established
 #	lost_connection()			- fired when connection is lost
-#	send(msgobj)				- called with msg we are sending
-#	send,$msgtype(msgobj)		- specific message type, ie send,svc_avail
-#	incoming(msgobj)			- called with incoming msg
-#	incoming,$msgtype(msgobj)	- specific message type, ie send,req
+#	send(msgdict)				- called with msg we are sending
+#	send,$msgtype(msgdict)		- specific message type, ie send,svc_avail
+#	incoming(msgdict)			- called with incoming msg
+#	incoming,$msgtype(msgdict)	- specific message type, ie send,req
 
 cflib::pclass create m2::api {
 	#superclass cflib::handlers sop::signalsource cflib::baselog
@@ -66,23 +66,21 @@ cflib::pclass create m2::api {
 		if {![$signals(connected) state]} {
 			error "Not connected"
 		}
-		set msg	[m2::msg new new \
+		my send [m2::msg::new [list \
 			type	svc_avail \
 			seq		[incr unique] \
 			data	$args \
-		]
-		my send $msg
+		]]
 	}
 
 	#>>>
 	method revoke_svcs {args} { #<<<
 		if {![$signals(connected) state]} return
-		set msg	[m2::msg new new \
+		my send [m2::msg::new [list \
 			type	svc_revoke \
 			seq		[incr unique] \
 			data	$args \
-		]
-		my send $msg
+		]]
 	}
 
 	#>>>
@@ -106,23 +104,21 @@ cflib::pclass create m2::api {
 
 	#>>>
 	method send_jm {jmid data} { #<<<
-		set jm	[m2::msg new new \
+		my send [m2::msg::new [list \
 			prev_seq	0 \
 			seq			$jmid \
 			data		$data \
 			type		jm \
-		]
-		my send $jm
+		]]
 	}
 
 	#>>>
 	method send {msg} { #<<<
 		my invoke_handlers send $msg
-		my invoke_handlers send,[$msg type] $msg
+		my invoke_handlers send,[dict get $msg type] $msg
 
-		?? {puts "<- Enqueuing msg: [$msg display]"}
-		set sdata	[$msg serialize]
-		$queue enqueue $sdata [$msg get type] [$msg get seq] [$msg get prev_seq]
+		?? {puts "<- Enqueuing msg: [m2::msg::display $msg]"}
+		$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 	}
 
 	#>>>
@@ -132,10 +128,12 @@ cflib::pclass create m2::api {
 
 	#>>>
 
-	method _got_msg {msg} { #<<<
-		switch -- [$msg type] {
+	method _got_msg {raw_msg} { #<<<
+		set msg		[m2::msg::deserialize $raw_msg]
+
+		switch -- [dict get $msg type] {
 			svc_avail {
-				foreach svc [$msg data] {
+				foreach svc [dict get $msg data] {
 					dict set svcs $svc	1
 					if {[info exists svc_signals($svc)]} {
 						$svc_signals($svc) set_state 1
@@ -145,7 +143,7 @@ cflib::pclass create m2::api {
 			}
 
 			svc_revoke {
-				foreach svc [$msg data] {
+				foreach svc [dict get $msg data] {
 					dict unset svcs $svc
 					if {[info exists svc_signals($svc)]} {
 						$svc_signals($svc) set_state 0
@@ -155,7 +153,7 @@ cflib::pclass create m2::api {
 			}
 		}
 
-		switch -- [$msg type] {
+		switch -- [dict get $msg type] {
 			svc_avail -
 			svc_revoke -
 			req -
@@ -168,11 +166,11 @@ cflib::pclass create m2::api {
 			jm_req -
 			jm_disconnect {
 				my invoke_handlers incoming $msg
-				my invoke_handlers incoming,[$msg type] $msg
+				my invoke_handlers incoming,[dict get $msg type] $msg
 			}
 
 			default {
-				error "Got unexpected msg type: ([$msg type])"
+				error "Got unexpected msg type: ([dict get $msg type])"
 			}
 		}
 	}
@@ -195,7 +193,7 @@ cflib::pclass create m2::api {
 			$queue attach $con
 
 			oo::objdefine $queue forward closed {*}[my code _connection_lost]
-			oo::objdefine $queue forward receive {*}[my code _receive_raw]
+			oo::objdefine $queue forward receive {*}[my code _got_msg]
 			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
 				switch -- $type {
 					rsj_req - req {
@@ -297,11 +295,10 @@ cflib::pclass create m2::api {
 			# Mostly it doesn't care, but there are odd cases involving multiple
 			# listeners on a single jm channel from a single app that cannot be
 			# handled efficiently without it.
-			set msg	[m2::msg new new \
+			my send [m2::msg::new [list \
 					type	neighbour_info \
 					data	$neighbour_info \
-			]
-			my send $msg
+			]]
 
 			$signals(connected) set_state 1
 			my invoke_handlers connected
@@ -339,13 +336,6 @@ cflib::pclass create m2::api {
 			}
 			my invoke_handlers lost_connection
 		}
-	}
-
-	#>>>
-	method _receive_raw {raw_msg} { #<<<
-		set msg			[m2::msg new deserialize $raw_msg]
-
-		my _got_msg $msg
 	}
 
 	#>>>
@@ -388,11 +378,10 @@ cflib::pclass create m2::api {
 				$neighbour_info[unset neighbour_info] \
 				$dict]
 
-		set msg	[m2::msg new new \
+		my send [m2::msg::new [list \
 				type	neighbour_info \
 				data	$dict \
-		]
-		my send $msg
+		]]
 	}
 
 	#>>>

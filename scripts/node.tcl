@@ -82,16 +82,16 @@ oo::class create m2::node {
 		#my _puts stderr "m2::Node::announce_svc: ($svc) ($port)"
 
 		if {$new} {
-			set msg		[m2::msg new new \
+			set msg		[m2::msg::new [list \
 				type	svc_avail \
 				seq		[my unique_id] \
 				data	[list $svc] \
-			]
+			]]
 
 			foreach dport [my all_ports $port] {
 				# Prune out outbound connections, ala, "orange links" pan in IML
 				if {[dict get $advertise_ports $dport] == 0} continue
-				#puts stderr "sending msg: ($msg)"
+				#puts stderr "sending msg: ([m2::msg::display $msg])"
 				try {
 					$dport send $port $msg
 				} on error {errmsg options} {
@@ -110,16 +110,16 @@ oo::class create m2::node {
 		if {[llength [dict get $svcs $svc]] == 0} {
 			dict unset svcs $svc
 
-			set msg		[m2::msg new new \
+			set msg		[m2::msg::new [list \
 				type	svc_revoke \
 				seq		[my unique_id] \
 				data	[list $svc] \
-			]
+			]]
 
 			foreach dport [my all_ports $port] {
 				# Prune out outbound connections, ala, "orange links" pan in IML
 				if {[dict get $advertise_ports $dport] == 0} continue
-				#my _puts stderr "sending msg: ($msg)"
+				#my _puts stderr "sending msg: ([m2::msg::display $msg])"
 				try {
 					$dport send $port $msg
 				} on error {errmsg options} {

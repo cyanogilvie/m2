@@ -1,12 +1,12 @@
-# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> foldmarker=<<<,>>>
 
-oo::class create m2::msg {
-	superclass cflib::refcounted
+namespace eval m2::msg {
+	namespace path [concat [namespace path] {
+		::tcl::mathop
+	}]
 
-	constructor {mode args} { #<<<
-		next
-
-		set dat	{
+	proc new {{initial {}}} { #<<<
+		dict merge {
 			svc			"sys"
 			type		"req"
 			seq			""
@@ -15,66 +15,13 @@ oo::class create m2::msg {
 			oob_type	1
 			oob_data	1
 			data		""
-		}
-
-		# Bind an automatic scopvar in our caller's stack frame to decref us
-		# when it goes out of scope
-		my autoscoperef
-
-		switch -- $mode {
-			new {
-				set dat [dict merge $dat $args]
-			}
-			
-			deserialize {
-				my _deserialize [lindex $args 0]
-			}
-			
-			clone {
-				set dat	[[lindex $args 0] get_data]
-			}
-
-			raw {}
-
-			default {
-				error "Invalid mode: ($mode)"
-			}
-		}
+		} $initial
 	}
 
 	#>>>
-
-	variable {*}{
-		dat
-	}
-
-	method serialize {} { #<<<
-		set hdr			[list \
-				[dict get $dat svc] \
-				[dict get $dat type] \
-				[dict get $dat seq] \
-				[dict get $dat prev_seq] \
-				[dict get $dat meta] \
-				[dict get $dat oob_type] \
-				[dict get $dat oob_data]]
-		set sdata		[list 1 [string length $hdr] [string length [dict get $dat data]]]
-		append sdata	"\n"
-		append sdata	$hdr
-		append sdata	[dict get $dat data]
-
-		return $sdata
-	}
-
-	#>>>
-	method shift_seqs {newseq} { #<<<
-		dict set dat prev_seq	[dict get $dat seq]
-		dict set dat seq		$newseq
-	}
-
-	#>>>
-	method display {} { #<<<
+	proc display {dat} { #<<<
 		set display	""
-		append display "Msg ([self]):\n"
+		append display "Msg:\n"
 		foreach attr {svc type seq prev_seq meta oob_type oob_data data} {
 			if {$attr eq "data"} {
 				package require hash
@@ -84,73 +31,49 @@ oo::class create m2::msg {
 			}
 		}
 
-		return $display
+		set display
 	}
 
 	#>>>
-	method get_data {} { #<<<
-		return $dat
+	proc deserialize {sdata} { #<<<
+		scan $sdata "%\[^\n\]%n" pre idx
+		lassign $pre fmt hdr_len data_len
+		if {$fmt ne "1"} {error "Don't know how to parse format ($fmt)"}
+		set hdrend		[+ $idx $hdr_len]
+
+		lassign [string range $sdata [+ $idx 1] $hdrend] \
+			svc type seq prev_seq meta oob_type oob_data
+
+		dict create \
+				svc			$svc \
+				type		$type \
+				seq			$seq \
+				prev_seq	$prev_seq \
+				data		[string range $sdata [+ $hdrend 1] [+ $hdrend $data_len]] \
+				meta		$meta \
+				oob_type	$oob_type \
+				oob_data	$oob_data
 	}
 
 	#>>>
-	method get {attr} { #<<<
-		dict get $dat $attr
+	proc serialize {dat} { #<<<
+		set data		[dict get $dat data]
+		set hdr			[list \
+				[dict get $dat svc] \
+				[dict get $dat type] \
+				[dict get $dat seq] \
+				[dict get $dat prev_seq] \
+				[dict get $dat meta] \
+				[dict get $dat oob_type] \
+				[dict get $dat oob_data]]
+		return [list 1 [string length $hdr] [string length $data]]\n$hdr$data
 	}
 
 	#>>>
-	method set {attr newval} { #<<<
-		dict set dat $attr $newval
+	proc shift_seqs {dat newseq} { #<<<
+		dict set dat prev_seq [dict get $dat seq]
+		dict set dat seq $newseq
 	}
 
 	#>>>
-	method _accessor {attr args} { #<<<
-		if {[llength $args] == 0} {
-			return [dict get $dat $attr]
-		} else {
-			dict set dat $attr [lindex $args 0]
-		}
-	}
-
-	#>>>
-	method _deserialize {sdata} { #<<<
-		set idx		[string first "\n" $sdata]
-		if {$idx == -1} {
-			error "Invalid serialized msg format"
-		}
-		set preend		[expr {$idx - 1}]
-		set hdrstart	[expr {$idx + 1}]
-		set pre			[string range $sdata 0 $preend]
-		set fmt			[lindex $pre 0]
-		switch -- $fmt {
-			1 {
-				set hdr_len		[lindex $pre 1]
-				set data_len	[lindex $pre 2]
-				set hdrend		[expr {$hdrstart + $hdr_len - 1}]
-				set datastart	[expr {$hdrend + 1}]
-				set dataend		[expr {$datastart + $data_len - 1}]
-				set hdr			[string range $sdata $hdrstart $hdrend]
-				dict set dat data	[string range $sdata $datastart $dataend]
-				foreach h {svc type seq prev_seq meta oob_type oob_data} v $hdr {
-					dict set dat $h	$v
-				}
-			}
-
-			default {
-				error "Don't know what to do with format: ($fmt)"
-			}
-		}
-	}
-
-	#>>>
-
-	method svc {args}		{my _accessor [self method] {*}$args}
-	method type {args}		{my _accessor [self method] {*}$args}
-	method seq {args}		{my _accessor [self method] {*}$args}
-	method prev_seq {args}	{my _accessor [self method] {*}$args}
-	method meta {args}		{my _accessor [self method] {*}$args}
-	method oob_type {args}	{my _accessor [self method] {*}$args}
-	method oob_data {args}	{my _accessor [self method] {*}$args}
-	method data {args}		{my _accessor [self method] {*}$args}
 }
-
-
