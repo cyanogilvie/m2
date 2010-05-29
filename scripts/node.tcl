@@ -141,7 +141,7 @@ oo::class create m2::node {
 		}
 		set idx			[expr {round(rand() * ([llength $remaining] - 1))}]
 		#my _puts stderr "m2::Node::port_for_svc: ($svc) ([dict get $svcs $svc]) idx: ($idx)"
-		return [lindex $remaining $idx]
+		lindex $remaining $idx
 	}
 
 	#>>>

@@ -1,5 +1,19 @@
-#!/usr/bin/env cfkit8.6
+#!/usr/bin/env tclsh8.6
 # vim: ft=tcl foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4
+
+if {![info exists ::tcl::basekit]} {
+	package require platform
+	foreach platform [platform::patterns [platform::identify]] {
+		set tm_path		[file join $env(HOME) .tbuild repo tm $platform]
+		set pkg_path	[file join $env(HOME) .tbuild repo pkg $platform]
+		if {[file exists $tm_path]} {
+			tcl::tm::path add $tm_path
+		}
+		if {[file exists $pkg_path]} {
+			lappend auto_path $pkg_path
+		}
+	}
+}
 
 proc mungekey {args} {}
 #proc mungekey {key} {
@@ -32,8 +46,6 @@ cflib::config create cfg $argv {
 	variable prkey				"/etc/codeforge/authenticator/keys/env/authenticator.pr"
 	variable svc				"authenticator"
 	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
-	variable as_user			"codeforge"
-	variable as_group			"codeforge"
 	variable crypto_devmode		0
 	variable plugin_dir			"/etc/codeforge/authenticator/plugins"
 	variable cookie_shelflife	20000
@@ -42,7 +54,8 @@ cflib::config create cfg $argv {
 		"unix"	{variable db	"/var/lib/codeforge/authenticator/authenticator.sqlite3"}
 		default	{variable db	"authenticator.sqlite3"}
 	}
-	variable daemon				0
+	variable debug				0
+	variable daemon				0		;# obsolete
 }
 cd $hold
 
@@ -51,6 +64,12 @@ proc log {lvl msg args} { #<<<
 }
 
 #>>>
+
+if {[cfg get debug]} {
+	proc ?? {script} {uplevel 1 $script}
+} else {
+	proc ?? {args} {}
+}
 
 package require sqlite3
 package require cflib
@@ -149,43 +168,7 @@ proc init {} { #<<<
 }
 
 #>>>
-proc cleanup {} { #<<<
-}
 
-#>>>
-
-if {[cfg get daemon]} {
-	puts "foo"
-	package require daemon 0.6
-	dutils::daemon create daemon \
-			-name 			"authenticatord" \
-			-as_user		[cfg get as_user] \
-			-as_group		[cfg get as_group] \
-			-gen_pid_file	{return "/var/tmp/authenticator.pid"}
-
-	proc log {lvl msg args} { #<<<
-		daemon log $lvl $msg {*}$args
-	}
-
-	#>>>
-
-	set cmd		[lindex [cfg rest] 0]
-	if {$cmd eq ""} {
-		set cmd		"start"
-	}
-
-	daemon apply_cmd $cmd
-
-	daemon cleanup {
-		cleanup
-	}
-
-	daemon fork {
-		dutils::umask 022
-		init
-	}
-} else {
-	init
-	coroutine coro_main vwait forever
-}
+coroutine coro_init init
+vwait forever
 
