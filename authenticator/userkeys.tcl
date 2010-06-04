@@ -14,8 +14,6 @@ oo::class create Userkeys {
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
-		my log debug [self]
-
 		set userkey_expires_hours	4.0
 		#set userkey_expires_hours	0.01
 		set userkey_grace_minutes	1.0
@@ -31,7 +29,6 @@ oo::class create Userkeys {
 
 	#>>>
 	destructor { #<<<
-		my log debug [self]
 		dict for {user afterid} $expires {
 			after cancel $afterid
 			dict unset expires $user
@@ -43,7 +40,6 @@ oo::class create Userkeys {
 	#>>>
 
 	method userkey_update {user seq prev_seq rest} { #<<<
-		my log debug
 		set jmid	[m2 unique_id]
 		dict set userkeys $user	[lindex $rest 0]
 		m2 pr_jm $jmid $seq ""
@@ -56,12 +52,9 @@ oo::class create Userkeys {
 
 	#>>>
 	method get_user_pbkey {user} { #<<<
-		my log debug
-
 		if {[dict exists $userkeys $user]} {
 			return [dict get $userkeys $user]
 		} elseif {[regexp {^svc%(.*)$} $user x svc_name]} {
-			my log debug "Returning pbkey for svc ($svc_name)"
 			return [svckeys get_pbkey $svc_name]
 		}
 
@@ -99,7 +92,6 @@ oo::class create Userkeys {
 				set type	[lindex $msg 0]
 				switch -- $type {
 					"session_pbkey_update" {
-						my log debug "req($type): got request to update user key"
 						dict set userkeys $user		[lindex $msg 1]
 						m2 ack $seq "updated session key"
 						my _set_expires $user
@@ -125,14 +117,12 @@ oo::class create Userkeys {
 			dict unset expires $user
 		}
 		set interval	[expr {int($userkey_expires_hours * 3600000)}]
-		my log debug "setting send_warn expires for $interval ms"
 		dict set expires $user	[after $interval \
 				[namespace code [list my _send_warn $user]]]
 	}
 
 	#>>>
 	method _send_warn {user} { #<<<
-		my log debug
 		if {[dict exists $expires $user]} {
 			after cancel [dict get $expires $user]
 			dict unset expires $user
@@ -144,17 +134,14 @@ oo::class create Userkeys {
 		}
 
 		m2 jm [dict get $userchans $user] "refresh_key"
-		my log debug "sent refresh_key warning to $user"
 
 		set interval	[expr {int($userkey_grace_minutes * 60000)}]
-		my log debug "setting expunge_key expires for $interval ms"
 		dict set expires $user	[after $interval \
 				[namespace code [list my _expunge_key $user]]]
 	}
 
 	#>>>
 	method _expunge_key {user} { #<<<
-		my log debug
 		if {[dict exists $expires $user]} {
 			after cancel [dict get $expires $user]
 			dict unset expires $user
@@ -163,7 +150,6 @@ oo::class create Userkeys {
 		if {[dict exists $userchans $user]} {
 			m2 jm_can [dict get $userchans $user] "key expired"
 			m2 chans deregister_chan [dict get $userchans $user]
-			my log debug "cancelled userchan for user: ($user) ([dict get $userchans $user])"
 		}
 
 		dict unset userkeys $user

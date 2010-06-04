@@ -10,8 +10,6 @@ oo::class create Crypto {
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
-		my log debug [self]
-
 		set fqkeyfn			[file join $::base [cfg get prkey]]
 
 		if {![file exists $fqkeyfn]} {
@@ -24,9 +22,7 @@ oo::class create Crypto {
 	#>>>
 
 	method crypt_setup {seq data} { #<<<
-		my log debug "" -suppress data
 		lassign $data e_key e_cookie
-		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 
 		set K	[dict with priv_key {list $p $q $dP $dQ $qInv}]
 		set hash	$crypto::rsa::sha1
@@ -38,7 +34,6 @@ oo::class create Crypto {
 			m2 nack $seq "Could not decrypt session_key"
 			return
 		} on ok {session_key} {}
-		my log debug "session_key: ([mungekey $session_key])" -suppress data
 
 		try {
 			crypto::rsa::RSAES-OAEP-Decrypt $K $e_cookie {} $hash $mgf
@@ -49,7 +44,6 @@ oo::class create Crypto {
 		} on ok {cookie} {}
 
 		set session_id	[m2 unique_id]
-		my log debug "allocated session_id: $session_id" -suppress data
 
 		m2 crypto register_chan $session_id $session_key
 		m2 chans register_chan $session_id \
@@ -60,7 +54,6 @@ oo::class create Crypto {
 
 	#>>>
 	method _session_chan {op data} { #<<<
-		my log debug
 		switch -- $op {
 			cancelled {
 				# User session channel cancelled
@@ -72,10 +65,8 @@ oo::class create Crypto {
 				set type	[lindex $msg 0]
 				if {![my handlers_available encreq_$type]} {
 					my log error "no handlers registered for type: (encreq_$type)"
-					my log debug "handlers:\n[my dump_handlers]"
 					m2 nack $seq "No handlers available"
 				} else {
-					my log debug "invoking encreq_$type ($msg)"
 					try {
 						my invoke_handlers encreq_$type \
 								$seq $prev_seq $msg

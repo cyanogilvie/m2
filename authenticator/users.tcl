@@ -11,7 +11,6 @@ oo::class create Users {
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
-		my log debug [self]
 		array set cookie_expires	{}
 		array set pending_cookies	{}
 
@@ -24,7 +23,6 @@ oo::class create Users {
 
 	#>>>
 	destructor { #<<<
-		my log debug $this
 		foreach cookie_idx [array names cookie_expires] {
 			my expire_cookie $cookie_idx
 		}
@@ -73,7 +71,6 @@ oo::class create Users {
 
 	#>>>
 	method expire_cookie {cookie_idx} { #<<<
-		my log debug
 		if {[info exists cookie_expires($cookie_idx)]} {
 			after cancel $cookie_expires($cookie_idx)
 			array unset cookie_expires $cookie_idx
@@ -94,7 +91,6 @@ oo::class create Users {
 	#>>>
 
 	method _login_person {seq prev_seq data} { #<<<
-		my log debug "got encrypted user login"
 		lassign $data type username password
 
 		try {
@@ -200,14 +196,12 @@ oo::class create Users {
 	method _get_user_pbkey {seq prev_seq data} { #<<<
 		set fqun	[lindex $data 1]
 
-		my log debug "dispatching request for fqun: ($fqun)"
 		try {
 			set pbkey	[userkeys get_user_pbkey $fqun]
 		} on error {errmsg options} {
-			my log debug "error fetching pbkey: [dict get $options -errorinfo]"
+			my log error "error fetching pbkey: [dict get $options -errorinfo]"
 			m2 nack $seq "No public key for \"$fqun\""
 		} on ok {} {
-			my log debug "got pbkey, acking"
 			m2 ack $seq $pbkey
 		}
 	}
@@ -216,8 +210,6 @@ oo::class create Users {
 	method _svc_cookie_req {seq prev_seq data} { #<<<
 		set svc			[lindex $data 1]
 
-		my log debug "svc: ($svc)"
-
 		set cookie		[m2 pseudo_bytes 16]	;# WARNING: possible RNG DOS
 		set cookie_idx	[m2 unique_id]
 
@@ -225,14 +217,12 @@ oo::class create Users {
 		set cookie_expires($cookie_idx)	[after [cfg get cookie_shelflife] \
 				[namespace code [list my expire_cookie $cookie_idx]]]
 
-		my log debug "responding for svc: ($svc), cookie_idx: ($cookie_idx)"
 		m2 ack $seq [list $cookie_idx $cookie]
 	}
 
 	#>>>
 	method _userinfo_setup {seq prev_seq data} { #<<<
 		set fqun		[my make_fqun [lindex $data 1]]
-		my log debug "got userinfo chan setup request for user: ($fqun)"
 		try {
 			if {![dict exists $::online $fqun]} {
 				throw [list no_user $fqun] "No active record for \"$fqun\""

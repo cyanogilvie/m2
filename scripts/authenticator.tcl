@@ -83,10 +83,7 @@ cflib::pclass create m2::authenticator {
 				[my code _login_resp [info coroutine]]
 
 		$signals(login_pending) set_state 1
-		my log debug "awaiting response" -suppress password
-		lassign [yield] \
-				ok last_login_message
-		my log debug "got response: ($ok $last_login_message)" -suppress password
+		lassign [yield] ok last_login_message
 
 		if {$ok} {
 			set fqun	$username
@@ -105,13 +102,11 @@ cflib::pclass create m2::authenticator {
 			my rsj_req [lindex $login_chan 0] \
 					[list session_pbkey_update $pbkey] \
 					[my code _session_pbkey_chan [info coroutine]]
-			my log debug "awaiting session_pbkey_update response" -suppress password
 			set resp	[yield]
-			my log debug "got session_pbkey_update response: ($resp)" -suppress password
 			if {[lindex $resp 0]} {
 				$signals(authenticated) set_state 1
 			} else {
-				my log debug "error updating session key: ([lindex $resp 1])" -suppress password
+				my log error "error updating session key: ([lindex $resp 1])" -suppress password
 				m2 jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
 			}
 		} else {
@@ -138,14 +133,13 @@ cflib::pclass create m2::authenticator {
 		}
 
 		# Get a cookie from auth backend <<<
-		my log debug "authenticator wa cookie o kudasai"
+		#my log debug "authenticator wa cookie o kudasai"
 		try {
 			my enc_chan_req [list "cookie_o_kudasai" $svc]
 		} on error {errmsg options} {
 			error "Error: auth server won't give us a cookie: $errmsg"
 		} on ok {res} {
 			lassign $res cookie_idx cookie
-			my log debug "Got cookie index ($cookie_idx)"
 		}
 		# Get a cookie from auth backend >>>
 
@@ -163,9 +157,7 @@ cflib::pclass create m2::authenticator {
 				[my code _login_resp [info coroutine]]
 
 		$signals(login_pending) set_state 1
-		my log debug "awaiting response"
 		lassign [yield] ok last_login_message
-		my log debug "got response: ($ok $last_login_message)"
 
 		if {$ok} {
 			set fqun	"svc%$svc"
@@ -244,7 +236,6 @@ cflib::pclass create m2::authenticator {
 		if {![$signals(established) state]} {
 			error "No encrypted channel to the authenticator established yet"
 		}
-		my log debug "sending request on $enc_chan"
 		my rsj_req $enc_chan [list get_user_pbkey $fqun] [list apply {
 			{coro args} {$coro $args}
 		} [info coroutine]]
@@ -337,8 +328,7 @@ cflib::pclass create m2::authenticator {
 			return $attribs($attrib)
 		} else {
 			if {[llength $args] == 1} {
-				my log debug "attrib not set, using fallback"
-				return [lindex $args 0]
+				lindex $args 0
 			} else {
 				error "No attrib ($attrib) defined"
 			}
@@ -371,7 +361,7 @@ cflib::pclass create m2::authenticator {
 		}
 		set res	[my _simple_req [list set_pref $pref $newvalue]]
 		if {[lindex $res 0]} {
-			my log debug "pref updated"
+			#my log debug "pref updated"
 		} else {
 			#my log error "Authenticator::set_pref: error setting pref ($pref) to ($newvalue): [lindex $res 1]"
 			error "error setting pref ($pref) to ($newvalue): [lindex $res 1]"
@@ -385,7 +375,7 @@ cflib::pclass create m2::authenticator {
 		}
 		set res	[my _simple_req [list change_password $old $new1 $new2]]
 		if {[lindex $res 0]} {
-			my log debug "password updated" -suppress {old new1 new2}
+			#my log debug "password updated" -suppress {old new1 new2}
 		} else {
 			error [lindex $res 1]
 		}
@@ -451,13 +441,11 @@ cflib::pclass create m2::authenticator {
 	#>>>
 	method _crypt_setup {} { #<<<
 		set pending_cookie	[my generate_key]
-		my log debug "negotiating session_key ([my mungekey $keys(main)]), cookie: ([my mungekey $pending_cookie])"
 
 		set n		[dict get $pubkey n]
 		set e		[dict get $pubkey e]
 		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
-		my log debug "e_key length: ([string length $e_key]), e_cookie length: ([string length $e_cookie])"
 		#my req "authenticator" [list crypt_setup \
 		#	[crypto::armour $e_key] \
 		#	[crypto::armour $e_cookie] \
@@ -476,7 +464,6 @@ cflib::pclass create m2::authenticator {
 					try {
 						set pdata			[my decrypt $keys(main) [dict get $msg data]]
 						set was_encrypted	1
-						my log debug "decrypted ([dict get $msg type]) with key ([my mungekey $keys(main)])" -suppress {cookie data}
 					} on error {errmsg options} {
 						my log error "error decrypting message: $errmsg" \
 								-suppress {cookie data}
@@ -497,7 +484,7 @@ cflib::pclass create m2::authenticator {
 					if {$pdata eq $pending_cookie} {
 						$signals(established) set_state 1
 					} else {
-						my log debug "cookie challenge from server did not match" -suppress {cookie data}
+						my log error "cookie challenge from server did not match" -suppress {cookie data}
 					}
 					#>>>
 				}
@@ -549,14 +536,13 @@ cflib::pclass create m2::authenticator {
 			}
 
 			nack { #<<<
-				my log debug "nack'ed, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
+				#my log debug "nack'ed, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
 				after idle [list $coro [list 0 [dict get $msg data]]]
 				#>>>
 			}
 
 			pr_jm { #<<<
 				set tag		[lindex [dict get $msg data] 0]
-				my log debug "tag: ($tag)"
 				switch -- $tag {
 					login_chan { #<<<
 						if {![info exists login_chan]} {
@@ -652,7 +638,6 @@ cflib::pclass create m2::authenticator {
 								set new_user_fqun	[lindex [dict get $msg data] 1]
 								if {$new_user_fqun ni [dict get $admin_info connected_users]} {
 									dict lappend admin_info connected_users $new_user_fqun
-									my log debug "Firing connected_users_changed handler (user_connected): [my dump_handlers]"
 									invoke_handlers connected_users_changed
 								}
 								#>>>
@@ -663,7 +648,6 @@ cflib::pclass create m2::authenticator {
 								if {$idx != -1} {
 									dict set admin_info connected_users \
 											[lreplace [dict get $admin_info connected_users] $idx $idx]
-									my log debug "Firing connected_users_changed handler (user_disconnected): [my dump_handlers]"
 									my invoke_handlers connected_users_changed
 								}
 								#>>>
@@ -689,14 +673,13 @@ cflib::pclass create m2::authenticator {
 					[dict get $msg seq] == [lindex $login_chan 0]
 				} {
 					unset login_chan
-					my log debug "Got login_chan cancel, calling logout"
+					#my log debug "Got login_chan cancel, calling logout"
 					my logout
 				} else {
 					set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
 					if {[info exists login_subchans($key)]} {
 						switch -- $login_subchans($key) {
 							userinfo { #<<<
-								my log debug "userinfo channel cancelled"
 								$signals(got_perms) set_state 0
 								$signals(got_attribs) set_state 0
 								$signals(got_prefs) set_state 0
@@ -707,12 +690,10 @@ cflib::pclass create m2::authenticator {
 								#>>>
 							}
 							admin_chan { #<<<
-								my log debug "admin_chan cancelled"
 								set admin_info	""
 								#>>>
 							}
 							session_chan { #<<<
-								my log debug "session_chan cancelled"
 								#>>>
 							}
 							default { #<<<
@@ -763,17 +744,13 @@ cflib::pclass create m2::authenticator {
 				set op	[lindex [dict get $msg data] 0]
 				switch -- $op {
 					refresh_key { #<<<
-						my log debug "jm(session_pbkey_chan): got notification to renew session keypair"
-						my log debug "jm(session_pbkey_chan): generating keypair"
 						set K		[crypto::rsa::RSAKG 1024 0x10001]
-						my log debug "jm(session_pbkey_chan): done generating keypair"
 						# TODO: need a replacement for this
 						#crypto::rsa_free_key $session_prkey
 						set pbkey	[dict create \
 								n	[dict get $K n] \
 								e	[dict get $K e]]
 						set session_prkey	$K
-						my log debug "jm(session_pbkey_chan): sending public key to backend"
 						my rsj_req \
 								[lindex $session_pbkey_chan 0] \
 								[list session_pbkey_update $pbkey] \
@@ -793,7 +770,6 @@ cflib::pclass create m2::authenticator {
 					[info exists session_pbkey_chan] &&
 					[lindex $session_pbkey_chan 0] == [dict get $msg seq]
 				} {
-					my log debug "got cancel on session_pbkey_chan"
 					unset session_pbkey_chan
 					my logout
 				} else {
@@ -890,12 +866,10 @@ cflib::pclass create m2::authenticator {
 						}
 
 						"+" {
-							my log debug "setting attribs([string range $attrib 1 end]) to ($value)"
 							set attribs([string range $attrib 1 end])	$value
 						}
 
 						default {
-							my log debug "setting attribs($attrib) to ($value)"
 							set attribs($attrib)	$value
 						}
 					}
@@ -906,7 +880,6 @@ cflib::pclass create m2::authenticator {
 
 			prefs { #<<<
 				foreach {pref value} [lindex $data 1] {
-					my log debug "Applying pref update: ($pref) ($value)"
 					switch -- [string index $pref 0] {
 						"-" {
 							array unset prefs [string range $pref 1 end]

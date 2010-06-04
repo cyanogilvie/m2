@@ -23,8 +23,6 @@ cflib::pclass create m2::connector {
 		set svc		$a_svc
 		set old_lifecycle	""
 
-		my log debug [self]
-
 		#set log_cmd	[my code log]	;# Let Refcounted log to us
 
 		array set signals	{}
@@ -51,13 +49,11 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	destructor { #<<<
-		my log debug "[self] svc: [expr {[info exists svc] ? $svc : {not set}}]"
 		[$auth signal_ref authenticated] detach_output \
 				[my code _authenticated_changed]
 		$dominos(need_reconnect) detach_output [my code _reconnect]
 		$signals(connect_ready) detach_output [my code _connect_ready_changed]
 		my disconnect
-		my log debug "[self] done"
 	}
 
 	#>>>
@@ -91,13 +87,11 @@ cflib::pclass create m2::connector {
 
 	#>>>
 	method req_jm {op data cb} { #<<<
-		puts "my coro: ([info coroutine])"
 		my waitfor authenticated
 		$auth rsj_req $e_chan [list $op $data] \
 				[my code _req_resp [info coroutine] $cb]
 
 		lassign [yield] ok resp
-		puts "ok: ($ok), resp: ($resp)"
 
 		if {$ok} {
 			return $resp
@@ -196,14 +190,12 @@ cflib::pclass create m2::connector {
 	#>>>
 	method _connect_ready_changed {newstate} { #<<<
 		if {$newstate} {
-			my log debug "setting reconnect in motion"
 			$dominos(need_reconnect) tip
 		}
 	}
 
 	#>>>
 	method _reconnect {} { #<<<
-		my log debug "reconnecting to $svc"
 		if {[$signals(connected) state]} {
 			my disconnect
 		}
@@ -229,8 +221,7 @@ cflib::pclass create m2::connector {
 				}
 				$signals(connected) set_state 1
 				set svc_cookie	[$auth decrypt_with_session_prkey [dict get $msg_data data]]
-				
-				my log debug "sending proof of identity" -suppress data
+
 				set seq		[$auth rsj_req $e_chan $svc_cookie [my code _auth_resp]]
 				#>>>
 			}
@@ -250,7 +241,6 @@ cflib::pclass create m2::connector {
 					if {$pdata eq $cookie} {
 						set e_chan			[dict get $msg_data seq]
 						set e_chan_prev_seq	[dict get $msg_data prev_seq]
-						my log debug "got matching cookie, storing e_chan ($e_chan) and registering it with auth::register_jm_key using ([$auth mungekey $skey])" -suppress data
 						$auth register_jm_key $e_chan $skey
 					} else {
 						my log error "did not get correct response from component: expecting: ([$auth mungekey $cookie]) got: ([$auth mungekey $pdata]), decrypted with ([$auth mungekey $skey])\nencrypted data: ([$auth mungekey [dict get $msg_data data]])" -suppress data
@@ -278,7 +268,6 @@ cflib::pclass create m2::connector {
 	method _auth_resp {msg_data} { #<<<
 		switch -- [dict get $msg_data type] {
 			ack {
-				my log debug "got ack: ([dict get $msg_data data])"
 				$signals(authenticated) set_state 1
 			}
 
@@ -341,12 +330,9 @@ cflib::pclass create m2::connector {
 	method _authenticated_changed {newstate} { #<<<
 		if {$newstate} {
 			try {
-				my log debug "requesting public key for ($svc) ..."
 				#set pbkey	[crypto::rsa_load_public_key [$auth get_svc_pbkey $svc]]
 				set pbkey_asc	[$auth get_svc_pbkey $svc]
-				my log debug "got public key ascii format for ($svc), loading into key ..."
 				set pbkey		[crypto::rsa::load_asn1_pubkey_from_value $pbkey_asc]
-				my log debug "got public key for ($svc)"
 			} on error {errmsg options} {
 				my log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"
 			} on ok {} {

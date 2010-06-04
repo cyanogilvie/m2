@@ -17,7 +17,6 @@ oo::class create User {
 
 		set fqun					[users make_fqun $name]
 		set baselog_instancename	$fqun
-		my log debug [self]
 
 		set userchans_obj	[my _get_userchans_obj]
 	}
@@ -29,7 +28,6 @@ oo::class create User {
 		if {[info exists userchans_obj]} {
 			if {[info object isa object $userchans_obj]} {
 				set remaining		[$userchans_obj remove_session [self]]
-				my log debug "Remaining sessions (after removing this one): $remaining"
 				if {$remaining == 0} {
 					if {
 						[info exists fqun] &&
@@ -83,7 +81,6 @@ oo::class create User {
 	#>>>
 	method login_person {seq password} { #<<<
 		# Keep in sync with User::login_svc
-		my log debug "new login request" -suppress password
 		$userchans_obj set_dat type "user"
 		$userchans_obj check_login_person $seq $password
 		$userchans_obj add_session [self] $seq
@@ -101,7 +98,6 @@ oo::class create User {
 	#>>>
 	method login_svc {seq svc cookie_idx e_cookie} { #<<<
 		# Keep in sync with User::login_person
-		my log debug "svc: ($svc) cookie_idx: ($cookie_idx)" -suppress e_cookie
 		$userchans_obj set_dat type "svc"
 
 		set svc_pbkey	[svckeys get_pbkey $svc]
@@ -147,7 +143,6 @@ oo::class create User {
 
 	#>>>
 	method _session_chan_cb {op data} { #<<<
-		my log debug "" -suppress data
 		switch -- $op {
 			cancelled {
 				my _logout

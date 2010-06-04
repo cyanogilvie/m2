@@ -6,15 +6,12 @@ oo::class create Svckeys {
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
-		my log debug [self]
-
 		users register_handler userreq_get_svc_pubkey \
 				[namespace code {my _userreq_get_pbkey}]
 	}
 
 	#>>>
 	destructor { #<<<
-		my log debug [self]
 		users deregister_handler userreq_get_svc_pubkey \
 				[namespace code {my get_pbkey}]
 
@@ -47,7 +44,6 @@ oo::class create Svckeys {
 
 	method _userreq_get_pbkey {user seq prev_seq data} { #<<<
 		set svc 	[file tail $data]
-		my log debug "svc: ($svc)"
 
 		try {
 			my get_pbkey_asc $svc
@@ -55,7 +51,6 @@ oo::class create Svckeys {
 			my log error "\nerror getting ascii public key: $errmsg\n[dict get $options -errorinfo]"
 			m2 nack $seq $errmsg
 		} on ok {pbkey} {
-			my log debug "returning pbkey for ($svc)"
 			m2 ack $seq $pbkey
 		}
 	}

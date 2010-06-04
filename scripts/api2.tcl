@@ -733,7 +733,7 @@ cflib::pclass create m2::api2 {
 			encrypt { #<<<
 				lassign $args session_id msg
 
-				my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
+				#my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
 				tailcall my encrypt [dict get $session_keys $session_id] $msg
 				#>>>
 			}

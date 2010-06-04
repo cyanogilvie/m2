@@ -18,7 +18,6 @@ oo::class create Userchans {
 	constructor {fqun} { #<<<
 		if {[self next] ne {}} next
 
-		my log debug [self]
 		set dat					[dict create]
 		set uinfo				[dict create]
 		set active_profile		""
@@ -72,8 +71,6 @@ oo::class create Userchans {
 
 	#>>>
 	destructor { #<<<
-		puts stderr "Userchans::destructor: [self] ([dict get $dat fqun])"
-		my log debug
 		my variable jmid
 
 		if {[info exists jmid]} {
@@ -103,7 +100,6 @@ oo::class create Userchans {
 	method add_session {userobj seq} { #<<<
 		my variable jmid
 		dict set sessions $userobj $seq
-		my log debug "Added session for ($userobj): ($sessions)"
 
 		if {![dict exists $::online [dict get $dat fqun]]} {
 			set jmid				[m2 unique_id]
@@ -173,7 +169,6 @@ oo::class create Userchans {
 	#>>>
 	method check_login_person {seq password} { #<<<
 		if {[dict exists $::online [dict get $dat fqun]]} {
-			my log debug "online users: [dict keys $::online]"
 			throw {duplicate_login} "User already logged in elsewhere"
 		}
 
@@ -195,7 +190,6 @@ oo::class create Userchans {
 
 	#>>>
 	method userinfo_jm_setup {seq} { #<<<
-		my log debug
 		set ucfg	[dict merge {
 			perms	{}
 			attribs	{}
@@ -234,7 +228,6 @@ oo::class create Userchans {
 		}
 
 		dict set dat prefs	[dict get $ucfg prefs]
-		my log debug "Sending prefs jm"
 		m2 pr_jm $userinfo_chan $seq [list prefs [dict get $dat prefs]]
 
 		if {[llength $profiles] > 0} {
@@ -274,7 +267,6 @@ oo::class create Userchans {
 							[dict get $ucfg perms] \
 							[dict get $ucfg perms.$profile] \
 							]]
-					my log debug "perms: [dict get $ucfg perms]"
 				}
 				if {[dict exists $ucfg attribs.$profile]} {
 					dict set ucfg attribs [dict merge \
@@ -288,17 +280,13 @@ oo::class create Userchans {
 		dict set dat perms		[dict get $ucfg perms]
 		dict set dat attribs	[dict get $ucfg attribs]
 
-		my log debug "Sending perms jm"
 		m2 pr_jm $userinfo_chan $seq [list perms [dict get $dat perms]]
-		my log debug "Sending attribs jm"
 		m2 pr_jm $userinfo_chan $seq [list attribs [dict get $dat attribs]]
 	}
 
 	#>>>
 	method kick {} { #<<<
-		my log debug
 		foreach userobj [dict keys $sessions] {
-			my log debug "Killing User instance for \"[dict get $dat fqun]\": ($userobj)"
 			if {[info object isa object $userobj]} {
 				$userobj destroy
 			} else {
@@ -325,8 +313,6 @@ oo::class create Userchans {
 
 	#>>>
 	method _change_password {seq prev_seq rest} { #<<<
-		my log debug "" -suppress rest
-
 		try {
 			lassign $rest old new1 new2
 
@@ -357,8 +343,6 @@ oo::class create Userchans {
 	method _set_pref {seq prev_seq rest} { #<<<
 		lassign $rest pref newvalue
 
-		my log debug "pref: ($pref) newvalue: ($newvalue)"
-
 		try {
 			set upath_parts		[split [string trim [dict get $dat upath] /] /]
 			set simple_username	[lindex $upath_parts end]
@@ -374,7 +358,6 @@ oo::class create Userchans {
 		}
 
 		if {[info exists userinfo_chan]} {
-			my log debug "Sending jm update for pref ($pref) := ($newvalue)"
 			m2 jm $userinfo_chan [list prefs [list $pref $newvalue]]
 		} else {
 			my log error "no userchan exists for user, even though we are answering a request from that user"
@@ -390,7 +373,6 @@ oo::class create Userchans {
 
 	#>>>
 	method _chan_cb {op data} { #<<<
-		my log debug "" -suppress data
 		switch -- $op {
 			cancelled {
 				my _logout
@@ -416,7 +398,6 @@ oo::class create Userchans {
 							set registered \
 									[lindex [dict get $options -errorcode] 2]
 							my log error $errmsg
-							my log debug "handlers:\n$registered"
 
 							m2 nack $seq "No handlers available"
 							#>>>
@@ -440,7 +421,6 @@ oo::class create Userchans {
 	method _userinfo_chan_cb {op data} { #<<<
 		switch -- $op {
 			cancelled {
-				my log debug "cancelled: all destinations for userinfo disconnected"
 				if {[info exists userinfo_chan]} {
 					unset userinfo_chan
 				}
@@ -456,7 +436,6 @@ oo::class create Userchans {
 							m2 nack $seq "Not waiting for a profile selection"
 						} else {
 							set profile	[lindex $msg 1]
-							my log debug "Got profile selection: ($profile)"
 							m2 ack $seq ""
 
 							$profile_wait $profile
@@ -481,7 +460,6 @@ oo::class create Userchans {
 	#>>>
 	method _getupath {} { #<<<
 		set fqun	[dict get $dat fqun]
-		my log debug "fqun: $fqun"
 
 		set typesplit	[split $fqun %]
 		if {[llength $typesplit] > 1} {

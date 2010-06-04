@@ -141,7 +141,7 @@ cflib::pclass create m2::component {
 			my log warning "nacking $seq: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq "Cannot get public key for \"$fqun\""
 		} on ok {user_pbkey} {
-			my log debug "got user pbkey, encrypting mycookie with it and acking"
+			#my log debug "got user pbkey, encrypting mycookie with it and acking"
 			set n	[dict get $user_pbkey n]
 			set e	[dict get $user_pbkey e]
 			#my log debug "Encrypting cookie2 with n: $n, e: $e"

@@ -153,7 +153,6 @@ oo::class create m2::userinfo {
 	method _setup_userinfo_chan_resp {msg} { #<<<
 		switch -- [dict get $msg type] {
 			ack { #<<<
-				my log debug "ok!"
 				#>>>
 			}
 
