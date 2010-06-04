@@ -95,7 +95,14 @@ cflib::pclass create m2::component {
 				lassign [string range $data 6 end] e_skey e_tail iv
 				#my log debug "e_skey (base64): [binary encode base64 $e_skey]"
 
-				set skey	[crypto::rsa::RSAES-OAEP-Decrypt [dict with prkey {list $p $q $dP $dQ $qInv}] $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+				set K	[list \
+						[dict get $prkey p] \
+						[dict get $prkey q] \
+						[dict get $prkey dP] \
+						[dict get $prkey dQ] \
+						[dict get $prkey qInv] \
+				]
+				set skey	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 				#my log debug "skey base64: [binary encode base64 $skey]"
 				set ks		[crypto::blowfish::init_key $skey]
 				set tail	[encoding convertfrom utf-8 [crypto::blowfish::decrypt_cbc $ks $e_tail $iv]]

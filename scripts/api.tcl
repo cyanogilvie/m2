@@ -37,8 +37,10 @@ cflib::pclass create m2::api {
 		array set svc_signals	{}
 		set neighbour_info	[dict create \
 				type		application \
-				debug_name	[file tail $::argv0] \
 		]
+		if {[info exists ::argv0]} {
+			dict set neighbour_info debug_name	[file tail $::argv0]
+		}
 
 		sop::domino new dominos(need_reconnect) -name "[self] need_reconnect"
 		sop::signal new signals(connected) -name "[self] connected"

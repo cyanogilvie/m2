@@ -134,14 +134,17 @@ oo::class create m2::node {
 		if {![dict exists $svcs $svc]} {
 			error "Service ($svc) not available"
 		}
-		set tmp			[cflib::intersect3 [dict get $svcs $svc] $excl]
-		set remaining	[lindex $tmp 0]
+		set remaining	{}
+		foreach port [dict get $svcs $svc] {
+			if {$port ne $excl} {
+				lappend remaining	$port
+			}
+		}
 		if {[llength $remaining] == 0} {
 			error "Service ($svc) not available"
 		}
-		set idx			[expr {round(rand() * ([llength $remaining] - 1))}]
 		#my _puts stderr "m2::Node::port_for_svc: ($svc) ([dict get $svcs $svc]) idx: ($idx)"
-		lindex $remaining $idx
+		lindex $remaining [expr {int(rand() * [llength $remaining])}]
 	}
 
 	#>>>
@@ -173,8 +176,7 @@ oo::class create m2::node {
 
 	#>>>
 	method all_ports {args} { #<<<
-		set tmp	[cflib::intersect3 [dict keys $ports] $args]
-		return [lindex $tmp 0]
+		lindex [cflib::intersect3 [dict keys $ports] $args] 0
 	}
 
 	#>>>
@@ -209,14 +211,11 @@ oo::class create m2::node {
 				}
 
 				2 {
-					set upip	[lindex $tmp 0]
-					set upport	[lindex $tmp 1]
+					lassign $tmp upip upport
 				}
 
 				3 {
-					set upip	[lindex $tmp 0]
-					set upport	[lindex $tmp 1]
-					set flags	[lindex $tmp 2]
+					lassign $tmp upip upport flags
 				}
 
 				default {
@@ -284,8 +283,7 @@ oo::class create m2::node {
 		log debug "node::_accept_inbound: con: ($con) args: ($args)"
 		set queue [netdgram::queue new]
 		$queue attach $con
-		m2::port new inbound \
-				[list -server [self]] $queue $args
+		m2::port new inbound [list -server [self]] $queue $args
 	}
 
 	#>>>
