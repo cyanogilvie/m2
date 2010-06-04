@@ -112,24 +112,22 @@ cflib::pclass create m2::locks::client {
 
 	#>>>
 
-	method _lock_cb {msg_data} { #<<<
-		my log debug [self]
-		dict with msg_data {}
-		set jmid	$seq
+	method _lock_cb {msg} { #<<<
+		set jmid	[dict get $msg seq]
 
-		switch -- $type {
+		switch -- [dict get $msg type] {
 			pr_jm { #<<<
 				if {[info exists lock_jmid]} {
 					error "Unexpected pr_jm ($jmid), already have lock_jmid: ($lock_jmid)"
 				}
 
 				set lock_jmid		$jmid
-				set lock_prev_seq	$prev_seq
+				set lock_prev_seq	[dict get $msg prev_seq]
 				$signals(locked) set_state 1
 				#>>>
 			}
 			jm { #<<<
-				my lock_jm_update $data
+				my lock_jm_update [dict get $msg data]
 				#>>>
 			}
 			jm_can { #<<<
@@ -142,14 +140,14 @@ cflib::pclass create m2::locks::client {
 					unset lock_prev_seq
 					$signals(locked) set_state 0
 					my invoke_handlers lock_lost
-					my invoke_handlers lock_lost_detail $data
+					my invoke_handlers lock_lost_detail [dict get $msg data]
 				} else {
 					error "Unknown jmid cancelled: ($jmid)"
 				}
 				#>>>
 			}
 			default { #<<<
-				my log error "unexpected type: ($type)"
+				my log error "unexpected type: ([dict get $msg type])"
 				#>>>
 			}
 		}
@@ -176,7 +174,7 @@ cflib::pclass create m2::locks::client {
 			return
 		}
 		$connector chan_req_async $lock_jmid [list "_heartbeat"] [list apply {
-			{msg_data} {
+			{msg} {
 				# we don't really care
 			}
 		}]
