@@ -1,0 +1,60 @@
+application "m2test_backend" { #<<<
+	version 0.1
+
+	runtime cfkit8.6
+
+	requires {
+		m2
+		netdgram::tcp
+		netdgram::uds
+		netdgram::jssocket
+		sop
+		dsl
+		cflib
+	}
+
+	files {
+		backend
+	}
+
+	platform tcl
+	platform linux-glibc2.3-ix86 {
+		requires {
+			sockopt
+			unix_sockets
+		}
+	}
+}
+
+#>>>
+application "m2test_frontend" { #<<<
+	version 0.1
+
+	runtime cfkit8.6
+
+	requires {
+		m2
+		netdgram::tcp
+		netdgram::uds
+		netdgram::jssocket
+		sop
+		dsl
+		cflib
+	}
+
+	files {
+		frontend
+	}
+
+	platform tcl
+	platform linux-glibc2.3-ix86 {
+		requires {
+			sockopt
+			unix_sockets
+		}
+	}
+}
+
+#>>>
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

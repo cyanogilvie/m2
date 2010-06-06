@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<overlay id="m2_example_chat"
+	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+	<script type="application/x-javascript" src="chrome://m2/content/hash.js"/>
+	<script type="application/x-javascript" src="chrome://m2/content/tcllist.js"/>
+	<script type="application/x-javascript" src="chrome://m2/content/m2.js"/>
+	<statusbar id="status-bar" class="chromeclass-status">
+		<statusbarpanel class="statusbarpanel-iconic" id="openchat" onclick="alert('hello, chat');">
+			<image src="chrome://m2_example/content/images/chat_icon.png" width="16" height="16" onclick="alert('hello chat');"/>
+		</statusbarpanel>
+	</statusbar>
+</overlay>

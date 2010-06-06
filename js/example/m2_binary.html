@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>M2 Binary Data Test</title>
+		<script type="text/javascript" src="webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript">
+			g_rng = new cfcrypto.rng();
+
+			jsSocket.swf = "jssocket/jsSocket.swf";
+			var auth = new m2.api({
+				host: '127.0.0.1',
+				port: 5301
+			});
+
+			signals = {};
+
+			signals.ready = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			signals.ready.attach_input(auth.signal_ref('connected'));
+			signals.ready.attach_input(auth.svc_signal('echo'));
+
+			function signal_display(id, state) {
+				var node;
+				node = document.getElementById(id);
+				console.log('@@ auth signal '+id+' state changed: '+state);
+				if (node === null) {
+					console.error('No such node: ('+id+')');
+				} else {
+					if (state) {
+						node.innerHTML = '<font color="green">TRUE<\/font>';
+					} else {
+						node.innerHTML = '<font color="red">FALSE<\/font>';
+					}
+				}
+			}
+
+			function ready_changed(newstate) {
+				var button1, button2;
+				button1 = document.getElementById('send');
+				button2 = document.getElementById('send_binary');
+				if (newstate) {
+					button1.disabled = false;
+					button2.disabled = false;
+				} else {
+					button1.disabled = true;
+					button2.disabled = true;
+				}
+			}
+
+			function init() {
+				var form;
+
+				auth.signal_ref('connected').attach_output(function(newstate){
+						signal_display('connected', newstate);
+				});
+				auth.svc_signal('echo').attach_output(function(newstate){
+						signal_display('svc_available', newstate);
+				});
+				signals.ready.attach_output(function(newstate){
+						signal_display('ready', newstate);
+				});
+
+				signals.ready.attach_output(ready_changed);
+			}
+
+			function resp(msg) {
+				var node, img;
+				node = document.getElementById('feedback');
+				img = document.getElementById('output_image');
+				console.log('Got response: ', msg);
+				node.innerHTML = 'Got response: '+msg.type+', '+msg.data.length+' characters of data';
+				img.setAttribute('src', 'data:image/png;base64,'+msg.data);
+
+			}
+
+			function send_req() {
+				var node, srcdata;
+				srcdata = document.getElementById('base64data');
+				node = document.getElementById('feedback');
+				node.innerHTML = '... sending request';
+				auth.req('echo', srcdata.value, resp);
+				node.innerHTML = '... sent request';
+			}
+
+			function binary_resp(msg) {
+				var node, img;
+				node = document.getElementById('feedback');
+				img = document.getElementById('output_image');
+				console.log('Got response: ', msg);
+				node.innerHTML = 'Got response: '+msg.type+', '+msg.data.length+' characters of data';
+				//img.setAttribute('src', 'data:image/png;base64,'+Base64.encode(Utf8.decode(msg.data)));
+				img.setAttribute('src', 'data:image/png;base64,'+Base64.encode(msg.data));
+
+			}
+
+			function send_binary_req() {
+				var node, srcdata, t1, t2, img, tap, m2tap;
+				img = document.getElementById('output_image');
+				t1 = document.getElementById('base64data').value;
+				console.log('foo');
+				t2 = Base64.decode(t1);
+				console.log('bar');
+				srcdata = Utf8.decode(t2);
+				//srcdata = t2;
+				console.log('baz, '+srcdata.length);
+				node = document.getElementById('feedback');
+				node.innerHTML = '... sending request';
+				auth.req('echo', srcdata, binary_resp);
+			}
+		</script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();" onload="init();">
+		<form id="authtest" action="" onsubmit="return false;">
+			Binary data (in base64):<br />
+			<textarea id="base64data" rows="15" cols="80">wolQTkcNChoKAAAADUlIRFIAAAAQAAAAEAgGAAAAH8Ozw79hAAAABHNCSVQICAgIfAhkwogAAAAJcEhZcwAADcOXAAANw5cBQijCm3gAAAAZdEVYdFNvZnR3YXJlAHd3dy5pbmtzY2FwZS5vcmfCm8OuPBoAAAMfSURBVDjCjV3Ck01oHHUcwobCn8O/f2d2ZjfDmyTDmsKEwrYxa8KzNsKmJCnDlSo5JMORwrbCmD0oFHoQBCvDqEHDtMKgwofCisKRw6pJFMK9KApqLsKewrzCiB48BA96csKswqZiKQQ/EMObEBM3w4FsMcKhw41uwrLDs8K5wrMzw7PDs2JLw7Q9wr/Dr3N4w6FRIsOCw55UwqvDlREUT0gxPU3Cok4AClN+UUHDrhIZXzjCjsKzwrTCt8KvbgHCqsOVwqomJy/CiyFvwrYfbsKZHE3DjMK0EhMTYcOUbMOMw5VCYi3DtHRIw5XDmypRw684wo7Ck8OeBlTCq1UtwoXDrMK7dCB+YMOfwqwqTR46w4nCuHnCnMK2RMOsZE1uZjdYTsKuwrLCssK5wow5d8KnZ2xYV1XCqMKnHcOHSTXCgMKYciEdwogfwpx4d8K8w7TDmsOQW0zDpCfDqUgHTzx8w7FJwojDqcOTw73CjB4cI3ljwrvClAzCh8OHJC/CrwPCqMKZwpnCmXHCscKyw4XDslxvw6HDhcOBV2jDiS7CrWzCh8KWw6zCsMKew5bCuMOWw7nCjUA8ElLCmsK1XcOMwrIiaMKFw7TDjlZCFcOqaUPCrMOsw5nDsEzDg37DrMOQw5PDuMOiw6LCi8KLKy3Cvml/w43Dr8KdX29dRcK6BhvCnzYoDcObDMKcw6shOMK7bRfCv8Ocf15LXk7CpSPCscOqw5MHw7DDhMODw41cLsOHC8K3w4d5LEp+NzfDpn1MbVI5OUjCt8OuJTciworCnExpFcOpw5HCvsOhXmJpw6PCi8OLw59Zwp3DhcO4w7LCv8OjPMOdwqrCh8ONw7kWw6Irw4Yewr3Cl8OBw4oAJcK1D8KrYsKgIl0xwpTCoH3DpcOjwonCi8KbwrnCrCRLwqQkAHTDqRLDjcKFAH8tYsOowr4yw4fCp8OHaEsEGmLCo00sSsOpwqzCkMKtw7hrIcKbw6l1w5xkwpfCi8Kfw7xIw6vDpwhbbMOidcOhw7rDtzfCucOjYA/Cpx/Cn8KiR8O3YsKrAgYmw7xlInZWN1TCon4ww77CtMKPw5XDrl8lwqsrwrx6wojCt8OqEcO+wpRCK8KHacKZPMO0w5QERcKzwovClBRBw4jDiEhXAcOhSsOuwp7DssKRwoZZwrPDj8OVT8O9YR4+cMKYw6LChEFTNwhXEiTCghNPwo7Dkl/Dnk9GRigBwr54wrjCvkvDtH4uUMK+wp5VIsOCw4zCmUc+w6zCjAbDj8OpV8KDQsKfw65nNVkmw5/CtsOJw5Utw4pHw6/CosKoworDpMKUSSodAsOxacOOw4VBwrbCmMO7w6zDm8KvLj7CrwFUwqQvwphLw4XCjcO0woPCgsK/w6VtAcKQWh3CrGHCjScuwrvCssODTsK2TcODa8OQw7woDmTDkcOYUsKRPsO/f8KZCmJlw69hw4ozw4HDmcOtwq7DpEjChBpKwrHCtMKNwrleQMOVTMOUfCHCkMKEw49VwqRfchzDh8O/D2DCj8OOU1LDiF5AMcKpInU3woDDmMKywoFwRcKFw7pjw4dxLsOtw63DvwN8CcKZVMOeCE7CiwAAAABJRU5Ewq5CYMKC</textarea><br />
+			<button id="send" onclick="send_req();">
+				Send Base64 Request
+			</button>
+			<button id="send_binary" onclick="send_binary_req();">
+				Send Binary Request
+			</button>
+			<div style="display: inline;" id="feedback"></div>
+			<h3>Signals</h3>
+			<ul>
+				<li>Connected <span id="connected">undefined</span></li>
+				<li>Svc Available <span id="svc_available">undefined</span></li>
+				<li>Ready <span id="ready">undefined</span></li>
+			</ul>
+			<h3>Result</h3>
+			<!--<img id="output_image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAN1wAADdcBQiibeAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAMfSURBVDiNXZNNaBx1HIaf/39ndmY32yTahLYxa7M2piQp1So5JNG2mD0oFHoQBCvoQfSgh4qR6kkUvSgKai6evIgePAQPenKspmIpBD8Q2xATN8FsMaHNbrLzubMz8/NiS/Q9v+9zeOFRIsLeVKvVERRPSDE9TaJOAApTflFB7hIZXziOs7S3r24BqtWqJicviyFvth9umRxNzLQSExNh1GzM1UJiLfR0SNXbKlHvOI6T3gZUq1Uthey7dCB+YN+sKk0eOsm4eZy2ROxkTW5mN1hOrrKyuYw5d6dnbFhXVainHcdJNYCYciEdiB+ceHe89NrQW0zkJ+lIB088fPFJiOnT/YweHCN5Y7uUDIfHJC+vA6iZmZlxsbLF8lxv4cXBV2jJLq1sh5bssJ7WuNb5jUA8ElKatV3MsiJohfTOVkIV6mlDrOzZ8EzDfuzQ0/ji4ouLKy2+aX/N751fb11FugYbnzYoDdsMnOshOLttF7/cf15LXk6lI7Hq0wfwxMPNXC7HC7fHeSxKfjc35n1MbVI5OUi37iU3IoqcTGkV6dG+4V5iaeOLy99ZncX48r/jPN2qh835FuIrxh69l8HKACW1D6tioCJdMZSgfeXjiYubuawkS6QkAHTpEs2FAH8tYui+Msenx2hLBBpio00sSumskK34ayGb6XXcZJeLn/xI6+cIW2zideH69ze542APpx+fokf3YqsCBib8ZSJ2VjdUon4w/rSP1e5fJasrvHqIt+oR/pRCK4dpmTz01ARFs4uUFEHIyEhXAeFK7p7ykYZZs8/VT/1hHj5wmOKEQVM3CFcSJIITT47SX95PRkYoAb54uL5L9H4uUL6eVSLCzJlHPuyMBs/pV4NCn+5nNVkm37bJ1S3KR++iqIrklEkqHQLxac7FQbaY++zbry4+rwFUpC+YS8WN9IOCv+VtAZBaHaxhjScuu7LDTrZNw2vQ/CgOZNHYUpE+/3+ZCmJl72HKM8HZ7a7kSIQaSrG0jbleQNVM1HwhkITPVaRfchzH/w9gj85TUsheQDGpInU3gNiygXBFhfpjx3Eu7e3/A3wJmVTeCE6LAAAAAElFTkSuQmCC" />-->
+			<img id="output_image" />
+		</form>
+	</body>
+</html>

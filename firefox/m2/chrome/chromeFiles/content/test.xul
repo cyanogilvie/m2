@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<window title="m2 Test"
+	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+	id="m2_overlay_test"
+	>
+	<vbox>
+		<image src="chrome://m2/content/images/indicator_red.png" width="16" height="16" />
+	</vbox>
+</window>
+

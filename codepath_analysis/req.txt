@@ -1,0 +1,541 @@
+Scenario:
+
+client --> m2_node <-- backend (svc: foo)
+  req ----> route -----> handle
+  rcv <---- route <----- ack
+
+client req_async foo "hello, world" <cb1> <<<
+		set seq		[my unique_id]
+		if {$withkey ne ""} {
+			set data	[my encrypt $withkey $data]
+		}
+		set msg		[m2::msg::new [list \
+				svc			$svc \
+				type		req \
+				seq			$seq \
+				data		$data \
+		]] <<<
+		dict merge {
+			svc			"sys"
+			type		"req"
+			seq			""
+			prev_seq	0
+			meta		""
+			oob_type	1
+			oob_data	1
+			data		""
+		} $initial
+		# msg::new >>>
+		if {$oob_type eq "profiling"} {
+			set profile_so_far	[my _add_profile_stamp "req_out" {}]
+			dict set msg oob_type	"profiling"
+			dict set msg oob_data	$profile_so_far
+		}
+		my send $msg <<<
+		my invoke_handlers send $msg <<<
+		if {![dict exists $handlers $type]} {
+			if {$allow_unregistered} {
+				return
+		}
+		#my invoke_handlers send $msg >>>
+		my invoke_handlers send,[dict get $msg type] $msg <<<
+		if {![dict exists $handlers $type]} {
+			if {$allow_unregistered} {
+				return
+		}
+		#my invoke_handlers send,[dict get $msg type] $msg >>>
+
+		$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq] <<<
+		[m2::msg::serialize $msg] <<<
+		set data		[dict get $dat data]
+		set hdr			[list \
+				[dict get $dat svc] \
+				[dict get $dat type] \
+				[dict get $dat seq] \
+				[dict get $dat prev_seq] \
+				[dict get $dat meta] \
+				[dict get $dat oob_type] \
+				[dict get $dat oob_data]]
+		return [list 1 [string length $hdr] [string length $data]]\n$hdr$data
+		#[m2::msg::serialize $msg] >>>
+		set target	[my assign $msg {*}$args] <<<
+		switch -- $type {
+			rsj_req - req {
+				set seq
+			}
+		}
+		#set target	[my assign $msg {*}$args] >>>
+
+		set msgid		[incr msgid_seq]
+		dict lappend queues $target [list $msgid [encoding convertto utf-8 $msg] $args]
+		$rawcon data_waiting 1 <<<
+		if {$newstate == $data_waiting} return
+		set data_waiting	$newstate
+
+		if {$data_waiting} {
+			chan event $socket writable [namespace code {my _notify_writable}]
+		}
+		#$rawcon data_waiting 1 >>>
+		return $target
+		#$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq] >>>
+		#my send $msg >>>
+
+		dict set pending $seq		$cb
+		dict set ack_pend $seq		1
+		dict set jm $seq			0
+
+		return $seq
+#client req_async foo "hello, world" <cb1> >>>
+
+# Writable event on $con arrives in client <<<
+		# Also called for eof
+		if {[chan eof $socket]} {}
+
+		try {
+			my writable <<<
+			set remaining_target	1400
+
+			if {0} {
+			} else {
+				try {
+					lassign [my dequeue $remaining_target] msgid is_tail fragment <<<
+					if {[dict size $queues] == 0} {}
+
+					set source	[my pick [dict keys $queues]] <<<
+					my variable _pending_jm_setup
+					if {![info exists _pending_jm_setup]} {
+						set _pending_jm_setup	[dict create]
+					}
+
+					set q		[next $queues] <<<
+					set new_roundrobin	{}
+
+					foreach queue $roundrobin {
+						if {$queue ni $queues} continue
+						lappend new_roundrobin $queue
+					}
+
+					foreach queue $queues {
+						if {$queue in $new_roundrobin} continue
+						lappend new_roundrobin $queue
+					}
+
+					set roundrobin	[lassign $new_roundrobin next]
+					lappend roundrobin	$next
+
+					return $next
+					#set q		[next $queues] >>>
+					set first	$q
+
+					# Skip queues for jms that were setup in requests for which
+					# we still haven't sent the ack or nack
+					while {[dict exists $_pending_jm_setup $q]} {}
+
+					return $q
+					#set source	[my pick [dict keys $queues]] >>>
+
+					set new	[lassign [dict get $queues $source] next]
+
+					lassign $next msgid msg msgargs
+					if {$max_payload < [string length $msg]} {
+					} else {
+						set is_tail	1
+
+						my sent {*}$msgargs <<<
+						if {$type in {
+							ack
+							nack
+						}} {
+						}
+						#my sent {*}$msgargs >>>
+
+						set fragment		$msg
+					}
+
+					if {[llength $new] > 0} {
+					} else {
+						dict unset queues $source
+					}
+					if {[dict size $queues] == 0} {
+						$rawcon data_waiting 0 <<<
+						if {$newstate == $data_waiting} return
+						set data_waiting	$newstate
+
+						if {$data_waiting} {
+						} else {
+							chan event $socket writable {}
+						}
+						#$rawcon data_waiting 0 >>>
+					}
+					list $msgid $is_tail $fragment
+					#lassign [my dequeue $remaining_target] msgid is_tail fragment >>>
+
+					set fragment_len	[string length $fragment]
+					set payload_portion	"$msgid $is_tail $fragment_len\n$fragment"
+					incr remaining_target -$fragment_len
+					append payload	$payload_portion
+
+					$rawcon send $payload <<<
+					set data_len	[string length $msg]
+					try {
+						chan puts -nonewline $socket "$data_len\n$msg"
+						chan flush $socket
+					} on error {errmsg options} {
+					}
+					#$rawcon send $payload >>>
+				} trap {queue_empty} {} {
+				}
+			}
+			#my writable >>>
+		}
+# Writable event on $con arrives in client >>>
+
+45
+1 1 38
+1 18 12
+foo req 1 0 {} 1 1hello, world
+
+45¶1 1 38¶1 18 12¶foo req 1 0 {} 1 1hello, world
+
+			| {3 datagram, 7 fragment hdr, 26 msg header, 12 data}
+			|  Socket write (48 bytes application payload,
+			|    20 bytes TCP header, 20 bytes IP header,
+		   _|_   38 bytes Ethernet frame overhead = 126 bytes wire time)
+		   \ /
+			'
+
+# Readable event on $socket arrives in m2_node <<<
+					while {1} {
+						chan configure $socket -buffering line
+
+						try {
+							gets $socket
+						} trap {POSIX EHOSTUNREACH} {errmsg options} {
+						} trap {POSIX ETIMEDOUT} {errmsg options} {
+						} on ok {line} {}
+
+						if {[chan eof $socket]} {}
+						if {![chan blocked $socket]} break	;# ------->
+picks up here ---->		yield
+					}
+
+					lassign $line payload_bytecount
+					set remaining	$payload_bytecount
+
+					if {![string is integer -strict $payload_bytecount]} {
+					}
+
+					set payload	""
+					while {$remaining > 0} {
+						chan configure $socket -buffering none
+
+						set chunk	[chan read $socket $remaining]
+						if {[chan eof $socket]} {}
+						set chunklen	[string length $chunk]
+						if {$chunklen == 0} {
+						}
+						append payload	$chunk
+						unset chunk
+						incr remaining -$chunklen
+					}
+
+					after idle [list coroutine coro_received_[incr ::coro_seq] \
+							{*}[namespace code [list my received $payload]]]
+
+					while {1} {
+						chan configure $socket -buffering line
+
+						try {
+							gets $socket
+						} trap {POSIX EHOSTUNREACH} {errmsg options} {
+						} trap {POSIX ETIMEDOUT} {errmsg options} {
+						} on ok {line} {}
+
+						if {[chan eof $socket]} {}
+						if {![chan blocked $socket]} {}
+leaves here ---->		yield
+# Readable event on $socket arrives in m2_node >>>
+
+# after idle fires <<<
+		#method _receive_raw {msg}
+			set p	0
+			while {$p < [string length $msg]} {
+				set idx	[string first "\n" $msg $p]
+				set head	[string range $msg $p $idx-1]
+				lassign $head msgid is_tail fragment_len
+				set end_idx	[expr {$idx + $fragment_len + 1}]
+				set frag	[string range $msg $idx+1 $end_idx]
+				set p		$end_idx
+				my _receive_fragment $msgid $is_tail $frag <<<
+				dict append defrag_buf $msgid $fragment
+				if {$is_tail == 1} {
+					set complete	[dict get $defrag_buf $msgid]
+					dict unset defrag_buf $msgid
+					my receive [encoding convertfrom utf-8 $complete] <<<
+					#method _got_msg {raw_msg}
+					set msg	[m2::msg::deserialize $raw_msg] <<<
+					#proc deserialize {sdata}
+					scan $sdata "%\[^\n\]%n" pre idx
+					lassign $pre fmt hdr_len data_len
+					if {$fmt ne "1"} {}
+					set hdrend		[+ $idx $hdr_len]
+
+					lassign [string range $sdata [+ $idx 1] $hdrend] \
+						svc type seq prev_seq meta oob_type oob_data
+
+					dict create \
+							svc			$svc \
+							type		$type \
+							seq			$seq \
+							prev_seq	$prev_seq \
+							data		[string range $sdata [+ $hdrend 1] [+ $hdrend $data_len]] \
+							meta		$meta \
+							oob_type	$oob_type \
+							oob_data	$oob_data
+					#set msg	[m2::msg::deserialize $raw_msg] >>>
+					if {[dict get $msg oob_type] eq "profiling"} {}
+
+					set m_seq		[dict get $msg seq]
+					set m_prev_seq	[dict get $msg prev_seq]
+
+					switch -- [dict get $msg type] {
+						svc_avail {}
+						svc_revoke {}
+						neighbour_info {}
+						req {
+							try {
+								$server port_for_svc [dict get $msg svc] [self] <<<
+								if {![dict exists $svcs $svc]} {}
+								set tmp			[cflib::intersect3 [dict get $svcs $svc] $excl] <<<
+								set firstonly       {}
+								set intersection    {}
+								set secondonly      {}
+								set list1	[lsort -unique $list1]
+								set list2	[lsort -unique $list2]
+								foreach item $list1 {
+									if {[lsearch -sorted $list2 $item] == -1} {
+										lappend firstonly $item
+									} else {
+										lappend intersection $item
+									}
+								}
+								foreach item $list2 {
+									if {[lsearch -sorted $intersection $item] == -1} {
+										lappend secondonly $item
+									}
+								}
+
+								list $firstonly $intersection $secondonly
+								#set tmp			[cflib::intersect3 [dict get $svcs $svc] $excl] >>>
+								set remaining	[lindex $tmp 0]
+								if {[llength $remaining] == 0} {}
+								set idx			[expr {round(rand() * ([llength $remaining] - 1))}]
+								lindex $remaining $idx
+								#$server port_for_svc [dict get $msg svc] [self] >>>
+							} on error {errmsg options} {
+							} on ok {dport} {
+								my _send_dport $dport $msg <<<
+								try {
+									if {![info object isa object $dport]} {}
+									$dport send [self] $msg <<<
+									set m_seq		[dict get $msg seq]
+									set m_prev_seq	[dict get $msg prev_seq]
+									switch -- [dict get $msg type] {
+										req {
+											set newid	[$server unique_id]
+											set newmsg	[dict replace $msg \
+													prev_seq	$m_seq \
+													seq			$newid \
+											]
+											dict set req $newid		[list $msg $srcport]
+											my _dispatch $newmsg <<<
+											if {!$connected} {}
+
+											try {
+												if {[dict get $msg oob_type] eq "profiling"} {}
+
+												$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq] <<<
+												[m2::msg::serialize $msg] <<<
+												set data		[dict get $dat data]
+												set hdr			[list \
+														[dict get $dat svc] \
+														[dict get $dat type] \
+														[dict get $dat seq] \
+														[dict get $dat prev_seq] \
+														[dict get $dat meta] \
+														[dict get $dat oob_type] \
+														[dict get $dat oob_data]]
+												return [list 1 [string length $hdr] [string length $data]]\n$hdr$data
+												#[m2::msg::serialize $msg] >>>
+												set target	[my assign $msg {*}$args] <<<
+												switch -- $type {
+													rsj_req - req {
+														set seq
+													}
+													jm - jm_can {}
+													default {}
+												}
+												#set target	[my assign $msg {*}$args] >>>
+												set msgid		[incr msgid_seq]
+												dict lappend queues $target [list $msgid [encoding convertto utf-8 $msg] $args]
+												$rawcon data_waiting 1
+												set data_waiting	$newstate
+
+												if {$data_waiting} {
+													chan event $socket writable [namespace code {my _notify_writable}]
+												} else {}
+												return $target
+												#$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq] >>>
+											} on error {errmsg options} {}
+											#my _dispatch $newmsg >>>
+										}
+										nack - ack {}
+										svc_avail - svc_revoke {}
+										pr_jm - jm {}
+										jm_can {}
+										jm_disconnect {}
+										rsj_req {}
+										jm_req {}
+										default {}
+									}
+									#$dport send [self] $msg >>>
+								} trap {CONNECTION DPORT_COLLAPSED} {} {
+								} on error {errmsg options} {
+								}
+								#my _send_dport $dport $msg >>>
+							}
+						}
+						ack {}
+						nack {}
+						pr_jm - jm {}
+						rsj_req {}
+						jm_req {}
+						jm_can {}
+						jm_disconnect {}
+						default {}
+					}
+					#my receive [encoding convertfrom utf-8 $complete] >>>
+				}
+				#my _receive_fragment $msgid $is_tail $frag >>>
+			}
+# after idle fires >>>
+
+# Writable event fires for $rawcon in m2_node <<<
+			if {[chan eof $socket]} {}
+			try {
+				my writable <<<
+				set remaining_target	$target_payload_size
+
+				if {$write_combining} {
+				} else {
+					try {
+						lassign [my dequeue $remaining_target] msgid is_tail fragment <<<
+						if {[dict size $queues] == 0} {}
+						set source	[my pick [dict keys $queues]] <<<
+						my variable _pending_jm_setup
+						if {![info exists _pending_jm_setup]} {}
+
+						set q		[next $queues] <<<
+						set new_roundrobin	{}
+						foreach queue $roundrobin {
+							if {$queue ni $queues} continue
+							lappend new_roundrobin $queue
+						}
+						foreach queue $queues {
+							if {$queue in $new_roundrobin} continue
+							lappend new_roundrobin $queue
+						}
+						set roundrobin	[lassign $new_roundrobin next]
+						lappend roundrobin	$next
+						return $next
+						#set q		[next $queues] >>>
+						set first	$q
+
+						while {[dict exists $_pending_jm_setup $q]} {
+							set q		[next $queues] <<<
+							set new_roundrobin	{}
+							foreach queue $roundrobin {
+								if {$queue ni $queues} continue
+								lappend new_roundrobin $queue
+							}
+							foreach queue $queues {
+								if {$queue in $new_roundrobin} continue
+								lappend new_roundrobin $queue
+							}
+							set roundrobin	[lassign $new_roundrobin next]
+							lappend roundrobin	$next
+							return $next
+							#set q		[next $queues] >>>
+							if {$q eq $first} {}
+						}
+
+						return $q
+						#set source	[my pick [dict keys $queues]] >>>
+
+						set new	[lassign [dict get $queues $source] next]
+
+						lassign $next msgid msg msgargs
+						if {$max_payload < [string length $msg]} {
+						} else {
+							set is_tail	1
+							my sent {*}$msgargs <<<
+							if {$type in {
+								ack
+								nack
+							}} {
+								my variable _pending_jm_setup
+								if {![info exists _pending_jm_setup]} {}
+
+								dict for {s ps} $_pending_jm_setup {
+									foreach p [dict keys $ps] {
+										if {$p eq $prev_seq} {}
+									}
+								}
+							}
+							#my sent {*}$msgargs >>>
+
+							set fragment		$msg
+						}
+
+						if {[llength $new] > 0} {
+						} else {
+							dict unset queues $source
+						}
+						if {[dict size $queues] == 0} {
+							$rawcon data_waiting 0 <<<
+							if {$newstate == $data_waiting} return
+							set data_waiting	$newstate
+
+							if {$data_waiting} {
+							} else {
+								chan event $socket writable {}
+							}
+							#$rawcon data_waiting 0 >>>
+						}
+						list $msgid $is_tail $fragment
+						#lassign [my dequeue $remaining_target] msgid is_tail fragment >>>
+
+						set fragment_len	[string length $fragment]
+						set payload_portion	"$msgid $is_tail $fragment_len\n$fragment"
+						incr remaining_target -$fragment_len
+						append payload	$payload_portion
+
+						$rawcon send $payload <<<
+						set data_len	[string length $msg]
+						try {
+							chan puts -nonewline $socket "$data_len\n$msg"
+							chan flush $socket
+						} on error {errmsg options} {
+						}
+						#$rawcon send $payload >>>
+					} trap {queue_empty} {} {
+						return
+					}
+				}
+				#my writable >>>
+			} on error {errmsg options} {}
+# Writable event fires for $rawcon in m2_node >>>
+
+
+
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4

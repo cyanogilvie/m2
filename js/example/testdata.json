@@ -1,0 +1,18 @@
+{
+	identifier: 'ID',
+	label: 'ID',
+	items: [
+		{
+			ID: '1',
+			Foo: 'foo1',
+			Bar: 'bar1',
+			Baz: 'baz1'
+		},
+		{
+			ID: '2',
+			Foo: 'foo2',
+			Bar: 'bar2',
+			Baz: 'baz2'
+		}
+	]
+}

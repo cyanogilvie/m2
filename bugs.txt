@@ -1,0 +1,2 @@
+Logout - connector state not unwound
+

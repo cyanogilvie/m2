@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>M2 connection example</title>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+		<script type="text/javascript">
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			var api = new m2.api({
+				host: '10.41.68.115',
+				//host: '127.0.0.1',
+				port: 5301
+			});
+
+			signals = {};
+
+			signals['a'] = new Signal({name: 'a'});
+			signals['b'] = new Signal({name: 'b'});
+			signals['c'] = new Signal({name: 'c'});
+
+			signals['a&b'] = new Gate({name: 'a&b', mode: 'and'});
+			signals['a&b'].attach_input(signals['a']);
+			signals['a&b'].attach_input(signals['b']);
+
+			signals['a'].attach_output(function(newstate) {
+				console.log('a newstate: ('+newstate+')');
+			});
+			signals['b'].attach_output(function(newstate) {
+				console.log('b newstate: ('+newstate+')');
+			});
+			signals['c'].attach_output(function(newstate) {
+				console.log('c newstate: ('+newstate+')');
+			});
+
+			signals['a&b'].attach_output(function(newstate) {
+				console.log('a&b newstate: ('+newstate+')');
+			});
+
+
+			function clicked(what) {
+				var node;
+				node = document.getElementById('check_'+what);
+				console.log(what+' changed to ('+node.value+')');
+				//signals[what].set_state(node.value == 'on');
+				signals[what].toggle_state();
+			}
+		</script>
+	</head>
+	<body>
+		<table>
+			<tr>
+				<td>Signal a</td>
+				<td><input type="checkbox" id='check_a' onchange="clicked('a');" /></td>
+			</tr>
+			<tr>
+				<td>Signal b</td>
+				<td><input type="checkbox" id='check_b' onchange="clicked('b');" /></td>
+			</tr>
+			<tr>
+				<td>Signal c</td>
+				<td><input type="checkbox" id='check_c' onchange="clicked('c');" /></td>
+			</tr>
+		</table>
+		<button onclick="console.log('-------------------------------------');">
+			Mark
+		</button>
+	</body>
+</html>
+

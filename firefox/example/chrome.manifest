@@ -1,0 +1,2 @@
+content m2_example	chrome/chromeFiles/content/
+overlay chrome://browser/content/browser.xul	chrome://m2_example/content/chat.xul

@@ -5,7 +5,7 @@ package require cachevfs
 cflib::config create cfg $argv {
 	variable uri			"tcp://localhost:5300"
 	variable crypto_devmode 0
-	variable pbkey			"/etc/codeforge/authenticator/keys/authenticator.pb"
+	variable pbkey			"/etc/codeforge/authenticator/keys/env/authenticator.pb"
 }
 
 

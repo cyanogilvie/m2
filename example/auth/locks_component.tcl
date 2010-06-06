@@ -30,7 +30,7 @@ m2::component create comp \
 		-svc		"examplecomponent" \
 		-auth		auth \
 		-prkeyfn	"/etc/codeforge/authenticator/keys/env/examplecomponent.pr"  \
-		-login		1
+		-login		0
 
 comp handler "hello" [list apply {
 	{auth user seq rdata} {

@@ -1,12 +1,32 @@
+#!/home/cyan/git/cfkit/out/linux/bin/tclsh8.6
 #!/usr/bin/env cfkit8.6
-
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+package require platform
+
+foreach platform [platform::patterns [platform::identify]] {
+	set tm_path		[file join $env(HOME) .tbuild repo tm $platform]
+	set pkg_path	[file join $env(HOME) .tbuild repo pkg $platform]
+	if {[file exists $tm_path]} {
+		tcl::tm::path add $tm_path
+	}
+	if {[file exists $pkg_path]} {
+		lappend auto_path $pkg_path
+	}
+}
 
 package require m2
 package require cflib
 
 cflib::config create cfg $argv {
 	variable uri		"tcp://localhost:5300"
+	variable debug		0
+}
+
+if {[cfg get debug]} {
+	proc ?? {script} {uplevel 1 $script}
+} else {
+	proc ?? {args} {}
 }
 
 m2::api2 create m2 -uri [cfg get uri]

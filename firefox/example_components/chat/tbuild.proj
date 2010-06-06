@@ -1,0 +1,41 @@
+application "chatprovd" {
+	version 0.1
+
+	requires {
+		m2
+		cflib
+		netdgram::tcp
+	}
+
+	files {
+		prov/chatprov.tcl
+		prov/chat.tcl
+	}
+
+	platform linux-glibc2.3-ix86 {
+		requires {daemon}
+	}
+}
+
+application "chatclient" {
+	version	0.1
+
+	requires {
+		m2
+		cflib
+		netdgram::tcp
+		Tk
+		sop
+	}
+
+	runtime kbskit8.6-gui
+
+	files {
+		client/chat.tcl
+		client/gui.tcl
+	}
+
+	platform tcl
+}
+
+# vim: ft=tcl

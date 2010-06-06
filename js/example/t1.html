@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Mini test 1</title>
+		<script type="text/javascript">
+			if (typeof console == 'undefined') {
+				console = {};
+			}
+			console.log = function(){};
+		</script>
+		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
+		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
+		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
+		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/baselog.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="sop/gate.js"></script>
+		<script type="text/javascript" src="m2/tcllist.js"></script>
+		<script type="text/javascript" src="m2/m2.js"></script>
+	</head>
+	<body>
+		<div id="ready_state">Ready state: uninitialized</div>
+		<div id="connected_state">Connected state: uninitialized</div>
+		<pre id="log"></pre>
+		<script type="text/javascript">
+			console.warn = function(msg) {
+				var node = document.getElementById('log');
+				node.innerHTML += msg + '<br />\n';
+			}
+			console.err = function(msg) {
+				var node = document.getElementById('log');
+				node.innerHTML += msg + '<br />\n';
+			}
+			console.log = function(msg) {
+				var node = document.getElementById('log');
+				node.innerHTML += msg + '<br />\n';
+			}
+		</script>
+		<script type="text/javascript">
+			jsSocket.swf = 'jssocket/jsSocket.swf';
+			var api = new m2.api({
+				host: '10.41.68.115',
+				//host: '127.0.0.1',
+				port: 5301
+			});
+
+			signals = {};
+			signals['ready'] = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+
+			signals['ready'].attach_input(api.signal_ref('connected'));
+
+			signals['ready'].attach_output(function(newstate){
+				var node = document.getElementById('ready_state');
+				if (newstate) {
+					node.innerHTML = 'Ready state: true';
+				} else {
+					node.innerHTML = 'Ready state: false';
+				}
+			});
+
+			api.signal_ref('connected').attach_output(function(newstate){
+				var node = document.getElementById('connected_state');
+				if (newstate) {
+					node.innerHTML = 'Connected state: true';
+				} else {
+					node.innerHTML = 'Connected state: false';
+				}
+			});
+		</script>
+	</body>
+</html>

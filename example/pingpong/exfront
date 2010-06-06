@@ -1,56 +1,24 @@
-#!/home/cyan/git/cfkit/out/linux/bin/tclsh8.6
-#!/usr/bin/env cfkit8.6
+#!/usr/bin/env tclsh8.6
+
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-package require platform
+package require Tcl 8.6
 
-foreach platform [platform::patterns [platform::identify]] {
-	set tm_path		[file join $env(HOME) .tbuild repo tm $platform]
-	set pkg_path	[file join $env(HOME) .tbuild repo pkg $platform]
-	if {[file exists $tm_path]} {
-		tcl::tm::path add $tm_path
-	}
-	if {[file exists $pkg_path]} {
-		lappend auto_path $pkg_path
-	}
-}
-
+package provide netdgram::tcp 0.1
 package require m2
-package require sop
-package require cflib
-
-cflib::config create cfg $argv {
-	variable uri		"tcp://localhost:5300"
-	variable profiling	1
-	variable debug		0
-	variable senders	1
+set cfg	{
+	uri		"tcp://10.41.68.160:5300"
 }
 
-if {[cfg get debug]} {
-	proc ?? {script} {uplevel 1 $script}
-} else {
-	proc ?? {args} {}
-}
 
-interp bgerror {} [list apply {
-	{errmsg options} {
-		puts stderr "Background error: $errmsg"
-		array set o $options
-		parray o
-		exit 1
-	}
-}]
 
 array set signals	{}
-sop::gate new signals(ready) -name "ready" -mode "and"
-sop::signal new signals(ping) -name "ping"
+m2::gate new signals(ready) -name "ready" -mode "and"
+m2::signal new signals(ping) -name "ping"
 $signals(ready) attach_input $signals(ping)
 
-if {[cfg get profiling]} {
-	m2::api2 create m2 -uri [cfg get uri] -oob_type "profiling"
-} else {
-	m2::api2 create m2 -uri [cfg get uri]
-}
+m2::api2 create m2 -uri [dict get $cfg uri] -oob_type "profiling"
+#m2::api2 create m2 -uri [dict get $cfg uri]
 oo::objdefine m2 method station_id {} {
 	return "pingpong frontend ([next])"
 }
@@ -74,78 +42,6 @@ m2 register_handler svc_avail_changed [list apply {
 		puts "Connection state: [expr {$newstate ? "connected" : "not connected"}]"
 	}
 }]
-
-
-proc got_ping {msg} {
-	global start_usec last_usec last_output
-
-	switch -- [dict get $msg oob_type] {
-		1 {}
-		profiling {
-			set profile	[dict get $msg oob_data]
-		}
-	}
-
-	switch -- [dict get $msg type] {
-		ack {
-			set data	[dict get $msg data]
-			#puts "got ack: ($data)"
-			if {![string match "*hello, world*" $data]} {
-				puts stderr "ack data doesn't look right:\n($data)"
-				exit 1
-			}
-			incr ::received
-
-			sendping
-		}
-
-		nack {
-			puts "got nack: ([dict get $msg data])"
-		}
-
-		default {
-			puts "unexpected response type: \"[dict get $msg type]\""
-		}
-	}
-	if {[info exists profile]} {
-		if {[info exists start_usec]} {
-			unset start_usec
-		}
-		if {[info exists last_usec]} {
-			unset last_usec
-		}
-		if {![info exists last_output]} {
-			set last_output	[clock microseconds]
-		}
-		set now	[clock microseconds]
-		if {$now - $last_output > 1000000} {
-			set last_output	$now
-			puts stderr "profiling info:"
-			foreach stamp $profile {
-				lassign $stamp usec_abs point station_id
-				if {![info exists start_usec]} {
-					set start_usec	$usec_abs
-				}
-				if {![info exists last_usec]} {
-					set last_usec	$usec_abs
-				}
-				set usec_from_start	[expr {$usec_abs - $start_usec}]
-				set usec_from_last	[expr {$usec_abs - $last_usec}]
-				set last_usec		$usec_abs
-
-				puts stderr [format "%11.4f %10.4f %7s %s" \
-						[expr {$usec_from_start / 1000.0}] \
-						[expr {$usec_from_last / 1000.0}] \
-						$point \
-						$station_id]
-			}
-		}
-	}
-}
-
-proc sendping {} {
-	m2 req "ping" "hello, world" got_ping
-}
 
 proc ping {} {
 	set afterid	""
@@ -243,10 +139,7 @@ proc startping {} {
 			}
 		}
 	}
-	#coroutine pinging ping
-	for {set i 0} {$i < [cfg get senders]} {incr i} {
-		sendping
-	}
+	coroutine pinging ping
 }
 
 $signals(ready) attach_output [list apply {
@@ -265,5 +158,9 @@ $signals(ready) attach_output [list apply {
 	}
 }]
 
-vwait ::forever
+set ::forever 0
+while {1} {
+	after 100000 {set ::forever 0}
+	vwait ::forever
+}
 

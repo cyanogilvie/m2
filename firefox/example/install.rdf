@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- see: http://www.rietta.com/firefox/Tutorial/conf.html -->
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+	xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+	<Description about="urn:mozilla:install-manifest">
+		<em:id>m2_example.xpi@codeforge.co.za</em:id>
+		<em:version>0.20.0</em:version>
+		<em:type>2</em:type>
+		<em:targetApplication>
+			<Description>
+				<em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
+				<em:minVersion>1.5</em:minVersion>
+				<em:maxVersion>3.0.99</em:maxVersion>
+			</Description>
+		</em:targetApplication>
+
+		<em:name>m2 API example</em:name>
+		<em:description>Provides an example using the Javascript API for communicating with the Codeforge m2 message bus</em:description>
+		<em:creator>Cyan Ogilvie</em:creator>
+		<em:homepageURL>http://www.codeforge.co.za/m2/Firefox</em:homepageURL>
+	</Description>
+</RDF>

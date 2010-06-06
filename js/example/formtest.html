@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>JS Authenticator Test</title>
+		<link rel="stylesheet" type="text/css" href="dojo/dojo/resources/dojo.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dijit/themes/soria/soria.css" />
+		<link rel="stylesheet" type="text/css" href="styles.css" />
+		<script type="text/javascript" src="dojo/dojo/dojo.js"
+			djConfig="isDebug: true, parseOnLoad: true, defaultTestTheme: 'soria', locale: 'en-us', preventBackButtonFix: false"></script>
+
+		<script type="text/javascript">
+			dojo.require('dijit.form.Form');
+			dojo.require('dijit.form.Button');
+			dojo.require('dijit.form.TextBox');
+		</script>
+	</head>
+	<body class="soria">
+		<div dojoType="dijit.form.Form">
+			<script type="dojo/method" event="onSubmit" args="ev">
+				console.log('this is ', this);
+				var formdata = this.attr('value');
+				console.log('formdata: ', formdata);
+				dojo.stopEvent(ev);
+			</script>
+			Username <input dojoType="dijit.form.TextBox" type="text" name="username" />
+			Password <input dojoType="dijit.form.TextBox" type="password" name="password" />
+			<button dojoType="dijit.form.Button" type="submit" name="do_login">
+				Login
+			</button>
+		</div>
+	</body>
+</html>

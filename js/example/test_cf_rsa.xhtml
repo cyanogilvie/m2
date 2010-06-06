@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title>Test Javascript RSA</title>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/sha1.js"></script>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="cfcrypto/jsbn/jsbn.js"></script>
+		<script type="text/javascript" src="cfcrypto/jsbn/jsbn2.js"></script>
+		<script type="text/javascript" src="cfcrypto/crypto.js"></script>
+		<script type="text/javascript"><![CDATA[
+			g_rng = new cfcrypto.rng();
+
+			function set_1024f4() {
+				/*
+				form.n.value="a5261939975948bb7a58dffe5ff54e65f0498f9175f5a09288810b8975871e99\naf3b5dd94057b0fc07535f5f97444504fa35169d461d0d30cf0192e307727c06\n5168c788771c561a9400fb49175e9e6aa4e23fe11af69e9412dd23b0cb6684c4\nc2429bce139e848ab26d0829073351f4acd36074eafd036a5eb83359d2a698d3";
+				form.e.value="10001";
+				form.d.value="8e9912f6d3645894e8d38cb58c0db81ff516cf4c7e5a14c7f1eddb1459d2cded\n4d8d293fc97aee6aefb861859c8b6a3d1dfe710463e1f9ddc72048c09751971c\n4a580aa51eb523357a3cc48d31cfad1d4a165066ed92d4748fb6571211da5cb1\n4bc11b6e2df7c1a559e6d5ac1cd5c94703a22891464fba23d0d965086277a161";
+				form.p.value="d090ce58a92c75233a6486cb0a9209bf3583b64f540c76f5294bb97d285eed33\naec220bde14b2417951178ac152ceab6da7090905b478195498b352048f15e7d";
+				form.q.value="cab575dc652bb66df15a0359609d51d1db184750c00c6698b90ef3465c996551\n03edbf0d54c56aec0ce3c4d22592338092a126a0cc49f65a4a30d222b411e58f";
+				form.dP.value="1a24bca8e273df2f0e47c199bbf678604e7df7215480c77c8db39f49b000ce2c\nf7500038acfff5433b7d582a01f1826e6f4d42e1c57f5e1fef7b12aabc59fd25";
+				form.dQ.value="3d06982efbbe47339e1f6d36b1216b8a741d410b0c662f54f7118b27b9a4ec9d\n914337eb39841d8666f3034408cf94f5b62f11c402fc994fe15a05493150d9fd";
+				form.qInv.value="3a3e731acd8960b7ff9eb81a7ff93bd1cfa74cbd56987db58b4594fb09c09084\ndb1734c8143f98b602b981aaa9243ca28deb69b5b280ee8dcee0fd2625e53250";
+				*/
+				form.n.value="4d89a10feb2f065837b23c9a4d33bf66d88f80a3adc1c4338da586ee81fac94401fb1d1c1392720f6d95da201ecac7634b0e17243ec5779fa928e66d17ae7645";
+				form.e.value="10001";
+				form.d.value="1b3d5cd51cc733fead00103f0ac507941c76d0c07810ae965c2e4aece7c40af2de06e99b59b7ed0e9ba2651ef715468ed495787769d825ba405669bccc7c0776";
+				form.p.value="9a30f2ecd86e4ec7b4d99e56f80b48985168012f73bdee2ad3efcf0f66361d97";
+				form.q.value="80bbde37c88810a1e5f1e2fde94618c817d8ffaf7bda5266913794624b9b7e83";
+				form.dP.value="8b92788b0fd5c62cde6e979422b6daa9caf0d34b0ebf6288f5faa1bb6b9c6976";
+				form.dQ.value="7d4fd5c22e2b41b3d3a35674b4dcddb54c734fb7942303a16aacb7739118bb62";
+				form.qInv.value="7ea1b73b2d9d312fb96eb66900af40ec9a38cc4156d2dcd1ecad9e50f0e833cd";
+			}
+
+			function gen_512() {
+				var K;
+
+				//K = cfcrypto.rsa.RSAKG(512, 0x10001);
+				K = cfcrypto.rsa.RSAKG(512, new BigInteger('10001', 16));
+				form.n.value = K.n.toString(16);
+				form.e.value = K.e.toString(16);
+				form.d.value = K.d.toString(16);
+				form.p.value = K.p.toString(16);
+				form.q.value = K.q.toString(16);
+				form.dP.value = K.dP.toString(16);
+				form.dQ.value = K.dQ.toString(16);
+				form.qInv.value = K.qInv.toString(16);
+				form.ciphertext.value = '';
+
+				console.log('generated key with e: 0x'+K.e.toString(16), K);
+			}
+
+			function gen_768() {
+				var K;
+
+				K = cfcrypto.rsa.RSAKG(768, 0x10001);
+				form.n.value = K.n.toString(16);
+				form.e.value = K.e.toString(16);
+				form.d.value = K.d.toString(16);
+				form.p.value = K.p.toString(16);
+				form.q.value = K.q.toString(16);
+				form.dP.value = K.dP.toString(16);
+				form.dQ.value = K.dQ.toString(16);
+				form.qInv.value = K.qInv.toString(16);
+				form.ciphertext.value = '';
+			}
+
+			function gen_1024() {
+				var K;
+
+				K = cfcrypto.rsa.RSAKG(1024, 0x10001);
+				form.n.value = K.n.toString(16);
+				form.e.value = K.e.toString(16);
+				form.d.value = K.d.toString(16);
+				form.p.value = K.p.toString(16);
+				form.q.value = K.q.toString(16);
+				form.dP.value = K.dP.toString(16);
+				form.dQ.value = K.dQ.toString(16);
+				form.qInv.value = K.qInv.toString(16);
+				form.ciphertext.value = '';
+			}
+
+			function init() {
+				form = document.getElementById('rsaform');
+
+				set_1024f4();
+			}
+
+			function do_encrypt() {
+				var e, n, plaintext, params, c, before, after;
+
+				e = new BigInteger(form.e.value, 16);
+				n = new BigInteger(form.n.value, 16);
+				plaintext = Utf8.encode(form.plaintext.value);
+				params = Utf8.encode(form.params.value);
+
+				before = new Date();
+				c = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, plaintext, params);
+				form.ciphertext.value = cfcrypto.hexfold(cfcrypto.hexencode(c));
+				after = new Date();
+
+				form.status.value = 'Encryption time: ' + (after - before) + 'ms';
+			}
+
+			function do_decrypt() {
+				var K, ciphertext, params, plaintext, before, after;
+
+				ciphertext = cfcrypto.hexdecode(form.ciphertext.value);
+				params = Utf8.encode(form.params.value);
+				K = {};
+				//K.n = new BigInteger(form.n.value, 16);
+				K.p = new BigInteger(form.p.value, 16);
+				K.q = new BigInteger(form.q.value, 16);
+				K.dP = new BigInteger(form.dP.value, 16);
+				K.dQ = new BigInteger(form.dQ.value, 16);
+				K.qInv = new BigInteger(form.qInv.value, 16);
+				before = new Date();
+				plaintext = Utf8.decode(cfcrypto.rsa.RSAES_OAEP_Decrypt(K, ciphertext, params));
+				after = new Date();
+				form.decrypted.value = plaintext;
+
+				form.status.value = 'Decryption time: '+(after - before)+'ms';
+			}
+		]]></script>
+	</head>
+	<body onclick="g_rng.add_entropy_timestamp();" onload="init();">
+		<form id="rsaform" action="" onsubmit="return false;">
+			<h2>RSA Test</h2>
+			<p>
+				<button onclick="gen_512();">
+					Generate 512 bit key
+				</button>
+				<button onclick="gen_768();">
+					Generate 768 bit key
+				</button>
+				<button onclick="gen_1024();">
+					Generate 1024 bit key
+				</button>
+			</p>
+			<p>
+				Encoding parameters (string)<br />
+				<textarea id="params" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				Plaintext (string)<br />
+				<input type="text" id="plaintext" value="hello, world" size="60" /><br />
+				<button onclick="do_encrypt();">encrypt</button>
+			</p>
+			<p>
+				Ciphertext (hex):<br />
+				<textarea id="ciphertext" rows="4" cols="70"></textarea><br />
+				<button onclick="do_decrypt();">decrypt</button>
+			</p>
+			<p>
+				Decrypted Plaintext (string):<br />
+				<input type="text" id="decrypted" size="60" /><br />
+			</p>
+			<p>
+				Status:<br />
+				<input type="text" id="status" size="60" />
+			</p>
+			<hr />
+
+			<h2>RSA private key</h2>
+			<p>
+				Modulus (hex):<br />
+				<textarea id="n" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				Public exponent (hex)<br />
+				<input type="text" id="e" value="10001" />
+			</p>
+			<p>
+				Private exponent (hex):<br />
+				<textarea id="d" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				P (hex):<br />
+				<textarea id="p" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				Q (hex):<br />
+				<textarea id="q" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				dP (hex):<br />
+				<textarea id="dP" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				dQ (hex):<br />
+				<textarea id="dQ" rows="4" cols="70"></textarea>
+			</p>
+			<p>
+				qInv (hex):<br />
+				<textarea id="qInv" rows="4" cols="70"></textarea>
+			</p>
+		</form>
+	</body>
+</html>
