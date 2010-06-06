@@ -1,0 +1,139 @@
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+class authenticator::form::Userattrib {
+	inherit tlc::Mywidget tlc::Textvariable tlc::Signalsource
+
+	constructor {args} {}
+	destructor {}
+
+	public {
+		variable attrib		""
+		variable default	""
+		variable auth		""
+		variable state		"normal"
+	}
+
+	protected {
+		method textvariable_changed {newvalue}
+	}
+
+	private {
+		variable display	""
+
+		method ready_changed {newstate}
+		method retrieve_attrib {}
+		method find_auth {}
+	}
+}
+
+
+configbody authenticator::form::Userattrib::attrib { #<<<
+	$signals(attribset) set_state [expr {$attrib ne ""}]
+	retrieve_attrib
+}
+
+#>>>
+configbody authenticator::form::Userattrib::default { #<<<
+	$signals(defaultset) set_state [expr {$default ne ""}]
+	retrieve_attrib
+}
+
+#>>>
+configbody authenticator::form::Userattrib::auth { #<<<
+	if {$auth eq ""} {
+		set auth	[find_auth]
+	}
+}
+
+#>>>
+configbody authenticator::form::Userattrib::state { #<<<
+	$signals(enabled) set_state [expr {$state eq "normal"}]
+}
+
+#>>>
+body authenticator::form::Userattrib::constructor {args} { #<<<
+	set baselog_instancename $this
+
+	tlc::Gate #auto signals(ready) -mode and -name "$w ready"
+	tlc::Signal #auto signals(attribset) -name "$w attribset"
+	tlc::Signal #auto signals(defaultset) -name "$w defaultset"
+	tlc::Signal #auto signals(valid) -name "$w valid"
+	tlc::Signal #auto signals(enabled) -name "$w enabled"
+	$signals(ready) attach_input $signals(attribset)
+
+	itk_component add display {
+		ttk::label $w.display -textvariable [scope display] \
+				-font [$tlc::theme setting boldfont]
+	} {
+		#keep -font
+	}
+
+	blt::table $w \
+			$w.display	1,1 -fill both
+
+	set auth	[find_auth]
+
+	itk_initialize {*}$args
+
+	$signals(ready) attach_output [code $this ready_changed]
+}
+
+#>>>
+body authenticator::form::Userattrib::destructor {} { #<<<
+	tlc::try {
+		$signals(ready) detach_output [code $this ready_changed]
+	} onerr {
+		default {STDMSG}
+	}
+}
+
+#>>>
+body authenticator::form::Userattrib::textvariable_changed {newvalue} { #<<<
+	if {$newvalue ne "" && $newvalue ne $display} {
+		log error "Not allowed to set value"
+	}
+}
+
+#>>>
+body authenticator::form::Userattrib::ready_changed {newvalue} { #<<<
+	retrieve_attrib
+}
+
+#>>>
+body authenticator::form::Userattrib::retrieve_attrib {} { #<<<
+	set valid	0
+	catch {
+		if {[$signals(ready) state]} {
+			if {[$signals(defaultset) state]} {
+				set val	[$auth attrib $attrib $default]
+			} else {
+				set val	[$auth attrib $attrib]
+			}
+			set display			$val
+			set_textvariable	$val
+			set valid			1
+		}
+	} errmsg options
+
+	$signals(valid) set_state $valid
+
+	if {[info exists options]} {
+		dict incr options -level
+		return -options $options $errmsg
+	}
+}
+
+#>>>
+body authenticator::form::Userattrib::find_auth {} { #<<<
+	set objs	[itcl::find objects -isa authenticator::Authenticator]
+
+	switch -- [llength $objs] {
+		0 {error "No authenticator::Authenticator instance"}
+		1 {}
+		default {error "More than 1 authenticator::Authenticator instance: ($objs).  Pass -auth to chose one"}
+	}
+
+	return [lindex $objs 0]
+}
+
+#>>>
