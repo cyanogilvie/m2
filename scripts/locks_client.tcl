@@ -21,8 +21,6 @@ cflib::pclass create m2::locks::client {
 	}
 
 	constructor {args} { #<<<
-		my log debug [self]
-
 		set heartbeat_interval	""
 		set heartbeat_afterid	""
 
@@ -41,7 +39,6 @@ cflib::pclass create m2::locks::client {
 
 	#>>>
 	destructor { #<<<
-		my log debug [self]
 		if {[info exists lock_jmid]} {
 			$connector jm_disconnect $lock_jmid $lock_prev_seq
 			unset lock_jmid
@@ -54,7 +51,6 @@ cflib::pclass create m2::locks::client {
 	#>>>
 
 	method relock {} { #<<<
-		my log debug [self]
 		if {[$signals(locked) state] && [info exists lock_jmid]} {
 			my log warning "Already have a lock"
 			return
@@ -75,7 +71,6 @@ cflib::pclass create m2::locks::client {
 
 	#>>>
 	method lock_req {op data} { #<<<
-		my log debug [self]
 		if {![$signals(locked) state] || ![info exists lock_jmid]} {
 			error "No lock held"
 		}
@@ -84,9 +79,8 @@ cflib::pclass create m2::locks::client {
 
 	#>>>
 	method unlock {} { #<<<
-		my log debug [self]
 		if {![$signals(locked) state] || ![info exists lock_jmid]} {
-			my log warning "No lock held"
+			#my log warning "No lock held"
 			return
 		}
 		try {
@@ -135,7 +129,7 @@ cflib::pclass create m2::locks::client {
 					[info exists lock_jmid] &&
 					$jmid eq $lock_jmid
 				} {
-					my log debug "lock channel canned: ($lock_jmid)"
+					?? {my log debug "lock channel canned: ($lock_jmid)"}
 					unset lock_jmid
 					unset lock_prev_seq
 					$signals(locked) set_state 0

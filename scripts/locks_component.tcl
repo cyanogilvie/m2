@@ -161,6 +161,7 @@ cflib::pclass create m2::locks::component {
 				}
 				#>>>
 			}
+
 			req { #<<<
 				lassign $rest seq prev_seq msg auth
 				lassign $msg op reqdata
@@ -171,28 +172,28 @@ cflib::pclass create m2::locks::component {
 					return
 				}
 
-				if {![dict exists $locks $id]} {
-					my log error "Got req on a lock_cb that had already been unlocked!"
-					$auth nack $seq "Lock not held anymore"
-					return
-				}
-
-				if {![my handlers_available lock_req_$op]} {
-					my log error "no handlers registered for req type ($op)"
-					$auth nack $seq "Invalid op: ($op)"
-					return
-				}
-
 				try {
-					my invoke_handlers lock_req_$op $id $auth $user $seq $reqdata
-				} on error {errmsg options} {
-					default {
-						my log error "\nerror invoking handlers for lock_req_$op: $errmsg\n[dict get $options -errorinfo]"
-						$auth nack $seq "Internal error"
+					if {![dict exists $locks $id]} {
+						my log error "Got req on a lock_cb that had already been unlocked!"
+						throw nack "Lock not held anymore"
 					}
+
+					if {![my handlers_available lock_req_$op]} {
+						my log error "no handlers registered for req type ($op)"
+						throw nack "Invalid op: ($op)"
+					}
+
+					my invoke_handlers lock_req_$op \
+							$id $auth $user $seq $reqdata
+				} trap nack {errmsg} {
+					$auth nack $seq $errmsg
+				} on error {errmsg options} {
+					my log error "error invoking handlers for lock_req_$op: $errmsg\n[dict get $options -errorinfo]"
+					$auth nack $seq "Internal error"
 				}
 				#>>>
 			}
+
 			default { #<<<
 				error "Invalid type: ($type)"
 				#>>>
