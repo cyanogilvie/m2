@@ -12,6 +12,7 @@ cflib::pclass create m2::component {
 	property auth		""
 	property prkeyfn	""
 	property login		0
+	property advertise	1
 
 	variable {*}{
 		op_handlers
@@ -207,7 +208,9 @@ cflib::pclass create m2::component {
 	#>>>
 	method _established_changed {newstate} { #<<<
 		if {$newstate} {
-			$auth handle_svc $svc [my code _svc_handler]
+			if {$advertise} {
+				$auth handle_svc $svc [my code _svc_handler]
+			}
 		} else {
 			$auth handle_svc $svc {}
 		}
