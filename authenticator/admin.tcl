@@ -40,8 +40,6 @@ oo::class create Admin {
 
 			m2 pr_jm $admin_jmid $seq \
 					[list admin_chan [my _get_connected_users]]
-		} else {
-			my log debug "User lacks system.admin perm"
 		}
 	}
 
