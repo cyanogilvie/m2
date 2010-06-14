@@ -23,6 +23,12 @@ cflib::pclass create m2::connector {
 		set svc		$a_svc
 		set old_lifecycle	""
 
+		if {"::tcl::mathop" ni [namespace path]} {
+			namespace path [concat [namespace path] {
+				::tcl::mathop
+			}]
+		}
+
 		#set log_cmd	[my code log]	;# Let Refcounted log to us
 
 		array set signals	{}
@@ -72,14 +78,33 @@ cflib::pclass create m2::connector {
 		} [info coroutine]]
 
 		while {1} {
-			lassign [yield] msg_data
-			set data	[dict get $msg_data data]
+			lassign [yield] msg
+			set data	[dict get $msg data]
+			if {[dict get $msg oob_type] eq "profiling"} {
+				foreach stamp [dict get $msg oob_data] {
+					lassign $stamp usec_abs point station_id
+					if {![info exists start_usec]} {
+						set start_usec	$usec_abs
+					}
+					if {![info exists last_usec]} {
+						set last_usec	$usec_abs
+					}
+					set usec_from_start	[- $usec_abs $start_usec]
+					set usec_from_last	[- $usec_abs $last_usec]
+					set last_usec		$usec_abs
+					puts [format "%11.4f %10.4f %7s %s" \
+							[/ $usec_from_start 1000.0] \
+							[/ $usec_from_last 1000.0] \
+							$point \
+							$station_id]
+				}
+			}
 
-			switch -- [dict get $msg_data type] {
+			switch -- [dict get $msg type] {
 				ack		{return $data}
 				nack	{throw [list connector_req_failed $op $data] $data}
 				default {
-					my log warning "Not expecting response type: ([dict get $msg_data type])"
+					my log warning "Not expecting response type: ([dict get $msg type])"
 				}
 			}
 		}

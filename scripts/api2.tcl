@@ -136,13 +136,13 @@ cflib::pclass create m2::api2 {
 		switch -- [dict get $msg type] {
 			req { #<<<
 				if {[dict exists $svc_handlers [dict get $msg svc]]} {
-					dict set outstanding_reqs $m_seq	$msg
 					# Add profiling stamp if requested <<<
 					if {[dict get $msg oob_type] eq "profiling"} {
 						dict set msg oob_data [my _add_profile_stamp "req_in" \
 								[dict get $msg oob_data]]
 					}
 					# Add profiling stamp if requested >>>
+					dict set outstanding_reqs $m_seq	$msg
 					try {
 						coroutine coro_req_[incr ::coro_seq] \
 								{*}[dict get $svc_handlers [dict get $msg svc]] \
@@ -215,6 +215,12 @@ cflib::pclass create m2::api2 {
 
 			rsj_req { #<<<
 				try {
+					# Add profiling stamp if requested <<<
+					if {[dict get $msg oob_type] eq "profiling"} {
+						dict set msg oob_data [my _add_profile_stamp "req_in" \
+								[dict get $msg oob_data]]
+					}
+					# Add profiling stamp if requested >>>
 					dict set outstanding_reqs $m_seq	$msg
 					#my log trivia "API2::incoming: got [dict get $msg svc]: ([dict get $msg seq]) ([dict get $msg prev_seq]) ([dict get $msg data])"
 					#my log debug "API2::incoming: channel request"
@@ -536,14 +542,20 @@ cflib::pclass create m2::api2 {
 			set e_data		$data
 		}
 
-		my send [m2::msg::new [list \
+		set msg	[m2::msg::new [list \
 				svc			"" \
 				type		rsj_req \
 				seq			$seq \
 				prev_seq	$jm_seq \
 				data		$e_data \
 		]]
-		
+		if {$oob_type eq "profiling"} {
+			set profile_so_far	[my _add_profile_stamp "req_out" {}]
+			dict set msg oob_type	"profiling"
+			dict set msg oob_data	$profile_so_far
+		}
+		my send $msg
+
 		dict set pending $seq		$cb
 		dict set ack_pend $seq		1
 		dict set jm $seq			0
