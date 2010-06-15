@@ -108,7 +108,7 @@ oo::class create webmodule::webmodule {
 
 				http_get {
 					lassign $rest relfile
-					log debug "Got http_get request for \"$relfile\""
+					?? {log debug "Got http_get request for \"$relfile\""}
 					set base	[string trimright $baseurl /]
 					try {
 						string map [list %h $base] [$httpd get $relfile]

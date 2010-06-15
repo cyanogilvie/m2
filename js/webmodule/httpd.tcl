@@ -36,7 +36,7 @@ cflib::pclass create webmodule::httpd {
 			set encoding	binary
 		}
 
-		log debug "httpd::get \"$relfile\" returning [string length $data] bytes, encoding: ($encoding), mimetype: ($mimetype)"
+		?? {log debug "httpd::get \"$relfile\" returning [string length $data] bytes, encoding: ($encoding), mimetype: ($mimetype)"}
 		list $data $encoding $mimetype
 	}
 
@@ -44,7 +44,7 @@ cflib::pclass create webmodule::httpd {
 	method got_req {req} { #<<<
 		set uri	[$req request_uri]
 
-		log debug "Got request for path: \"[$uri path]\""
+		?? {log debug "Got request for path: \"[$uri path]\""}
 
 		try {
 			my _resolve_path [string trimleft [$uri path] /]

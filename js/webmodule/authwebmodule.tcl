@@ -108,7 +108,7 @@ oo::class create webmodule::authwebmodule {
 	method _http_get {auth user seq data} { #<<<
 		try {
 			lassign $data relfile
-			log debug "Got http_get request for \"$relfile\""
+			?? {log debug "Got http_get request for \"$relfile\""}
 			set base	[string trimright $baseurl /]
 			string map [list %h $base] [$httpd get $relfile]
 		} trap not_found {errmsg} {

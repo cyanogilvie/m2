@@ -1,3 +1,21 @@
+#!/usr/bin/env tclsh8.6
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+
+if {![info exists ::tcl::basekit]} {
+	package require platform
+
+	foreach platform [platform::patterns [platform::identify]] {
+		set tm_path		[file join $env(HOME) .tbuild repo tm $platform]
+		set pkg_path	[file join $env(HOME) .tbuild repo pkg $platform]
+		if {[file exists $tm_path]} {
+			tcl::tm::path add $tm_path
+		}
+		if {[file exists $pkg_path]} {
+			lappend auto_path $pkg_path
+		}
+	}
+}
+
 package require m2
 package require cflib
 package require sop
@@ -8,8 +26,16 @@ package require datasource
 cflib::config create cfg $argv {
 	variable uri			"tcp://localhost:5300"
 	variable pbkey			"/etc/codeforge/authenticator/keys/env/authenticator.pb"
+	variable debug			0
 }
 
+if {[cfg get debug]} {
+	proc ?? {script} {uplevel 1 $script}
+} else {
+	proc ?? {args} {}
+}
+
+proc log {lvl msg args} {puts $msg}
 
 m2::authenticator create auth -uri [cfg get uri] -pbkey [cfg get pbkey]
 
