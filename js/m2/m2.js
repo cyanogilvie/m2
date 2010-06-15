@@ -600,7 +600,7 @@ m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 	}
 	so_far += frag;
 	if (is_tail) {
-		complete = so_far;
+		complete = Utf8.decode(so_far);
 		this._defrag_buf.removeItem(msgid);
 		this._receive_msg(complete);
 	} else {
@@ -611,15 +611,19 @@ m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 //>>>
 m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 	var packet;
-	packet = Utf8.decode(Base64.decode(packet_base64));
+	//packet = Utf8.decode(Base64.decode(packet_base64));
+	packet = Base64.decode(packet_base64);
 	//this.log('_queue_receive_raw: ('+packet+')');
 	var lineend, head, msgid, is_tail, fragment_len, frag, rest;
 	rest = packet;
+	//this.log('packet.length: '+packet.length);
 	while (rest.length > 0) {
+		//this.log('rest.length: '+rest.length);
 		lineend = rest.indexOf("\n");
 		if (lineend == -1) {
-			this.log('corrupt fragment header: '+rest);
+			throw('corrupt fragment header: '+rest);
 		}
+		//this.log('header: '+rest.substr(0, lineend));
 		head = parse_tcl_list(rest.substr(0, lineend));
 		msgid = Number(head[0]);
 		//is_tail = Boolean(head[1]);
@@ -634,6 +638,11 @@ m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 		is_tail = Boolean(Number(head[1]));
 		fragment_len = Number(head[2]);
 		frag = rest.substr(lineend + 1, fragment_len);
+		//this.log('fragment_len: '+fragment_len+', frag.length: '+frag.length);
+		if (fragment_len !== frag.length) {
+			throw('Fragment length mismatch: expecting '+fragment_len+', got: '+frag.length);
+		}
+		//rest = rest.substr(lineend + 1 + fragment_len);
 		rest = rest.substr(lineend + 1 + fragment_len);
 		this._receive_fragment(msgid, is_tail, frag);
 	}
