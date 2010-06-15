@@ -54,7 +54,6 @@ application "m2_node" { #<<<
 		{sop 1.2}
 		cflib
 		dsl
-		hash
 	}
 
 	files {
@@ -69,6 +68,7 @@ application "m2_node" { #<<<
 		requires {
 			sockopt
 			unix_sockets
+			hash
 		}
 	}
 	#platform linux-glibc2.4-ppc {
@@ -79,6 +79,7 @@ application "m2_node" { #<<<
 		requires {
 			sockopt
 			unix_sockets
+			hash
 		}
 	}
 
@@ -138,7 +139,7 @@ application "authenticatord" { #<<<
 		}
 	}
 
-	platform linux-glibc2.10-x86_64 {
+	platform [this_platform] {
 		requires {
 			sqlite3
 		}
