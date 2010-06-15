@@ -103,7 +103,7 @@ m2.authenticator.prototype.constructor = m2.authenticator;
 
 m2.authenticator.prototype.destroy = function() { //<<<
 	// TODO: all the things that must happen here ;)
-	return m2.api.destroy.call(this);;
+	return m2.api.destroy.call(this);
 };
 
 //>>>
@@ -721,7 +721,9 @@ m2.authenticator.prototype.select_profile = function(seq, selected_profile) { //
 
 //>>>
 m2.authenticator.prototype._update_userinfo = function(data) { //<<<
-	var i, permnames, attribs, prefs;
+	var i, permnames, attribs, prefs, self;
+
+	self = this;
 
 	switch (data[0]) {
 		case 'perms':
@@ -748,15 +750,15 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 			attribs.forEach(function(attrib, value) {
 				switch (attrib.charAt(0)) {
 					case '-':
-						this.attribs.removeItem(attrib.substr(1));
+						self.attribs.removeItem(attrib.substr(1));
 						break;
 
 					case '+':
-						this.attribs.setItem(attrib.substr(1), value);
+						self.attribs.setItem(attrib.substr(1), value);
 						break;
 
 					default:
-						this.attribs.setItem(attrib, value);
+						self.attribs.setItem(attrib, value);
 						break;
 				}
 			});
@@ -768,15 +770,15 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 			prefs.forEach(function(pref, value) {
 				switch (pref.charAt(0)) {
 					case '-':
-						this.prefs.removeItem(pref.substr(1));
+						self.prefs.removeItem(pref.substr(1));
 						break;
 
 					case '+':
-						this.prefs.setItem(pref.substr(1), value);
+						self.prefs.setItem(pref.substr(1), value);
 						break;
 
 					default:
-						this.prefs.setItem(pref, value);
+						self.prefs.setItem(pref, value);
 						break;
 				}
 			});
