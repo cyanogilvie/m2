@@ -18,6 +18,7 @@ if {![info exists ::tcl::basekit]} {
 
 package require m2
 package require cflib
+package require cachevfs
 package require logging
 package require evlog
 
@@ -111,5 +112,13 @@ set report_connector_signal_change [list {signal newstate} {
 dict for {signal sigobj} [$connector signals_available] {
 	[$connector signal_ref $signal] attach_output [list apply $report_connector_signal_change $signal]
 }
+
+cachevfs::mount create vfs_testpool -connector $connector -cachedir cachedir \
+		-pool testpool -local virt
+[vfs_testpool signal_ref mounted] attach_output [list apply {
+	{newstate} {
+		puts "Cachevfs mounted: $newstate"
+	}
+}]
 
 vwait forever

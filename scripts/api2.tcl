@@ -55,7 +55,7 @@ cflib::pclass create m2::api2 {
 	#>>>
 
 	method _incoming {msg} { #<<<
-		?? {my log debug "-> Got [m2::msg::display $msg]"}
+		?? {log trivia "-> Got [m2::msg::display $msg]"}
 
 		set m_seq		[dict get $msg seq]
 		set m_prev_seq	[dict get $msg prev_seq]
@@ -189,7 +189,7 @@ cflib::pclass create m2::api2 {
 								}
 							} on error {errmsg options} {
 								my log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
-								my log error "\njm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"
+								my log error "jm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"
 							}
 						}
 					} else {
@@ -208,7 +208,7 @@ cflib::pclass create m2::api2 {
 					#my log trivia "API2::incoming: got jm_disconnect:\nseq: ($m_seq)\nprev_seq: ($m_prev_seq)"
 					my chans cancel $m_seq
 				} on error {errmsg options} {
-					my log error "\nerror processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
+					my log error "error processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
 				}
 				#>>>
 			}
@@ -230,7 +230,7 @@ cflib::pclass create m2::api2 {
 					}
 					my chans chanreq $m_seq $m_prev_seq [dict get $msg data]
 				} on error {errmsg options} {
-					my log error "\nerror processing [dict get $msg svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
+					my log error "error processing [dict get $msg svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
 					my nack $m_seq "internal error"
 				}
 				#>>>
@@ -276,7 +276,7 @@ cflib::pclass create m2::api2 {
 					}
 				} on error {errmsg options} {
 					default {
-						my log error "\nerror processing jm_req: $errmsg\n[dict get $options -errorinfo]"
+						my log error "error processing jm_req: $errmsg\n[dict get $options -errorinfo]"
 						if {![my answered $m_seq]} {
 							my nack $m_seq "internal error"
 						}
@@ -328,7 +328,7 @@ cflib::pclass create m2::api2 {
 								}
 							} on error {errmsg options} {
 								#my log debug "API2::incoming/([dict get $msg type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
-								my log error "\nerror invoking callback: $errmsg\n[dict get $options -errorinfo]" 
+								my log error "error invoking callback: $errmsg\n[dict get $options -errorinfo]" 
 							}
 						} else {
 							#my log debug "no handler for seq: ($m_seq), prev_seq: ($prev_seq)"
@@ -814,7 +814,7 @@ cflib::pclass create m2::api2 {
 			is_chanreq { #<<<
 				lassign $args prev_seq
 
-				return [dict exists $chans $prev_seq]
+				dict exists $chans $prev_seq
 				#>>>
 			}
 

@@ -5,7 +5,7 @@
 #	user_logout(userobj)
 
 cflib::pclass create m2::component {
-	superclass cflib::handlers cflib::baselog
+	superclass cflib::handlers
 
 	property allow_dup	0
 	property svc		""
@@ -94,7 +94,7 @@ cflib::pclass create m2::component {
 		try {
 			if {[string range $data 0 5] == "setup "} {
 				lassign [string range $data 6 end] e_skey e_tail iv
-				#my log debug "e_skey (base64): [binary encode base64 $e_skey]"
+				#log debug "e_skey (base64): [binary encode base64 $e_skey]"
 
 				set K	[list \
 						[dict get $prkey p] \
@@ -104,7 +104,7 @@ cflib::pclass create m2::component {
 						[dict get $prkey qInv] \
 				]
 				set skey	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
-				#my log debug "skey base64: [binary encode base64 $skey]"
+				#log debug "skey base64: [binary encode base64 $skey]"
 				set ks		[crypto::blowfish::init_key $skey]
 				set tail	[encoding convertfrom utf-8 [crypto::blowfish::decrypt_cbc $ks $e_tail $iv]]
 
@@ -113,15 +113,15 @@ cflib::pclass create m2::component {
 				throw {obsolete} "Obsolete user session setup"
 			}
 		} trap obsolete {errmsg} {
-			my log error "Obsolete user session setup: ([string range $data 0 5]) != (setup )"
+			log error "Obsolete user session setup: ([string range $data 0 5]) != (setup )"
 			$auth nack $seq "Obsolete user session setup"
 			return
 		} on error {errmsg options} {
-			my log error "error decrypting request: [dict get $options -errorinfo]"
+			log error "error decrypting request: [dict get $options -errorinfo]"
 			$auth nack $seq ""
 			return
 		} on ok {} {
-			#my log debug "Decrypted _svc_handler \"setup \" request ok, cookie base64: [binary encode base64 $cookie]"
+			#log debug "Decrypted _svc_handler \"setup \" request ok, cookie base64: [binary encode base64 $cookie]"
 		}
 
 		# Create a user object <<<
@@ -133,20 +133,20 @@ cflib::pclass create m2::component {
 		$auth crypto register_chan $chan $skey
 		$auth chans register_chan $chan \
 				[my code _userchan_cb $userobj $chan $mycookie]
-		#my log debug "sending pr_jm ($chan) with cookie ([$auth mungekey $cookie]) encrypted with skey ([$auth mungekey $skey])"
-		#my log debug "sending pr_jm ($chan) with cookie [binary encode base64 $cookie] encrypted with skey [binary encode base64 $skey]"
+		#log debug "sending pr_jm ($chan) with cookie ([$auth mungekey $cookie]) encrypted with skey ([$auth mungekey $skey])"
+		#log debug "sending pr_jm ($chan) with cookie [binary encode base64 $cookie] encrypted with skey [binary encode base64 $skey]"
 		$auth pr_jm $chan $seq $cookie
 		try {
 			$userobj get_pbkey
 		} on error {errmsg options} {
-			my log warning "nacking $seq: $errmsg\n[dict get $options -errorinfo]"
+			log warning "nacking $seq: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq "Cannot get public key for \"$fqun\""
 		} on ok {user_pbkey} {
-			#my log debug "got user pbkey, encrypting mycookie with it and acking"
+			#log debug "got user pbkey, encrypting mycookie with it and acking"
 			set n	[dict get $user_pbkey n]
 			set e	[dict get $user_pbkey e]
-			#my log debug "Encrypting cookie2 with n: $n, e: $e"
-			#my log debug "cookie2: [binary encode base64 $mycookie]"
+			#log debug "Encrypting cookie2 with n: $n, e: $e"
+			#log debug "cookie2: [binary encode base64 $mycookie]"
 			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
 		}
 	}
@@ -158,6 +158,7 @@ cflib::pclass create m2::component {
 				dict unset chan_auth $chan
 				my invoke_handlers user_logout $user
 				if {[info object isa object $user]} {
+					?? {log debug "Userchan for ([$user name]) cancelled, destroying"}
 					$user destroy
 				}
 				#>>>
@@ -181,25 +182,25 @@ cflib::pclass create m2::component {
 				lassign $msg rop rdata
 
 				if {![dict exists $op_handlers $rop]} {
-					my log warning "no handlers for op: ($rop)"
+					log warning "no handlers for op: ($rop)"
 					$auth nack $seq "Internal error"
 					return
 				}
 
 				try {
-					?? {my log debug "Calling component req handler for ($rop): [dict get $op_handlers $rop]"}
+					?? {log debug "Calling component req handler for ($rop): [dict get $op_handlers $rop]"}
 					coroutine coro_handler_[incr ::coro_seq] \
 							{*}[dict get $op_handlers $rop] \
 							$auth $user $seq $rdata
-					?? {my log debug "done rop: ($rop) cb: ([dict get $op_handlers $rop]), answered: [$auth answered $seq]"}
+					?? {log debug "done rop: ($rop) cb: ([dict get $op_handlers $rop]), answered: [$auth answered $seq]"}
 				} on error {errmsg options} {
-					my log error "error processing op ($rop): $errmsg\n[dict get $options -errorinfo]"
+					log error "error processing op ($rop): $errmsg\n[dict get $options -errorinfo]"
 					$auth nack $seq "Internal error"
 				}
 				#>>>
 			}
 			default { #<<<
-				my log error "unexpected op: ($op)"
+				log error "unexpected op: ($op)"
 				#>>>
 			}
 		}
@@ -222,10 +223,10 @@ cflib::pclass create m2::component {
 			try {
 				my invoke_handlers user_login $user
 			} trap deny {errmsg options} {
-				my log notice "Denying user \"[$user name]\" access: $errmsg"
+				log notice "Denying user \"[$user name]\" access: $errmsg"
 				$a_auth nack $seq "Permission denied"
 			} on error {errmsg options} {
-				my log error "error invoking user_login handlers: $errmsg\n[dict get $options -errorinfo]"
+				log error "error invoking user_login handlers: $errmsg\n[dict get $options -errorinfo]"
 				$a_auth nack $seq "Internal error"
 			} on ok {} {
 				$a_auth ack $seq ""
@@ -239,7 +240,7 @@ cflib::pclass create m2::component {
 		incr login_busy 1
 		if {$newstate} {
 			if {![$auth login_svc $svc [string map [list %s $svc] $prkeyfn]]} {
-				my log error "Failed to login: [$auth last_login_message]"
+				log error "Failed to login: [$auth last_login_message]"
 			}
 		}
 		incr login_busy -1

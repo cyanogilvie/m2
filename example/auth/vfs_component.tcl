@@ -20,6 +20,8 @@ package require m2
 package require cflib
 package require sop
 package require dsl
+package require cachevfs
+package require datasource
 package require logging
 package require evlog
 
@@ -56,57 +58,35 @@ m2::component create comp \
 		-prkeyfn	/etc/codeforge/authenticator/keys/env/examplecomponent.pr \
 		-login		1
 
-proc pinger {} {
-	set jmid	[auth unique_id]
-	log notice "Starting new pinger ($jmid)"
-	auth chans register_chan $jmid [list apply {
-		{coro args} {$coro $args}
-	} [info coroutine]]
+cachevfs::backend create cachevfs -comp comp
+cachevfs register_pool testpool [file join [pwd] pools testpools]
 
-	set ping_seq	0
-	set afterid	[after 1000 [list [info coroutine] ping]]
-	while {1} {
-		set rest	[lassign [yield] wakeup_reason]
-
-		switch -- $wakeup_reason {
-			join {
-				lassign $rest seq
-				log debug "Joining $seq to ping ($jmid)"
-				auth pr_jm $jmid $seq "init $ping_seq"
-			}
-
-			ping {
-				log notice "Sending ping on $jmid"
-				auth jm $jmid "ping [incr ping_seq]"
-				set afterid	[after 1000 [list [info coroutine] ping]]
-			}
-
-			cancelled {
-				after cancel $afterid; set afterid	""
-				log notice "All destinations for $jmid disconnected"
-				break
-			}
-
-			req {
-				lassign $rest rseq rprev_seq rdata
-				auth nack $rseq "Requests not supported on this channel"
-			}
-
-			default {
-				log error "Unexpected wakeup_reason: ($wakeup_reason)"
-			}
-		}
+ds::dschan_backend create test_ds_backend -comp comp -tag test_ds \
+		-headers {ID Foo Bar Baz}
+test_ds_backend register_pool "hello" [list apply {
+	{user pool extra} {
+		log debug "Got check_cb for hello pool: user: ([$user name]), pool: ($pool), extra: ($extra)"
+		return 1
 	}
-
-	log notice "Wrapping up pinger"
+}]
+test_ds_backend add_item "hello" {1 foo1 bar1 baz1}
+test_ds_backend add_item "hello" {2 foo2 bar2 baz2}
+test_ds_backend add_item "hello" {3 foo3 bar3 baz3}
+set i	4
+for {set i 4} {$i < 128 + 64 + 32 + 0*16 + 0*8 + 1*4 + 0*2 + 1*1 - 2} {incr i} {
+	test_ds_backend add_item "hello" [list $i "auto item $i" "bar" "baz"]
 }
+
+set seq	$i
+proc append_element {} {
+	test_ds_backend add_item "hello" [list [incr ::seq] [clock format [clock seconds]] "more bar" "more baz"]
+	after 10000 append_element
+}
+
+append_element
 
 comp handler "hello" [list apply {
 	{auth user seq rdata} {
-		if {[info commands coro_pinger] ne "coro_pinger"} {
-			coroutine coro_pinger pinger
-		}
-		coro_pinger [list join $seq]
 		auth ack $seq "world, [$user name]: ($rdata)"
 	}
 }]

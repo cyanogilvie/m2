@@ -18,13 +18,17 @@ foreach platform [platform::patterns [platform::identify]] {
 package require m2
 package require sop
 package require cflib
+package require evlog
 
 cflib::config create cfg $argv {
 	variable uri		"tcp://localhost:5300"
 	variable profiling	1
 	variable debug		0
 	variable senders	1
+	variable evlog_uri	""
 }
+
+evlog connect "[file tail [info script]] [info hostname] [pid]" [cfg get evlog_uri]
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}

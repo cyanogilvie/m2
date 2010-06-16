@@ -22,20 +22,22 @@ package require Tcl 8.6
 package require netdgram 0.6.1
 package require m2
 package require cflib
+package require logging
+package require evlog
 
 cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
 	variable upstream		{}
 	variable queue_mode		fancy
 	variable debug			0
-	variable deamon			0		;# Obsolete
+	variable daemon			0		;# Obsolete
+	variable loglevel		notice
+	variable evlog_uri		""
 } /etc/codeforge/m2_node.conf
 
-proc log {lvl msg args} { #<<<
-	puts $msg
-}
+evlog connect "m2_node [info hostname] [pid]" [cfg get evlog_uri]
 
-#>>>
+logging::logger ::log [cfg get loglevel]
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}

@@ -29,6 +29,8 @@ oo::class create m2::port {
 	}
 
 	constructor {mode parms a_queue a_params} { #<<<
+		package require evlog
+
 		next
 		my variable params
 		set params	$a_params
@@ -415,7 +417,8 @@ oo::class create m2::port {
 	#>>>
 	method _got_msg {raw_msg} { #<<<
 		set msg	[m2::msg::deserialize $raw_msg]
-		?? {log debug "-> Got msg ([my cached_station_id]) [m2::msg::display $msg]"}
+		evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}
+		?? {log trivia "-> Got msg ([my cached_station_id]) [m2::msg::display $msg]"}
 		# Add profiling stamp if requested <<<
 		if {[dict get $msg oob_type] eq "profiling"} {
 			dict set msg oob_data [my _add_profile_stamp \
@@ -716,7 +719,6 @@ oo::class create m2::port {
 		}
 
 		try {
-			?? {log debug "<- Sending msg ([my cached_station_id]) [m2::msg::display $msg]"}
 			# Add profiling stamp if requested <<<
 			if {[dict get $msg oob_type] eq "profiling"} {
 				dict set msg oob_data [my _add_profile_stamp \
@@ -724,7 +726,9 @@ oo::class create m2::port {
 						[dict get $msg oob_data]]
 			}
 			# Add profiling stamp if requested >>>
+			?? {log trivia "<- Sending msg ([my cached_station_id]) [m2::msg::display $msg]"}
 
+			evlog event m2.queue_msg {[list to [my cached_station_id] msg $msg]}
 			$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 		} on error {errmsg options} {
 			log error "Error queueing message [dict get $msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"

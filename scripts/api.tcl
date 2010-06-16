@@ -33,6 +33,8 @@ cflib::pclass create m2::api {
 	}
 
 	constructor {args} { #<<<
+		package require evlog
+
 		array set dominos		{}
 		array set svc_signals	{}
 		set neighbour_info	[dict create \
@@ -119,7 +121,8 @@ cflib::pclass create m2::api {
 		my invoke_handlers send $msg
 		my invoke_handlers send,[dict get $msg type] $msg
 
-		?? {puts "<- Enqueuing msg: [m2::msg::display $msg]"}
+		?? {log trivia "<- Enqueuing msg: [m2::msg::display $msg]"}
+		evlog event m2.queue_msg {[list to $uri msg $msg]}
 		$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 	}
 
@@ -132,6 +135,7 @@ cflib::pclass create m2::api {
 
 	method _got_msg {raw_msg} { #<<<
 		set msg		[m2::msg::deserialize $raw_msg]
+		evlog event m2.receive_msg {[list from $uri msg $msg]}
 
 		switch -- [dict get $msg type] {
 			svc_avail {

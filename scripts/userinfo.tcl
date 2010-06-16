@@ -5,8 +5,7 @@
 #						  jm_can'ed (authenticator died, user kicked, etc)
 
 oo::class create m2::userinfo {
-	#superclass cflib::handlers sop::signalsource cflib::baselog
-	superclass sop::signalsource cflib::handlers cflib::baselog
+	superclass sop::signalsource cflib::handlers
 
 	variable {*}{
 		username
@@ -61,16 +60,18 @@ oo::class create m2::userinfo {
 		$signals(got_all) attach_input $signals(got_attribs)
 		$signals(got_all) attach_input $signals(got_prefs)
 
-		coroutine coro_[incr ::coro_seq] my _setup_userinfo_chan
+		my _setup_userinfo_chan
 	}
 
 	#>>>
 	destructor { #<<<
+		?? {log debug "userinfo object for ($fqun) dieing"}
 		if {
 			[info exists userinfo_jmid] &&
 			[info exists userinfo_prev_seq] &&
 			[info exists auth]
 		} {
+			?? {log debug "jm_disconnecting from userinfo chan ($userinfo_jmid, $userinfo_prev_seq)"}
 			$auth jm_disconnect $userinfo_jmid $userinfo_prev_seq
 			unset userinfo_jmid
 			unset userinfo_prev_seq
@@ -88,9 +89,9 @@ oo::class create m2::userinfo {
 	#>>>
 	method perm {permname} { #<<<
 		if {![$signals(got_perms) state]} {
-			my log warning "still waiting for perms list from Authenticator backend..."
+			log warning "still waiting for perms list from Authenticator backend..."
 			my waitfor got_perms
-			my log warning "ok, got perms list, proceeding"
+			log warning "ok, got perms list, proceeding"
 		}
 
 		dict exists $perms $permname
@@ -99,9 +100,9 @@ oo::class create m2::userinfo {
 	#>>>
 	method attrib {attrib args} { #<<<
 		if {![$signals(got_attribs) state]} {
-			my log warning "still waiting for attribs from Authenticator backend..."
+			log warning "still waiting for attribs from Authenticator backend..."
 			my waitfor got_attribs
-			my log warning "ok, got attribs, proceeding"
+			log warning "ok, got attribs, proceeding"
 		}
 
 		if {[dict exists $attribs $attrib]} {
@@ -117,9 +118,9 @@ oo::class create m2::userinfo {
 	#>>>
 	method pref {pref args} { #<<<
 		if {![$signals(got_prefs) state]} {
-			my log warning "still waiting for prefs from Authenticator backend..."
+			log warning "still waiting for prefs from Authenticator backend..."
 			my waitfor got_prefs
-			my log warning "ok, got prefs, proceeding"
+			log warning "ok, got prefs, proceeding"
 		}
 
 		if {[dict exists $prefs $pref]} {
@@ -157,7 +158,7 @@ oo::class create m2::userinfo {
 			}
 
 			nack { #<<<
-				my log error "were denied userinfo channel setup: ([dict get $msg data])"
+				log error "were denied userinfo channel setup: ([dict get $msg data])"
 				$signals(userinfo_chan_valid) set_state 0
 				#>>>
 			}
@@ -168,7 +169,7 @@ oo::class create m2::userinfo {
 					set userinfo_prev_seq	[dict get $msg prev_seq]
 					$signals(userinfo_chan_valid) set_state 1
 				} elseif {$userinfo_jmid != [dict get $msg seq]} {
-					my log error "Got another channel setup ([dict get $msg seq]), already have userinfo_jmid: ($userinfo_jmid)"
+					log error "Got another channel setup ([dict get $msg seq]), already have userinfo_jmid: ($userinfo_jmid)"
 				}
 
 				my _update_userinfo [dict get $msg data]
@@ -182,24 +183,24 @@ oo::class create m2::userinfo {
 
 			jm_can { #<<<
 				if {![info exists userinfo_jmid]} {
-					my log error "no userinfo_jmid set, but got jm_can"
+					log error "no userinfo_jmid set, but got jm_can"
 					return
 				}
 				if {[dict get $msg seq] != $userinfo_jmid} {
-					my log error "unknown channel cancelled"
+					log error "unknown channel cancelled"
 					return
 				}
 
-				my log error "userinfo_chan cancelled"
+				log error "userinfo_chan cancelled"
 				unset userinfo_jmid
 				$signals(userinfo_chan_valid) set_state 0
 				my invoke_handlers session_killed
-				my log warning "Userinfo chan canned"
+				log warning "Userinfo chan canned"
 				#>>>
 			}
 
 			default { #<<<
-				my log error "unexpected type: ([dict get $msg type])"
+				log error "unexpected type: ([dict get $msg type])"
 				#>>>
 			}
 		}
@@ -269,7 +270,7 @@ oo::class create m2::userinfo {
 			}
 
 			default { #<<<
-				my log error "unexpected update type: ([lindex $data 0])"
+				log error "unexpected update type: ([lindex $data 0])"
 				#>>>
 			}
 		}

@@ -1,4 +1,4 @@
-set version	0.36.0
+set version	0.37.0
 
 set summary "m2 messagebus node"
 
@@ -22,6 +22,7 @@ tm "m2" { #<<<
 		{netdgram 0.5.5}
 		{sop 1.2}
 		sha1
+		evlog
 	}
 
 	init {
@@ -54,6 +55,7 @@ application "m2_node" { #<<<
 		{sop 1.2}
 		cflib
 		dsl
+		logging
 	}
 
 	files {
