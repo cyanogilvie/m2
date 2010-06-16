@@ -1,8 +1,6 @@
 # vim: foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 oo::class create User {
-	superclass cflib::baselog
-
 	variable {*}{
 		fqun
 		userchans_obj
@@ -16,7 +14,9 @@ oo::class create User {
 		set heartbeat_afterid	""
 
 		set fqun					[users make_fqun $name]
-		set baselog_instancename	$fqun
+		proc log {lvl msg args} [format {
+			tailcall ::log $lvl "\"%s\" $msg" {*}$args
+		} [list $fqun]]
 
 		set userchans_obj	[my _get_userchans_obj]
 	}
@@ -33,7 +33,7 @@ oo::class create User {
 						[info exists fqun] &&
 						[dict exists $::userchans $fqun]
 					} {
-						my log notice "Clearing \"$fqun\" out of the list of userchans"
+						log notice "Clearing \"$fqun\" out of the list of userchans"
 						dict unset ::userchans $fqun
 
 						# This is iffy - it should die from the chan_cb
@@ -49,17 +49,17 @@ oo::class create User {
 					[info exists fqun] &&
 					[dict exists $::userchans $fqun]
 				} {
-					my log notice "Clearing \"$fqun\" out of the list of userchans"
+					log notice "Clearing \"$fqun\" out of the list of userchans"
 					dict unset ::userchans $fqun
 				}
 			}
 			unset userchans_obj
 		} else {
-			my log warning "No associated userchans_obj"
+			log warning "No associated userchans_obj"
 		}
 		if {[info exists session_jmid]} {
 			m2 chans deregister_chan $session_jmid
-			my log notice "Cancelling session_jmid: ($session_jmid)"
+			log notice "Cancelling session_jmid: ($session_jmid)"
 			m2 jm_can $session_jmid ""
 			unset session_jmid
 		}
@@ -128,7 +128,7 @@ oo::class create User {
 	#>>>
 
 	method _logout {} { #<<<
-		my log notice "User session logoff or disconnect"
+		log notice "User session logoff or disconnect"
 		my destroy
 	}
 
@@ -163,7 +163,7 @@ oo::class create User {
 			}
 
 			default {
-				my log error "Unknown op: ($op)"
+				log error "Unknown op: ($op)"
 			}
 		}
 	}
@@ -178,7 +178,7 @@ oo::class create User {
 
 	#>>>
 	method _flatline {} { #<<<
-		my log warning "User session $fqun missed heartbeat.  Declaring dead"
+		log warning "User session $fqun missed heartbeat.  Declaring dead"
 		my destroy
 	}
 

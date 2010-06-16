@@ -1,8 +1,6 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 oo::class create Admin {
-	superclass cflib::baselog
-
 	variable {*}{
 		connected_users
 		admin_jmid
@@ -17,7 +15,6 @@ oo::class create Admin {
 	#>>>
 
 	method user_connected {userchans_obj seq} { #<<<
-		my log debug
 		set fqun	[$userchans_obj get fqun]
 		set perms	[$userchans_obj get perms]
 
@@ -28,14 +25,14 @@ oo::class create Admin {
 		}
 
 		if {"system.admin" in $perms} {
-			my log debug "User has system.admin perm, joining admin channel"
+			log debug "User has system.admin perm, joining admin channel"
 			if {![info exists admin_jmid]} {
 				set admin_jmid		[m2 unique_id]
 				m2 chans register_chan $admin_jmid \
 						[namespace code {my _admin_chan_cb}]
-				my log debug "admin_jmid didn't exist, created new one: ($admin_jmid)"
+				log debug "admin_jmid didn't exist, created new one: ($admin_jmid)"
 			} else {
-				my log debug "admin_jmid already existed: ($admin_jmid)"
+				log debug "admin_jmid already existed: ($admin_jmid)"
 			}
 
 			m2 pr_jm $admin_jmid $seq \
@@ -45,9 +42,8 @@ oo::class create Admin {
 
 	#>>>
 	method user_disconnected {userchans_obj} { #<<<
-		my log debug
 		set fqun	[$userchans_obj get fqun]
-		my log debug "fqun: \"$fqun\""
+		log debug "fqun: \"$fqun\""
 
 		if {[dict exists $connected_users $fqun]} {
 			dict unset connected_users $fqun
@@ -61,7 +57,6 @@ oo::class create Admin {
 	#>>>
 
 	method _admin_chan_cb {op data} { #<<<
-		my log debug
 		switch -- $op {
 			cancelled {
 				unset admin_jmid
@@ -74,14 +69,14 @@ oo::class create Admin {
 					kick_user { #<<<
 						try {
 							if {[string first % $data] == -1} {
-								my log debug "no type prefix present: \"$data\""
+								log debug "no type prefix present: \"$data\""
 								set data	"user%$data"
 							}
 							my _kick_user $data
 						} on ok {} {
 							m2 ack $seq ""
 						} on error {errmsg options} {
-							my log error "Could not kick user ($data): $errmsg"
+							log error "Could not kick user ($data): $errmsg"
 							m2 nack $seq $errmsg
 						}
 						#>>>
@@ -95,7 +90,7 @@ oo::class create Admin {
 			}
 
 			default {
-				my log error "Unknown op: ($op)"
+				log error "Unknown op: ($op)"
 			}
 		}
 	}
@@ -107,10 +102,9 @@ oo::class create Admin {
 
 	#>>>
 	method _kick_user {fqun} { #<<<
-		my log debug
-		puts stderr "Admin::kick_user: \"$fqun\""
+		log notice "Admin::kick_user: \"$fqun\""
 		if {![dict exists $connected_users $fqun]} {
-			my log warning "Asked to kick user who isn't logged in: \"$fqun\"\n\t[join [dict keys $connected_users] \n\t]"
+			log warning "Asked to kick user who isn't logged in: \"$fqun\"\n\t[join [dict keys $connected_users] \n\t]"
 			error "User \"$fqun\" is not logged in.\n\t[join [dict keys $connected_users] \n\t]"
 		}
 

@@ -146,13 +146,13 @@ oo::class create Plugin {
 
 	#>>>
 	method check_auth {username subdomain credentials} { #<<<
-		puts "Got request to check username: ($username), subdomain: ($subdomain), credentials: ($credentials)"
+		log debug "Got request to check username: ($username), subdomain: ($subdomain), credentials: ($credentials)"
 		return 0
 	}
 
 	#>>>
 	method get_info {username subdomain} { #<<<
-		puts "Got request to provide info for username: ($username), subdomain: ($subdomain)"
+		log debug "Got request to provide info for username: ($username), subdomain: ($subdomain)"
 		dict create \
 				attribs	{} \
 				perms	{} \

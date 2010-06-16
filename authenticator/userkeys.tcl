@@ -1,8 +1,6 @@
 # vim: foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4 ft=tcl
 
 oo::class create Userkeys {
-	superclass cflib::baselog
-
 	variable {*}{
 		userkey_expires_hours
 		userkey_grace_minutes
@@ -58,13 +56,13 @@ oo::class create Userkeys {
 			return [svckeys get_pbkey $svc_name]
 		}
 
-		my log error "No key stored for user"
+		log error "No key stored for user"
 		error "No such user: ($user)"
 	}
 
 	#>>>
 	method kick {user} { #<<<
-		my log notice "kicking user ($user)"
+		log notice "kicking user ($user)"
 		dict unset userkeys $user
 		dict unset userchans $user
 		if {[dict exists $expires $user]} {
@@ -78,7 +76,7 @@ oo::class create Userkeys {
 	method _userchan_update {user op data} { #<<<
 		switch -- $op {
 			cancelled {
-				my log notice "got cancel of user chan ($user)"
+				log notice "got cancel of user chan ($user)"
 				dict unset userkeys $user
 				dict unset userchans $user
 				if {[dict exists $expires $user]} {
@@ -98,14 +96,14 @@ oo::class create Userkeys {
 					}
 
 					default {
-						my log error "req($type): invalid request: ($msg)"
+						log error "req($type): invalid request: ($msg)"
 						m2 nack $seq "invalid request"
 					}
 				}
 			}
 
 			default {
-				my log error "invalid op: ($op)"
+				log error "invalid op: ($op)"
 			}
 		}
 	}
@@ -129,7 +127,7 @@ oo::class create Userkeys {
 		}
 
 		if {![dict exists $userchans $user]} {
-			my log error "no userchan known for $user"
+			log error "no userchan known for $user"
 			return
 		}
 
@@ -154,7 +152,7 @@ oo::class create Userkeys {
 
 		dict unset userkeys $user
 		dict unset userchans $user
-		my log debug "forcibly expired user key: ($user)"
+		log debug "forcibly expired user key: ($user)"
 	}
 
 	#>>>

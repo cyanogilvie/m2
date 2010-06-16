@@ -1,7 +1,7 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 oo::class create Users {
-	superclass cflib::handlers cflib::baselog
+	superclass cflib::handlers
 
 	variable {*}{
 		cookie_expires
@@ -33,7 +33,6 @@ oo::class create Users {
 	#>>>
 
 	method make_fqun {username} { #<<<
-		my log trivia
 		set typesplit	[split $username %]
 		if {[llength $typesplit] > 1} {
 			set type	[lindex $typesplit 0]
@@ -102,38 +101,38 @@ oo::class create Users {
 			#>>>
 		} trap {invalid_user_type} {errmsg options} { #<<<
 			set badtype	[lindex $::errorCode 1]
-			my log error "Invalid user type: ($badtype)\n[dict get $options -errorinfo]" -suppress data
+			log error "Invalid user type: ($badtype)\n[dict get $options -errorinfo]" -suppress data
 			m2 nack $seq $errmsg
 			#>>>
 		} trap {duplicate_login} {errmsg options} { #<<<
-			my log warning "User already logged in elsewhere" -suppress data
+			log warning "User already logged in elsewhere" -suppress data
 			m2 nack $seq "User already logged in elsewhere"
 			#>>>
 		} trap {not_found} {errmsg options} { #<<<
 			set upath	[lindex $::errorCode 1]
-			my log warning "deny login: cannot retrieve ($upath): $errmsg" \
+			log warning "deny login: cannot retrieve ($upath): $errmsg" \
 					-suppress data
 			m2 nack $seq "Invalid user or password"
 			#>>>
 		} trap {invalid_username} {errmsg options} { #<<<
 			set username	[lindex $::errorCode 1]
-			my log warning "deny login: Invalid username ($username): $errmsg" \
+			log warning "deny login: Invalid username ($username): $errmsg" \
 					-suppress data
 			m2 nack $seq "Invalid user or password"
 			#>>>
 		} trap {required_field_missing} {errmsg options} { #<<<
 			set reqf	[lindex $::errorCode 1]
-			my log error "required field missing: ($reqf)" -suppress data
+			log error "required field missing: ($reqf)" -suppress data
 			m2 nack $seq "Required field missing: ($reqf)"
 			#>>>
 		} trap {incorrect_password} {errmsg options} - \
 		trap {invalid_authtype} {errmsg options} { #<<<
-			my log warning $errmsg -suppress data
+			log warning $errmsg -suppress data
 			m2 nack $seq "Invalid user or password"
 			#>>>
 		} on error {errmsg options} { #<<<
-			my log error "Unexpected error trying to log in: $errmsg ($::errorCode)\n[dict get $options -errorinfo]" -suppress data
-			#my log error "Unexpected error trying to log in: $errmsg ($::errorCode)" -suppress data
+			log error "Unexpected error trying to log in: $errmsg ($::errorCode)\n[dict get $options -errorinfo]" -suppress data
+			#log error "Unexpected error trying to log in: $errmsg ($::errorCode)" -suppress data
 			m2 nack $seq "Internal error"
 			#>>>
 		} finally { #<<<
@@ -146,7 +145,7 @@ oo::class create Users {
 						$userobj destroy
 						unset userobj
 					} on error {errmsg options} {
-						my log error "Error destroying userobj: $errmsg\n[dict get $options -errorinfo]"
+						log error "Error destroying userobj: $errmsg\n[dict get $options -errorinfo]"
 					}
 				}
 			}
@@ -167,11 +166,11 @@ oo::class create Users {
 			set login_ok	1
 			#>>>
 		} trap {bad_cookie} {errmsg options} { #<<<
-			my log error "cookie is bad" -suppress data
+			log error "cookie is bad" -suppress data
 			m2 nack $seq "Cookie bad"
 			#>>>
 		} on error {errmsg options} { #<<<
-			my log error "Unexpected error trying to login: $errmsg ([dict get $options -errorcode])\n[dict get $options -errorinfo])" -suppress data
+			log error "Unexpected error trying to login: $errmsg ([dict get $options -errorcode])\n[dict get $options -errorinfo])" -suppress data
 			m2 nack $seq "Internal error"
 			#>>>
 		} finally { #<<<
@@ -184,7 +183,7 @@ oo::class create Users {
 						$userobj destroy
 						unset userobj
 					} on error {errmsg options} {
-						my log error "Error destroying userobj: $errmsg\n[dict get $options -errorinfo]"
+						log error "Error destroying userobj: $errmsg\n[dict get $options -errorinfo]"
 					}
 				}
 			}
@@ -197,11 +196,11 @@ oo::class create Users {
 		set fqun	[lindex $data 1]
 
 		try {
-			set pbkey	[userkeys get_user_pbkey $fqun]
+			userkeys get_user_pbkey $fqun
 		} on error {errmsg options} {
-			my log error "error fetching pbkey: [dict get $options -errorinfo]"
+			log error "error fetching pbkey: [dict get $options -errorinfo]"
 			m2 nack $seq "No public key for \"$fqun\""
-		} on ok {} {
+		} on ok {pbkey} {
 			m2 ack $seq $pbkey
 		}
 	}
@@ -235,11 +234,11 @@ oo::class create Users {
 		} on ok {} {
 			m2 ack $seq ""
 		} trap {no_user} {errmsg options} { #<<<
-			my log error "No logged in user: ($fqun)"
+			log error "No logged in user: ($fqun)"
 			m2 nack $seq "User $fqun isn't logged in"
 			#>>>
 		} on error {errmsg options} { #<<<
-			my log error "Unhandled error setting up userinfo: $errmsg\n[dict get $options -errorinfo]"
+			log error "Unhandled error setting up userinfo: $errmsg\n[dict get $options -errorinfo]"
 			m2 nack $seq "Internal error"
 			#>>>
 		}

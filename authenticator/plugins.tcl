@@ -3,8 +3,6 @@
 # Manage the set of auth delegation plugins
 
 oo::class create Plugins {
-	superclass cflib::baselog
-
 	variable {*}{
 		plugins
 	}
@@ -75,11 +73,11 @@ oo::class create Plugins {
 					last_changed	$last_changed \
 			]
 		} trap {load_problem} {errmsg options} {
-			my log error "Plugin $plugin_name cannot be loaded: $errmsg\n[dict get $options -errorinfo]"
+			log error "Plugin $plugin_name cannot be loaded: $errmsg\n[dict get $options -errorinfo]"
 		} trap {bad_interface} {errmsg options} {
-			my log error "Plugin $plugin_name does not implement a pluginbase called plugin"
+			log error "Plugin $plugin_name does not implement a pluginbase called plugin"
 		} on error {errmsg options} {
-			my log error "Error initializing plugin $plugin_name: $errmsg\n[dict get $options -errorinfo]"
+			log error "Error initializing plugin $plugin_name: $errmsg\n[dict get $options -errorinfo]"
 		} on ok {} {
 			set ok	1
 			dict get $plugins $plugin_name $params
@@ -89,7 +87,7 @@ oo::class create Plugins {
 					try {
 						interp delete $slave
 					} on error {errmsg options} {
-						my log error "Error destroying plugin:\n[dict get $options -errorinfo]"
+						log error "Error destroying plugin:\n[dict get $options -errorinfo]"
 					}
 				}
 			}
@@ -99,14 +97,14 @@ oo::class create Plugins {
 	#>>>
 	method _unload_plugin {plugin_name params} { #<<<
 		if {![dict exists $plugins $plugin_name $params]} {
-			my log warning "No plugin loaded for \"$plugin_name\" \"$params\""
+			log warning "No plugin loaded for \"$plugin_name\" \"$params\""
 			return
 		}
 		set slave	[dict get $plugins $plugin_name $params slave]
 		try {
 			$slave eval {plugin destroy}
 		} on error {errmsg options} {
-			my log error "Error unloading plugin \"$plugin_name\": $errmsg\n[dict get $options -errorinfo]"
+			log error "Error unloading plugin \"$plugin_name\": $errmsg\n[dict get $options -errorinfo]"
 		}
 		interp delete $slave
 		dict unset plugins $plugin_name $params
@@ -121,6 +119,7 @@ oo::class create Plugins {
 
 	#>>>
 	method _init_slave {slave} { #<<<
+		$slave alias log log
 		$slave eval {
 			oo::class create pluginbase {
 				method check_auth {username subdomain credentials} { #<<<
@@ -169,7 +168,7 @@ oo::class create Plugins {
 				#>>>
 
 				method log {lvl msg args} { #<<<
-					puts stderr $msg
+					tailcall log $lvl $msg {*}$args
 				}
 
 				unexport log

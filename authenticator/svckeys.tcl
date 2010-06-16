@@ -1,8 +1,6 @@
 # vim: ft=tcl foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4
 
 oo::class create Svckeys {
-	superclass cflib::baselog
-
 	constructor {} { #<<<
 		if {[self next] ne {}} next
 
@@ -23,7 +21,7 @@ oo::class create Svckeys {
 	method get_pbkey_asc {svc} { #<<<
 		set svcfn	[my _resolve_path $svc]
 		if {![file isfile $svcfn]} {
-			my log error "no file for svc: fn: ($svcfn)"
+			log error "no file for svc: fn: ($svcfn)"
 			error "No such svc: ($svc)"
 		}
 
@@ -48,7 +46,7 @@ oo::class create Svckeys {
 		try {
 			my get_pbkey_asc $svc
 		} on error {errmsg options} {
-			my log error "\nerror getting ascii public key: $errmsg\n[dict get $options -errorinfo]"
+			log error "\nerror getting ascii public key: $errmsg\n[dict get $options -errorinfo]"
 			m2 nack $seq $errmsg
 		} on ok {pbkey} {
 			m2 ack $seq $pbkey
@@ -57,7 +55,7 @@ oo::class create Svckeys {
 
 	#>>>
 	method _resolve_path {svc} { #<<<
-		file join $::base [cfg get svc_keys] $svc
+		file join [cfg get svc_keys] $svc
 	}
 
 	#>>>

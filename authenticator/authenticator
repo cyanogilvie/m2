@@ -25,45 +25,31 @@ proc mungekey {args} {}
 #	return [format "%i" $build] 
 #}
 
+set here	[file dirname [file normalize [info script]]]
+
 package require cflib
-namespace eval cflib {
-	namespace export *
-}
-namespace import cflib::*
-cd [file dirname [info script]]
 
-set iswrapped	[expr {[lindex [file system [info script]] 0] ne "native"}]
-if {$iswrapped} {
-	set base [file normalize [file join [file dirname [info script]] .. .. ..]]
-} else {
-	set base [file normalize [file dirname [info script]]]
-}
-
-set hold	[pwd]
-cd $base
 cflib::config create cfg $argv {
-	variable uri				"tcp://localhost:5300"
-	variable prkey				"/etc/codeforge/authenticator/keys/env/authenticator.pr"
-	variable svc				"authenticator"
-	variable svc_keys			"/etc/codeforge/authenticator/svc_keys"
+	variable uri				tcp://localhost:5300
+	variable prkey				/etc/codeforge/authenticator/keys/env/authenticator.pr
+	variable svc				authenticator
+	variable svc_keys			/etc/codeforge/authenticator/svc_keys
 	variable crypto_devmode		0
-	variable plugin_dir			"/etc/codeforge/authenticator/plugins"
+	variable plugin_dir			/etc/codeforge/authenticator/plugins
 	variable cookie_shelflife	20000
 	variable heartbeat_interval	120
 	switch -- $::tcl_platform(platform) {
-		"unix"	{variable db	"/var/lib/codeforge/authenticator/authenticator.sqlite3"}
-		default	{variable db	"authenticator.sqlite3"}
+		"unix"	{variable db	/var/lib/codeforge/authenticator/authenticator.sqlite3}
+		default	{variable db	authenticator.sqlite3}
 	}
 	variable debug				0
+	variable loglevel			notice
 	variable daemon				0		;# obsolete
-}
-cd $hold
+} /etc/codeforge/authenticator.conf
 
-proc log {lvl msg args} { #<<<
-	puts stderr $msg
-}
+package require logging
 
-#>>>
+logging::logger ::log [cfg get loglevel]
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}
@@ -72,19 +58,17 @@ if {[cfg get debug]} {
 }
 
 package require sqlite3
-package require cflib
 package require sop
 package require m2
 
-source "crypto.tcl"
-source "users.tcl"
-
-source "userchans.tcl"
-source "user.tcl"
-source "userkeys.tcl"
-source "svckeys.tcl"
-source "plugins.tcl"
-source "admin.tcl"
+source [file join $here crypto.tcl]
+source [file join $here users.tcl]
+source [file join $here userchans.tcl]
+source [file join $here user.tcl]
+source [file join $here userkeys.tcl]
+source [file join $here svckeys.tcl]
+source [file join $here plugins.tcl]
+source [file join $here admin.tcl]
 
 proc init {} { #<<<
 	set ::online	[dict create]
@@ -97,16 +81,12 @@ proc init {} { #<<<
 	}]
 
 	m2::api2 create m2 -uri [cfg get uri]
-	set loghandler	{
-		log $lvl $msg {*}$args
-	}
-	oo::objdefine m2 method log {lvl {msg ""} args} $loghandler
 
 	# Init db <<<
 	sqlite3 db [cfg get db]
 	if {[db onecolumn {
 		select
-			count(1) < 1	
+			count(1) < 1
 		from
 			sqlite_master
 		where
@@ -131,13 +111,6 @@ proc init {} { #<<<
 	Svckeys create svckeys
 	Plugins create plugins
 	Admin create admin
-
-	oo::objdefine crypto method log {lvl {msg ""} args} $loghandler
-	oo::objdefine users method log {lvl {msg ""} args} $loghandler
-	oo::objdefine userkeys method log {lvl {msg ""} args} $loghandler
-	oo::objdefine svckeys method log {lvl {msg ""} args} $loghandler
-	oo::objdefine plugins method log {lvl {msg ""} args} $loghandler
-	oo::objdefine admin method log {lvl {msg ""} args} $loghandler
 
 	[m2 signal_ref connected] attach_output [list apply {
 		{newstate} {

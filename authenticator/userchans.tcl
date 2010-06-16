@@ -4,8 +4,6 @@
 # many times they are logged in (and therefore how may User instances they have)
 
 oo::class create Userchans {
-	superclass cflib::baselog
-
 	variable {*}{
 		dat
 		userinfo_chan
@@ -64,7 +62,9 @@ oo::class create Userchans {
 
 		# Set these again, this time with the normalized values
 		dict set uinfo fqun			$normalized
-		set baselog_instancename	$normalized
+		proc log {lvl msg args} [format {
+			tailcall ::log $lvl "\"%s\" $msg" {*}$args
+		} [list $normalized]]
 		dict set dat upath			[my _getupath]
 		# Normalize username >>>
 	}
@@ -75,18 +75,18 @@ oo::class create Userchans {
 
 		if {[info exists jmid]} {
 			#m2 chans deregister_chan $jmid
-			puts stderr "Cancelling login_chan jmid: ($jmid)"
+			log debug "Cancelling login_chan jmid: ($jmid)"
 			m2 jm_can $jmid ""
 			unset jmid
 		}
 		if {[info exists userinfo_chan]} {
 			#m2 chans deregister_chan $userinfo_chan
-			puts stderr "Cancelling userinfo_chan: ($userinfo_chan)"
+			log debug "Cancelling userinfo_chan: ($userinfo_chan)"
 			m2 jm_can $userinfo_chan ""
 			unset userinfo_chan
 		}
 
-		puts stderr "clearing out entry for \"[dict get $dat fqun]\" from online array"
+		log debug "clearing out entry for \"[dict get $dat fqun]\" from online array"
 		dict unset ::online [dict get $dat fqun]
 		users logoff [dict get $dat fqun]
 
@@ -122,7 +122,7 @@ oo::class create Userchans {
 	#>>>
 	method remove_session {userobj} { #<<<
 		if {![dict exists $sessions $userobj]} {
-			my log warning "Session removed for ($userobj), but we have no recollection of it: ($sessions)"
+			log warning "Session removed for ($userobj), but we have no recollection of it: ($sessions)"
 			return
 		}
 		dict unset sessions $userobj
@@ -232,7 +232,7 @@ oo::class create Userchans {
 
 		if {[llength $profiles] > 0} {
 			if {[dict get $dat type] eq "svc"} {
-				my log warning "Ignoring profiles defined for svc type user"
+				log warning "Ignoring profiles defined for svc type user"
 			} else {
 				my variable active_profile
 				if {![info exists active_profile]} {
@@ -243,16 +243,16 @@ oo::class create Userchans {
 					m2 pr_jm $userinfo_chan $seq [list select_profile $profiles_dict]
 					my variable profile_wait
 					set profile_wait	[info coroutine]
-					my log debug "Waiting for user to pick profile"
-					set warning_id	[after 30000 [namespace code {my log warning "User taking a long time to select a profile"}]]
+					log debug "Waiting for user to pick profile"
+					set warning_id	[after 30000 [list log warning "User taking a long time to select a profile"]]
 					set selected	[yield]
 					after cancel $warning_id
 
-					my log debug "user requested profile: ($selected)"
+					log debug "user requested profile: ($selected)"
 					if {$selected in $profiles} {
 						set profile	$selected
 					} else {
-						my log warning "User selected invalid profile: ($selected)"
+						log warning "User selected invalid profile: ($selected)"
 						set profile	""
 					}
 					set active_profile	$profile
@@ -290,7 +290,7 @@ oo::class create Userchans {
 			if {[info object isa object $userobj]} {
 				$userobj destroy
 			} else {
-				my log error "Recorded session isn't a valid object any more: $userobj"
+				log error "Recorded session isn't a valid object any more: $userobj"
 				dict unset sessions $userobj
 			}
 		}
@@ -329,10 +329,10 @@ oo::class create Userchans {
 					$simple_username $subdomain \
 					$old $new1
 		} trap {denied} {errmsg options} {
-			my log warning "Change password denied: $errmsg" -suppress rest
+			log warning "Change password denied: $errmsg" -suppress rest
 			m2 nack $seq $errmsg
 		} on error {errmsg options} {
-			my log error "error updating user details: $errmsg" -suppress rest
+			log error "error updating user details: $errmsg" -suppress rest
 			m2 nack $seq "Error updating database"
 		} on ok {} {
 			m2 ack $seq "Password changed"
@@ -352,7 +352,7 @@ oo::class create Userchans {
 					set_pref $simple_username $subdomain \
 					$pref $newvalue
 		} on error {errmsg options} {
-			my log error "error updating user pref: ($pref) ($newvalue): $errmsg"
+			log error "error updating user pref: ($pref) ($newvalue): $errmsg"
 			m2 nack $seq "Error updating database"
 			return
 		}
@@ -360,14 +360,14 @@ oo::class create Userchans {
 		if {[info exists userinfo_chan]} {
 			m2 jm $userinfo_chan [list prefs [list $pref $newvalue]]
 		} else {
-			my log error "no userchan exists for user, even though we are answering a request from that user"
+			log error "no userchan exists for user, even though we are answering a request from that user"
 		}
 		m2 ack $seq ""
 	}
 
 	#>>>
 	method _logout {} { #<<<
-		my log notice "User logoff or disconnect"
+		log notice "User logoff or disconnect"
 		my destroy
 	}
 
@@ -397,12 +397,12 @@ oo::class create Userchans {
 						} trap {no_handlers} {errmsg options} { #<<<
 							set registered \
 									[lindex [dict get $options -errorcode] 2]
-							my log error $errmsg
+							log error $errmsg
 
 							m2 nack $seq "No handlers available"
 							#>>>
 						} on error {errmsg options} { #<<<
-							my log error "\nerror processing userreq: (userreq_$type): $errmsg\n[dict get $options -errorinfo]"
+							log error "\nerror processing userreq: (userreq_$type): $errmsg\n[dict get $options -errorinfo]"
 							m2 nack $seq "Internal error"
 							#>>>
 						}
@@ -412,7 +412,7 @@ oo::class create Userchans {
 			}
 
 			default {
-				my log error "Unknown op: ($op)"
+				log error "Unknown op: ($op)"
 			}
 		}
 	}
@@ -444,7 +444,7 @@ oo::class create Userchans {
 					}
 
 					default { #<<<
-						my log error "req: unrecognised request on userinfo channel"
+						log error "req: unrecognised request on userinfo channel"
 						m2 nack $seq "Invalid request"
 						#>>>
 					}
@@ -452,7 +452,7 @@ oo::class create Userchans {
 			}
 
 			default {
-				my log error "Unknown op: ($op)"
+				log error "Unknown op: ($op)"
 			}
 		}
 	}

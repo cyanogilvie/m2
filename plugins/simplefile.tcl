@@ -191,16 +191,16 @@ oo::class create Plugin {
 
 	#>>>
 	method get_info {username subdomain} { #<<<
-		puts "get_info for \"$username\" subdomain: \"$subdomain\" ------------"
+		log debug "get_info for \"$username\" subdomain: \"$subdomain\" ------------"
 		if {![file readable [cfg get detailsfn]]} {
-			puts "details file \"[cfg get detailsfn]\" doesn't exist"
+			log warning "details file \"[cfg get detailsfn]\" doesn't exist"
 			return $default_details
 		}
 
 		set dat	[dsl::decomment [my _readfile [cfg get detailsfn]]]
 
 		if {[dict exists $dat $username]} {
-			puts "Returning attribs for \"$username\": [dict get $dat $username]"
+			log debug "Returning attribs for \"$username\": [dict get $dat $username]"
 			dict get $dat $username
 		} else {
 			set default_details
