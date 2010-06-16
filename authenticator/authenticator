@@ -45,6 +45,7 @@ cflib::config create cfg $argv {
 	variable debug				0
 	variable loglevel			notice
 	variable daemon				0		;# obsolete
+	variable evlog_uri			""
 } /etc/codeforge/authenticator.conf
 
 package require logging
@@ -60,6 +61,9 @@ if {[cfg get debug]} {
 package require sqlite3
 package require sop
 package require m2
+package require evlog
+
+evlog connect "authenticator [info hostname] [pid]" [cfg get evlog_uri]
 
 source [file join $here crypto.tcl]
 source [file join $here users.tcl]
