@@ -37,7 +37,8 @@ cflib::config create cfg $argv {
 
 evlog connect "m2_node [info hostname] [pid]" [cfg get evlog_uri]
 
-logging::logger ::log [cfg get loglevel]
+logging::logger ::log [cfg get loglevel] \
+		-hook {evlog event log.%level% {$msg}}
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}
