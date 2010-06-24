@@ -102,13 +102,18 @@ proc inittab {action} { #<<<
 proc upstart {action} { #<<<
 	switch -- $action {
 		install {
-			try {
-				exec status m2_node
-			} on ok {output} {
-				?? {log debug "job status: \"$output\""}
-				set running	[expr {[lindex $output 1] eq "start/running"}]
-			} on error {errmsg options} {
-				log error "Error stopping querying job status: $errmsg"
+			if {[file exists /etc/init/m2_node.conf]} {
+				try {
+					exec status m2_node
+				} on ok {output} {
+					?? {log debug "job status: \"$output\""}
+					set running	[expr {[lindex $output 1] eq "start/running"}]
+				} on error {errmsg options} {
+					log error "Error stopping querying job status: $errmsg"
+					exit 1
+				}
+			} else {
+				set running	0
 			}
 
 			if {$running} {
