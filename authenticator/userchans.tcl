@@ -375,6 +375,11 @@ oo::class create Userchans {
 	method _chan_cb {op data} { #<<<
 		switch -- $op {
 			cancelled {
+				my variable jmid
+
+				if {[info exists jmid]} {
+					unset jmid
+				}
 				my _logout
 			}
 

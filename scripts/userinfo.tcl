@@ -19,14 +19,20 @@ oo::class create m2::userinfo {
 		userinfo_prev_seq
 		type
 		signals
+		authchan
 	}
 
-	constructor {a_username a_auth a_svc} { #<<<
+	constructor {a_username a_auth a_svc a_authchan} { #<<<
 		if {[self next] ne ""} next
+
+		namespace path [concat [namespace path] {
+			::oo::Helpers::cflib
+		}]
 
 		set username	$a_username
 		set auth		$a_auth
 		set svc			$a_svc
+		set authchan	$a_authchan
 
 		set perms		[dict create]
 		set attribs		[dict create]
@@ -56,6 +62,7 @@ oo::class create m2::userinfo {
 				-name "Userinfo($username) got_prefs"
 		sop::gate new signals(got_all) -mode "and" \
 				-name "Userinfo($username) got_all"
+		$signals(userinfo_chan_valid) attach_output [code _userinfo_chan_valid_changed]
 		$signals(got_all) attach_input $signals(got_perms)
 		$signals(got_all) attach_input $signals(got_attribs)
 		$signals(got_all) attach_input $signals(got_prefs)
@@ -82,6 +89,11 @@ oo::class create m2::userinfo {
 
 	#>>>
 
+	method authchan {} { #<<<
+		set authchan
+	}
+
+	#>>>
 	method name {} { #<<<
 		return $username
 	}
@@ -147,7 +159,7 @@ oo::class create m2::userinfo {
 
 	method _setup_userinfo_chan {} { #<<<
 		$auth enc_chan_req [list userinfo_setup $fqun] \
-				[namespace code {my _setup_userinfo_chan_resp}]
+				[code _setup_userinfo_chan_resp]
 	}
 
 	#>>>
@@ -191,11 +203,11 @@ oo::class create m2::userinfo {
 					return
 				}
 
-				log error "userinfo_chan cancelled"
+				log debug "userinfo_chan cancelled"
 				unset userinfo_jmid
 				$signals(userinfo_chan_valid) set_state 0
 				my invoke_handlers session_killed
-				log warning "Userinfo chan canned"
+				log debug "Userinfo chan canned"
 				#>>>
 			}
 
@@ -281,6 +293,7 @@ oo::class create m2::userinfo {
 		if {$newstate == 0} {
 			$signals(got_prefs) set_state 0
 			$signals(got_perms) set_state 0
+			$signals(got_attribs) set_state 0
 		}
 	}
 

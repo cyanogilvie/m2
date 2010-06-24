@@ -65,7 +65,7 @@ cflib::pclass create m2::api2 {
 			ack { #<<<
 				dict unset ack_pend $m_prev_seq
 				if {[dict exists $pending_keys $m_prev_seq]} {
-					#my log debug "Decrypting ack with [my mungekey [dict get $pending_keys $m_prev_seq]]" -suppress {data}
+					#log debug "Decrypting ack with [my mungekey [dict get $pending_keys $m_prev_seq]]" -suppress {data}
 					dict set msg data [my decrypt [dict get $pending_keys $m_prev_seq] [dict get $msg data]]
 				}
 				dict unset pending_keys $m_prev_seq
@@ -92,25 +92,25 @@ cflib::pclass create m2::api2 {
 					dict set msg data [my decrypt [dict get $pending_keys $m_prev_seq] [dict get $msg data]]
 					if {![dict exists $jm_keys $m_seq]} {
 						if {[string length [dict get $msg data]] != 56} {
-							#my log debug "pr_jm: dubious looking key: ([dict get $msg data])"
+							#log debug "pr_jm: dubious looking key: ([dict get $msg data])"
 						}
-						#my log debug "pr_jm: registering key for ($m_seq): ([my mungekey [dict get $msg data]])"
+						#log debug "pr_jm: registering key for ($m_seq): ([my mungekey [dict get $msg data]])"
 						my register_jm_key $m_seq	[dict get $msg data]
 						return
 					} else {
 						if {[string length [dict get $msg data]] == 56} {
 							if {[dict get $msg data] eq [dict get $jm_keys $m_seq]} {
-								my log error "pr_jm: jm($m_seq) got channel key setup twice!"
+								log error "pr_jm: jm($m_seq) got channel key setup twice!"
 								return
 							} else {
-								my log warning "pr_jm: got what may be another key on this jm ($m_seq), that differs from the first"
+								log warning "pr_jm: got what may be another key on this jm ($m_seq), that differs from the first"
 							}
 						} else {
-							#my log debug "pr_jm: already have key for ($m_seq): ([my mungekey [dict get $jm_keys $m_seq]])"
+							#log debug "pr_jm: already have key for ($m_seq): ([my mungekey [dict get $jm_keys $m_seq]])"
 						}
 					}
 				} else {
-					#my log debug "pr_jm: no pending_keys($m_prev_seq)"
+					#log debug "pr_jm: no pending_keys($m_prev_seq)"
 				}
 				#>>>
 			}
@@ -123,9 +123,9 @@ cflib::pclass create m2::api2 {
 			}
 
 			jm_req { #<<<
-				#my log debug "Got jm_req: seq: ($m_seq) prev_seq: ($m_prev_seq)" -suppress {data}
+				#log debug "Got jm_req: seq: ($m_seq) prev_seq: ($m_prev_seq)" -suppress {data}
 				if {[dict exists $jm_keys $m_prev_seq]} {
-					#my log debug "Decrypting data with [my mungekey [dict get $jm_keys $m_prev_seq]]" -suppress data
+					#log debug "Decrypting data with [my mungekey [dict get $jm_keys $m_prev_seq]]" -suppress data
 					dict set msg data [my decrypt [dict get $jm_keys $m_prev_seq] [dict get $msg data]]
 				}
 				#>>>
@@ -148,11 +148,11 @@ cflib::pclass create m2::api2 {
 								{*}[dict get $svc_handlers [dict get $msg svc]] \
 								$m_seq [dict get $msg data]
 					} on error {errmsg options} {
-						my log error "req: error handling svc: ([dict get $msg svc]):$errmsg\n[dict get $options -errorinfo]"
+						log error "req: error handling svc: ([dict get $msg svc]):$errmsg\n[dict get $options -errorinfo]"
 						my nack $m_seq "Internal error"
 					}
 				} else {
-					my log error "req: no handlers for svc: ([dict get $msg svc])"
+					log error "req: no handlers for svc: ([dict get $msg svc])"
 					my nack $m_seq "No handlers for [dict get $msg svc])"
 				}
 				#>>>
@@ -188,12 +188,12 @@ cflib::pclass create m2::api2 {
 									}
 								}
 							} on error {errmsg options} {
-								my log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
-								my log error "jm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"
+								log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
+								log error "jm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"
 							}
 						}
 					} else {
-						#my log debug "API2::incoming/jm_can: unknown jm: prev_seq: ($prev_seq), seq: ($m_seq)"
+						#log debug "API2::incoming/jm_can: unknown jm: prev_seq: ($prev_seq), seq: ($m_seq)"
 					}
 					if {[dict get $jm $prev_seq] <= 0} {
 						dict unset pending $prev_seq
@@ -205,10 +205,10 @@ cflib::pclass create m2::api2 {
 
 			jm_disconnect { #<<<
 				try {
-					#my log trivia "API2::incoming: got jm_disconnect:\nseq: ($m_seq)\nprev_seq: ($m_prev_seq)"
+					#log trivia "API2::incoming: got jm_disconnect:\nseq: ($m_seq)\nprev_seq: ($m_prev_seq)"
 					my chans cancel $m_seq
 				} on error {errmsg options} {
-					my log error "error processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
+					log error "error processing jm_disconnect: $errmsg\n[dict get $options -errorinfo]"
 				}
 				#>>>
 			}
@@ -222,15 +222,15 @@ cflib::pclass create m2::api2 {
 					}
 					# Add profiling stamp if requested >>>
 					dict set outstanding_reqs $m_seq	$msg
-					#my log trivia "API2::incoming: got [dict get $msg svc]: ([dict get $msg seq]) ([dict get $msg prev_seq]) ([dict get $msg data])"
-					#my log debug "API2::incoming: channel request"
+					#log trivia "API2::incoming: got [dict get $msg svc]: ([dict get $msg seq]) ([dict get $msg prev_seq]) ([dict get $msg data])"
+					#log debug "API2::incoming: channel request"
 					if {[my crypto registered_chan $m_prev_seq]} {
 						dict set msg data	[my crypto decrypt $m_prev_seq [dict get $msg data]] 
 						my register_pending_encrypted $m_seq $m_prev_seq
 					}
 					my chans chanreq $m_seq $m_prev_seq [dict get $msg data]
 				} on error {errmsg options} {
-					my log error "error processing [dict get $msg svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
+					log error "error processing [dict get $msg svc] rsj_req: $errmsg\n[dict get $options -errorinfo]"
 					my nack $m_seq "internal error"
 				}
 				#>>>
@@ -272,11 +272,11 @@ cflib::pclass create m2::api2 {
 							}
 						}
 					} else {
-						#my log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
+						#log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
 					}
 				} on error {errmsg options} {
 					default {
-						my log error "error processing jm_req: $errmsg\n[dict get $options -errorinfo]"
+						log error "error processing jm_req: $errmsg\n[dict get $options -errorinfo]"
 						if {![my answered $m_seq]} {
 							my nack $m_seq "internal error"
 						}
@@ -297,8 +297,8 @@ cflib::pclass create m2::api2 {
 						set cb		[dict get $pending $prev_seq]
 						if {$cb ne {}} {
 							try {
-								#my log debug "API2::incoming/([dict get $msg type]): invoking callback ($cb) for seq: ($m_seq) prev_seq: ($m_prev_seq)"
-								#my log debug "API2::incoming/([dict get $msg type]): invoking callback for seq: ($m_seq) prev_seq: ($m_prev_seq)"
+								#log debug "API2::incoming/([dict get $msg type]): invoking callback ($cb) for seq: ($m_seq) prev_seq: ($m_prev_seq)"
+								#log debug "API2::incoming/([dict get $msg type]): invoking callback for seq: ($m_seq) prev_seq: ($m_prev_seq)"
 								# Add profiling stamp if requested <<<
 								if {[dict get $msg oob_type] eq "profiling"} {
 									dict set msg oob_data [my _add_profile_stamp \
@@ -327,17 +327,17 @@ cflib::pclass create m2::api2 {
 									}
 								}
 							} on error {errmsg options} {
-								#my log debug "API2::incoming/([dict get $msg type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
-								my log error "error invoking callback: $errmsg\n[dict get $options -errorinfo]" 
+								#log debug "API2::incoming/([dict get $msg type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
+								log error "error invoking callback: $errmsg\n[dict get $options -errorinfo]" 
 							}
 						} else {
-							#my log debug "no handler for seq: ($m_seq), prev_seq: ($prev_seq)"
+							#log debug "no handler for seq: ($m_seq), prev_seq: ($prev_seq)"
 						}
 					} else {
-						my log debug "API2::incoming/([dict get $msg type]): unexpected response: [dict get $msg svc] [dict get $msg type] prev_seq: ($prev_seq) seq: ($m_seq)"
+						log debug "API2::incoming/([dict get $msg type]): unexpected response: [dict get $msg svc] [dict get $msg type] prev_seq: ($prev_seq) seq: ($m_seq)"
 					}
 					if {![dict exists $jm $prev_seq]} {
-						#my log debug "API2::incoming/([dict get $msg type]): lost jm($prev_seq):\n[m2::msg::display $msg]"
+						#log debug "API2::incoming/([dict get $msg type]): lost jm($prev_seq):\n[m2::msg::display $msg]"
 						return
 					}
 					if {
@@ -355,25 +355,25 @@ cflib::pclass create m2::api2 {
 			svc_revoke	{}
 
 			default {
-				my log warning "API2::incoming/default: unhandled type: ([dict get $msg type])"
+				log warning "API2::incoming/default: unhandled type: ([dict get $msg type])"
 			}
 		}
-		#my log debug "API2::incoming: leaving incoming"
+		#log debug "API2::incoming: leaving incoming"
 	}
 
 	#>>>
 	method ack {prev_seq data} { #<<<
-		#my log debug "request pending? [dict exists $outstanding_reqs $prev_seq]" -suppress {data}
+		#log debug "request pending? [dict exists $outstanding_reqs $prev_seq]" -suppress {data}
 		if {![dict exists $outstanding_reqs $prev_seq]} {
-			my log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
+			log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
 			return
 		}
 		if {[dict exists $e_pending $prev_seq]} {
-			#my log debug "encrypting ack with [my mungekey [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
-			#my log debug "== encrypting ack with [binary encode base64 [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
+			#log debug "encrypting ack with [my mungekey [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
+			#log debug "== encrypting ack with [binary encode base64 [dict get $session_keys [dict get $e_pending $prev_seq]]] from $prev_seq" -suppress {data}
 			set e_data	[my crypto encrypt [dict get $e_pending $prev_seq] $data]
 		} else {
-			#my log debug "== No key registered for prev_seq: ($prev_seq) [binary encode base64 $data]"
+			#log debug "== No key registered for prev_seq: ($prev_seq) [binary encode base64 $data]"
 			set e_data	$data
 		}
 		set msg		[m2::msg::new [list \
@@ -408,9 +408,9 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method nack {prev_seq data} { #<<<
-		#my log debug "request pending? [dict exists $outstanding_reqs $prev_seq]" -suppress data
+		#log debug "request pending? [dict exists $outstanding_reqs $prev_seq]" -suppress data
 		if {![dict exists $outstanding_reqs $prev_seq]} {
-			my log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
+			log warning "$prev_seq doesn't refer to an open request.  Perhaps it was already answered?"
 			return
 		}
 		set msg		[m2::msg::new [list \
@@ -466,7 +466,7 @@ cflib::pclass create m2::api2 {
 			# Send jm key if applicable <<<
 			if {![dict exists $sent_key $prev_seq,$seq]} {
 				set key     	[my crypto register_or_get_chan $seq]
-				#my log debug "sending chan key: ([my mungekey $key])"
+				#log debug "sending chan key: ([my mungekey $key])"
 				my send [m2::msg::new [list \
 						svc			"" \
 						type		jm \
@@ -533,9 +533,9 @@ cflib::pclass create m2::api2 {
 	#>>>
 	method rsj_req {jm_seq data cb} { #<<<
 		set seq		[my unique_id]
-		#my log debug "key: ([expr {[dict exists $jm_keys $jm_seq] ? [my mungekey [dict get $jm_keys $jm_seq]] : "none"}])"
+		#log debug "key: ([expr {[dict exists $jm_keys $jm_seq] ? [my mungekey [dict get $jm_keys $jm_seq]] : "none"}])"
 		if {[dict exists $jm_keys $jm_seq]} {
-			#my log debug "([my mungekey [dict get $jm_keys $jm_seq]])"
+			#log debug "([my mungekey [dict get $jm_keys $jm_seq]])"
 			dict set pending_keys $seq	[dict get $jm_keys $jm_seq]
 			set e_data		[my encrypt [dict get $jm_keys $jm_seq] $data]
 		} else {
@@ -565,11 +565,10 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method jm_req {jm_seq data cb} { #<<<
-		#my log debug
 		set seq		[my unique_id]
 		if {[my crypto registered_chan $jm_seq]} {
 			set e_data	[my crypto encrypt $jm_seq $data]
-			#my log debug "Encrypted data with key [my mungekey [dict get $session_keys $jm_seq]]"
+			#log debug "Encrypted data with key [my mungekey [dict get $session_keys $jm_seq]]"
 			dict set pending_keys $seq	[dict get $session_keys $jm_seq]
 		} else {
 			set e_data	$data
@@ -592,12 +591,12 @@ cflib::pclass create m2::api2 {
 	#>>>
 	method jm_disconnect {jm_seq {prev_seq ""}} { #<<<
 		# TODO: handle case where jm_prev_seq($jm_seq) is a list of > 1 element
-		#my log debug "key: ([expr {[dict exists $jm_keys $jm_seq] ? [my mungekey [dict get $jm_keys $jm_seq]] : "none"}])"
+		#log debug "key: ([expr {[dict exists $jm_keys $jm_seq] ? [my mungekey [dict get $jm_keys $jm_seq]] : "none"}])"
 		if {$prev_seq eq ""} {
-			my log warning "Called without a prev_seq.  Not good"
+			log warning "Called without a prev_seq.  Not good"
 		}
 		if {![dict exists $jm_prev_seq $jm_seq]} {
-			my log warning "No jm found to disconnect"
+			log warning "No jm found to disconnect"
 			return
 		}
 		my send [m2::msg::new [list \
@@ -612,7 +611,7 @@ cflib::pclass create m2::api2 {
 			if {$prev_seq ne ""} {
 				set idx		[lsearch [dict get $jm_prev_seq $jm_seq] $prev_seq]
 				if {$idx == -1} {
-					my log warning "supplied prev_seq ($prev_seq) is invalid"
+					log warning "supplied prev_seq ($prev_seq) is invalid"
 				} else {
 					dict incr jm $prev_seq	-1
 					if {[dict get $jm $prev_seq] <= 0} {
@@ -628,10 +627,10 @@ cflib::pclass create m2::api2 {
 				}
 			} else {
 				if {[llength [dict get $jm_prev_seq $jm_seq]] > 1} {
-					my log error "Cancelling all channels because prev_seq is unspecified"
+					log error "Cancelling all channels because prev_seq is unspecified"
 				}
 				foreach jm_prev [dict get $jm_prev_seq $jm_seq] {
-					my log warning "removing pending($jm_prev): exists? [dict exists $pending $jm_prev]: \"[expr {[dict exists $pending $jm_prev]?[dict get $pending $jm_prev]:""}]\""
+					log warning "removing pending($jm_prev): exists? [dict exists $pending $jm_prev]: \"[expr {[dict exists $pending $jm_prev]?[dict get $pending $jm_prev]:""}]\""
 					dict incr jm $jm_prev	-1
 					if {[dict get $jm $jm_prev] <= 0} {
 						dict unset pending $jm_prev
@@ -641,10 +640,10 @@ cflib::pclass create m2::api2 {
 				dict unset jm_prev_seq	$jm_seq
 			}
 		} else {
-			my log warning "can't find jm_prev_seq($jm_seq), pending:"
+			log warning "can't find jm_prev_seq($jm_seq), pending:"
 			array set _pending $pending
 			parray _pending
-			my log warning "jm_prev_seq:"
+			log warning "jm_prev_seq:"
 			array set _jm_prev_seq $jm_prev_seq
 			parray _jm_prev_seq
 		}
@@ -652,13 +651,13 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method register_jm_key {jm_seq key} { #<<<
-		#my log debug "([my mungekey $key])" -suppress key
+		#log debug "([my mungekey $key])" -suppress key
 		dict set jm_keys $jm_seq	$key
 	}
 
 	#>>>
 	method register_pending_encrypted {seq session_id} { #<<<
-		#my log debug "Registering [my mungekey [dict get $session_keys $session_id]] for seq: $seq"
+		#log debug "Registering [my mungekey [dict get $session_keys $session_id]] for seq: $seq"
 		dict set e_pending $seq		$session_id
 	}
 
@@ -745,7 +744,7 @@ cflib::pclass create m2::api2 {
 			encrypt { #<<<
 				lassign $args session_id msg
 
-				#my log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
+				#log debug "encrypting with session_id: $session_id, key [my mungekey [dict get $session_keys $session_id]]" -suppress {args}
 				tailcall my encrypt [dict get $session_keys $session_id] $msg
 				#>>>
 			}
@@ -789,7 +788,7 @@ cflib::pclass create m2::api2 {
 				lassign $args seq
 
 				if {![dict exists $chans $seq]} {
-					my log error "cancel: Unrecognised channel cancelled: ($seq)"
+					log error "cancel: Unrecognised channel cancelled: ($seq)"
 					return
 				}
 
@@ -803,7 +802,7 @@ cflib::pclass create m2::api2 {
 					}
 
 					default {
-						my log error "cancel: Unexpected type of channel cancelled: ([lindex [dict get $chans $seq] 0])"
+						log error "cancel: Unexpected type of channel cancelled: ([lindex [dict get $chans $seq] 0])"
 					}
 				}
 
@@ -822,7 +821,7 @@ cflib::pclass create m2::api2 {
 				lassign $args seq prev_seq data
 
 				if {![dict exists $chans $prev_seq]} {
-					my log error "chanreq: Unrecognised channel for chanreq: ($prev_seq)"
+					log error "chanreq: Unrecognised channel for chanreq: ($prev_seq)"
 					return
 				}
 
@@ -834,7 +833,7 @@ cflib::pclass create m2::api2 {
 								coroutine coro_chanreq_[incr ::coro_seq] \
 									{*}$cb req [list $seq $prev_seq $data [self]]
 							} on error {errmsg options} {
-								my log error "Error in chan_cb ($cb): $errmsg\n[dict get $options -errorinfo]"
+								log error "Error in chan_cb ($cb): $errmsg\n[dict get $options -errorinfo]"
 								dict incr options -level
 								return -options $options $errmsg
 							}
@@ -843,7 +842,7 @@ cflib::pclass create m2::api2 {
 					}
 
 					default { #<<<
-						my log error "chanreq: Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0]) ($data)"
+						log error "chanreq: Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0]) ($data)"
 						my nack $seq "Unexpected type of channel in chanreq: ([lindex [dict get $chans $prev_seq] 0])"
 						#>>>
 					}
@@ -855,10 +854,10 @@ cflib::pclass create m2::api2 {
 				lassign $args seq cb
 
 				if {[dict exists $chans $seq]} {
-					my log error "register_chan: chan already exists: ($seq)"
+					log error "register_chan: chan already exists: ($seq)"
 					return
 				}
-				#my log debug "register_chan: Registering chan: ($seq) ($cb)"
+				#log debug "register_chan: Registering chan: ($seq) ($cb)"
 				dict set chans $seq	[list custom $cb]
 				#>>>
 			}
@@ -867,14 +866,14 @@ cflib::pclass create m2::api2 {
 				lassign $args seq
 
 				if {![dict exists $chans $seq]} {
-					my log error "deregister_chan: unrecognised chan: ($seq)"
+					log error "deregister_chan: unrecognised chan: ($seq)"
 					return
 				}
 				if {[lindex [dict get $chans $seq] 0] ne "custom"} {
-					my log error "deregister_chan: not custom chan: ($seq) ([lindex [dict get $chans $seq] 0])"
+					log error "deregister_chan: not custom chan: ($seq) ([lindex [dict get $chans $seq] 0])"
 					return
 				}
-				#my log debug "deregister_chan: Deregistering chan: ($seq)"
+				#log debug "deregister_chan: Deregistering chan: ($seq)"
 				dict unset chans $seq
 				#>>>
 			}
@@ -926,11 +925,11 @@ cflib::pclass create m2::api2 {
 						coroutine coro_chan_cancelled_[incr ::coro_seq] \
 								{*}$cb cancelled {}
 					} on error {errmsg options} {
-						my log error "_lost_connection channel cancel handler failed: [dict get $options -errorinfo]"
+						log error "_lost_connection channel cancel handler failed: [dict get $options -errorinfo]"
 					}
 				}
 			} else {
-				my log error "Unhandled channel type \"$type\""
+				log error "Unhandled channel type \"$type\""
 			}
 		}
 		set chans	[dict create]

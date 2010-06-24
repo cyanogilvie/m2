@@ -34,7 +34,7 @@ cflib::pclass create m2::authenticator {
 
 		set coro_pref	"coro_[string map {:: _} [self]]"
 		array set keys			{}
-		array set login_subchans	{}
+		set login_subchans		[dict create]
 		array set perms			{}
 		array set attribs		{}
 		array set prefs			{}
@@ -87,14 +87,14 @@ cflib::pclass create m2::authenticator {
 
 		if {$ok} {
 			set fqun	$username
-			my log debug "Logged in ok, generating key" -suppress password
+			log debug "Logged in ok, generating key" -suppress password
 			#set handle	[crypto::rsa_generate_key 1024 17]
 			#set pbkey	[crypto::rsa_get_public_key $handle]
 			#set session_prkey	$handle
 			set before	[clock microseconds]
 			set K		[crypto::rsa::RSAKG 1024 0x10001]
 			set after	[clock microseconds]
-			my log debug [format "1024 bit key generation time: %.3fms" [expr {($after - $before) / 1000.0}]] -suppress password
+			log debug [format "1024 bit key generation time: %.3fms" [expr {($after - $before) / 1000.0}]] -suppress password
 			set pbkey	[dict create \
 					n		[dict get $K n] \
 					e		[dict get $K e]]
@@ -106,11 +106,11 @@ cflib::pclass create m2::authenticator {
 			if {[lindex $resp 0]} {
 				$signals(authenticated) set_state 1
 			} else {
-				my log error "error updating session key: ([lindex $resp 1])" -suppress password
+				log error "error updating session key: ([lindex $resp 1])" -suppress password
 				m2 jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
 			}
 		} else {
-			my log warning "Error logging in: ($last_login_message)" -suppress password
+			log warning "Error logging in: ($last_login_message)" -suppress password
 		}
 		$signals(login_pending) set_state 0
 
@@ -133,7 +133,7 @@ cflib::pclass create m2::authenticator {
 		}
 
 		# Get a cookie from auth backend <<<
-		#my log debug "authenticator wa cookie o kudasai"
+		#log debug "authenticator wa cookie o kudasai"
 		try {
 			my enc_chan_req [list "cookie_o_kudasai" $svc]
 		} on error {errmsg options} {
@@ -164,11 +164,11 @@ cflib::pclass create m2::authenticator {
 			set session_prkey	$prkey
 			$signals(authenticated) set_state 1
 		} else {
-			my log warning "Error logging in: ($last_login_message)"
+			log warning "Error logging in: ($last_login_message)"
 		}
 		$signals(login_pending) set_state 0
 
-		return [$signals(authenticated) state]
+		$signals(authenticated) state
 	}
 
 	#>>>
@@ -177,14 +177,41 @@ cflib::pclass create m2::authenticator {
 			error "Authenticator::logout: not logged in"
 		}
 		if {[info exists login_chan]} {
-			my jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
+			?? {log debug "Sending login_chan jm_disconnect: seq: [lindex $login_chan 0], prev_seq: [lindex $login_chan 1]"}
+			my jm_disconnect [lindexperms $login_chan 0] [lindex $login_chan 1]
 			unset login_chan
 		}
-		foreach subchan [array names login_subchans] {
+		dict for {subchan name} $login_subchans {
+			?? {log debug "Sending login subchan disconnect: seq: [lindex $subchan 0], prev_seq: [lindex $subchan 1]"}
 			my jm_disconnect [lindex $subchan 0] [lindex $subchan 1]
-			array unset login_subchans $subchan
+			switch -- $name {
+				userinfo {
+					$signals(got_perms) set_state 0
+					$signals(got_attribs) set_state 0
+					$signals(got_prefs) set_state 0
+					unset perms
+					unset prefs
+					unset attribs
+					array set perms		{}
+					array set prefs		{}
+					array set attribs	{}
+				}
+
+				admin_chan {
+					set admin_info	{}
+				}
+
+				session_chan {
+				}
+
+				default {
+					log warning "Cancelled unhandled login subchan type \"$name\""
+				}
+			}
 		}
+		set login_subchans	[dict create]
 		if {[info exists session_pbkey_chan]} {
+			?? {log debug "Sending session_pbkey_chan jm_disconnect: seq: [lindex $session_pbkey_chan 0], prev_seq: [lindex $session_pbkey_chan 1]"}
 			my jm_disconnect [lindex $session_pbkey_chan 0] [lindex $session_pbkey_chan 1]
 			unset session_pbkey_chan
 		}
@@ -253,7 +280,7 @@ cflib::pclass create m2::authenticator {
 				}
 
 				default {
-					my log error "got unexpected type: ([dict get $msg type])"
+					log error "got unexpected type: ([dict get $msg type])"
 				}
 			}
 		}
@@ -261,7 +288,7 @@ cflib::pclass create m2::authenticator {
 
 	#>>>
 	method last_login_message {} { #<<<
-		return $last_login_message
+		set last_login_message
 	}
 
 	#>>>
@@ -293,7 +320,7 @@ cflib::pclass create m2::authenticator {
 					ack		{return [dict get $msg data]}
 					nack	{error [dict get $msg data]}
 					default	{
-						my log warning "Not expecting response type: ([dict get $msg type])"
+						log warning "Not expecting response type: ([dict get $msg type])"
 					}
 				}
 			}
@@ -304,9 +331,9 @@ cflib::pclass create m2::authenticator {
 
 	method perm {perm} { #<<<
 		if {![$signals(got_perms) state]} {
-			my log warning "haven't gotten perms update yet, waiting..."
+			log warning "haven't gotten perms update yet, waiting..."
 			my waitfor got_perms
-			my log warning "received perms"
+			log warning "received perms"
 		}
 
 		info exists perms($perm)
@@ -320,9 +347,9 @@ cflib::pclass create m2::authenticator {
 	#>>>
 	method attrib {attrib args} { #<<<
 		if {![$signals(got_attribs) state]} {
-			my log warning "haven't gotten attribs update yet, waiting..."
+			log warning "haven't gotten attribs update yet, waiting..."
 			my waitfor got_attribs
-			my log warning "received attribs"
+			log warning "received attribs"
 		}
 		if {[info exists attribs($attrib)]} {
 			return $attribs($attrib)
@@ -338,9 +365,9 @@ cflib::pclass create m2::authenticator {
 	#>>>
 	method pref {pref args} { #<<<
 		if {![$signals(got_prefs) state]} {
-			my log warning "haven't gotten prefs update yet, waiting..."
+			log warning "haven't gotten prefs update yet, waiting..."
 			my waitfor got_prefs
-			my log warning "received prefs"
+			log warning "received prefs"
 		}
 		if {[info exists prefs($pref)]} {
 			return $prefs($pref)
@@ -361,9 +388,9 @@ cflib::pclass create m2::authenticator {
 		}
 		set res	[my _simple_req [list set_pref $pref $newvalue]]
 		if {[lindex $res 0]} {
-			#my log debug "pref updated"
+			#log debug "pref updated"
 		} else {
-			#my log error "Authenticator::set_pref: error setting pref ($pref) to ($newvalue): [lindex $res 1]"
+			#log error "Authenticator::set_pref: error setting pref ($pref) to ($newvalue): [lindex $res 1]"
 			error "error setting pref ($pref) to ($newvalue): [lindex $res 1]"
 		}
 	}
@@ -375,7 +402,7 @@ cflib::pclass create m2::authenticator {
 		}
 		set res	[my _simple_req [list change_password $old $new1 $new2]]
 		if {[lindex $res 0]} {
-			#my log debug "password updated" -suppress {old new1 new2}
+			#log debug "password updated" -suppress {old new1 new2}
 		} else {
 			error [lindex $res 1]
 		}
@@ -415,7 +442,7 @@ cflib::pclass create m2::authenticator {
 				nack	{error [dict get $msg data]}
 				timeout	{error "timeout"}
 				default {
-					my log warning "Not expecting response type ([dict get $msg type])"
+					log warning "Not expecting response type ([dict get $msg type])"
 				}
 			}
 		}
@@ -465,7 +492,7 @@ cflib::pclass create m2::authenticator {
 						set pdata			[my decrypt $keys(main) [dict get $msg data]]
 						set was_encrypted	1
 					} on error {errmsg options} {
-						my log error "error decrypting message: $errmsg" \
+						log error "error decrypting message: $errmsg" \
 								-suppress {cookie data}
 						return
 					}
@@ -484,13 +511,13 @@ cflib::pclass create m2::authenticator {
 					if {$pdata eq $pending_cookie} {
 						$signals(established) set_state 1
 					} else {
-						my log error "cookie challenge from server did not match" -suppress {cookie data}
+						log error "cookie challenge from server did not match" -suppress {cookie data}
 					}
 					#>>>
 				}
 
 				nack { #<<<
-					my log warning "got nack: [dict get $msg data]" -suppress {cookie data}
+					log warning "got nack: [dict get $msg data]" -suppress {cookie data}
 					break
 					#>>>
 				}
@@ -500,7 +527,7 @@ cflib::pclass create m2::authenticator {
 					if {![info exists enc_chan]} {
 						set enc_chan [dict get $msg seq]
 					} else {
-						my log warning "already have enc_chan??" -suppress {cookie data}
+						log warning "already have enc_chan??" -suppress {cookie data}
 					}
 					#>>>
 				}
@@ -529,14 +556,14 @@ cflib::pclass create m2::authenticator {
 		switch -- [dict get $msg type] {
 			ack { #<<<
 				if {![info exists login_chan]} {
-					my log error "got ack, but no login_chan!"
+					log error "got ack, but no login_chan!"
 				}
 				after idle [list $coro [list 1 [dict get $msg data]]]
 				#>>>
 			}
 
 			nack { #<<<
-				#my log debug "nack'ed, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
+				#log debug "nack'ed, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
 				after idle [list $coro [list 0 [dict get $msg data]]]
 				#>>>
 			}
@@ -548,7 +575,7 @@ cflib::pclass create m2::authenticator {
 						if {![info exists login_chan]} {
 							set login_chan	[list [dict get $msg seq] [dict get $msg prev_seq]]
 						} else {
-							my log error "got a login_chan pr_jm ([dict get $msg seq]) when we already have a login_chan set ($login_chan)"
+							log error "got a login_chan pr_jm ([dict get $msg seq]) when we already have a login_chan set ($login_chan)"
 						}
 						#>>>
 					}
@@ -560,14 +587,14 @@ cflib::pclass create m2::authenticator {
 						} else {
 							try {
 								if {$profile_cb eq ""} {
-									my log warning "Asked to select a profile but no profile_cb was defined"
+									log warning "Asked to select a profile but no profile_cb was defined"
 									set selected_profile	""
 								} else {
 									set selected_profile \
 											[uplevel #0 $profile_cb [list $defined_profiles]]
 								}
 							} on error {errmsg options} {
-								my log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
+								log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
 								set selected_profile	""
 							}
 						}
@@ -576,14 +603,14 @@ cflib::pclass create m2::authenticator {
 									[list select_profile $selected_profile] \
 									[list apply {{args} {}}]
 						} on error {errmsg options} {
-							my log error "Unhandled error trying to send selected profile to the backend: $errmsg\n[dict get $options -errorinfo]"
+							log error "Unhandled error trying to send selected profile to the backend: $errmsg\n[dict get $options -errorinfo]"
 						}
 						#>>>
 					}
 
 					perms - attribs - prefs { #<<<
 						set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
-						set login_subchans($key)	"userinfo"
+						dict set login_subchans $key	"userinfo"
 
 						my _update_userinfo [dict get $msg data]
 						#>>>
@@ -593,7 +620,7 @@ cflib::pclass create m2::authenticator {
 						set heartbeat_interval	[lindex [dict get $msg data] 1]
 						set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
 						# Isn't strictly a sub channel of login_chan...
-						set login_subchans($key)	"session_chan"
+						dict set login_subchans $key	"session_chan"
 						if {$heartbeat_interval ne ""} {
 							my _setup_heartbeat $heartbeat_interval [dict get $msg seq]
 						}
@@ -603,7 +630,7 @@ cflib::pclass create m2::authenticator {
 					admin_chan { #<<<
 						set key		[list [dict get $msg seq] [dict get $msg prev_seq]]
 						# Isn't strictly a sub channel of login_chan...
-						set login_subchans($key)	"admin_chan"
+						dict set login_subchans $key	"admin_chan"
 						dict set admin_info admin_chan		$key
 						dict set admin_info connected_users	[lindex [dict get $msg data] 1]
 						#>>>
@@ -611,8 +638,8 @@ cflib::pclass create m2::authenticator {
 
 					default { #<<<
 						set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
-						my log warning "unknown login subchan: ($key) ($tag)"
-						set login_subchans($key)	"unknown"
+						log warning "unknown login subchan: ($key) ($tag)"
+						dict set login_subchans $key	"unknown"
 						#>>>
 					}
 				}
@@ -621,12 +648,12 @@ cflib::pclass create m2::authenticator {
 
 			jm { #<<<
 				set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
-				if {![info exists login_subchans($key)]} {
-					my log error "not sure what to do with jm: ($svc,[dict get $msg seq],[dict get $msg prev_seq]) ([dict get $msg data])"
+				if {![dict exists $login_subchans $key]} {
+					log error "not sure what to do with jm: ($svc,[dict get $msg seq],[dict get $msg prev_seq]) ([dict get $msg data])"
 					return
 				}
 
-				switch -- $login_subchans($key) {
+				switch -- [dict get $login_subchans $key] {
 					userinfo { #<<<
 						my _update_userinfo [dict get $msg data]
 						#>>>
@@ -653,14 +680,14 @@ cflib::pclass create m2::authenticator {
 								#>>>
 							}
 							default { #<<<
-								my log error "Unrecognised admin update: ($op)"
+								log error "Unrecognised admin update: ($op)"
 								#>>>
 							}
 						}
 						#>>>
 					}
 					default { #<<<
-						my log error "registered but unhanded login subchan seq: ($key) type: ($login_subchans($key))"
+						log error "registered but unhanded login subchan seq: ($key) type: ([dict get $login_subchans $key])"
 						#>>>
 					}
 				}
@@ -673,12 +700,12 @@ cflib::pclass create m2::authenticator {
 					[dict get $msg seq] == [lindex $login_chan 0]
 				} {
 					unset login_chan
-					#my log debug "Got login_chan cancel, calling logout"
+					#log debug "Got login_chan cancel, calling logout"
 					my logout
 				} else {
 					set key	[list [dict get $msg seq] [dict get $msg prev_seq]]
-					if {[info exists login_subchans($key)]} {
-						switch -- $login_subchans($key) {
+					if {[dict exists $login_subchans $key]} {
+						switch -- [dict get $login_subchans $key] {
 							userinfo { #<<<
 								$signals(got_perms) set_state 0
 								$signals(got_attribs) set_state 0
@@ -697,14 +724,14 @@ cflib::pclass create m2::authenticator {
 								#>>>
 							}
 							default { #<<<
-								my log error "registered but unhandled login subchan cancel: seq: ([dict get $msg seq]) type: ($login_subchans($key))"
+								log error "registered but unhandled login subchan cancel: seq: ([dict get $msg seq]) type: ([dict get $login_subchans $key])"
 								#>>>
 							}
 						}
 
 						array unset login_subchan [dict get $msg seq]
 					} else {
-						my log error "unexpected jm_can: seq: ([dict get $msg seq])"
+						log error "unexpected jm_can: seq: ([dict get $msg seq])"
 					}
 				}
 				#>>>
@@ -716,20 +743,20 @@ cflib::pclass create m2::authenticator {
 	method _session_pbkey_chan {coro msg} { #<<<
 		switch -- [dict get $msg type] {
 			ack { #<<<
-				#my log debug "got ack, setting result([dict get $msg prev_seq]) := ([list 1 [dict get $msg data]])"
+				#log debug "got ack, setting result([dict get $msg prev_seq]) := ([list 1 [dict get $msg data]])"
 				after idle [list $coro [list 1 [dict get $msg data]]]
 				#>>>
 			}
 
 			nack { #<<<
-				my log warning "got nack, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
+				log warning "got nack, setting result([dict get $msg prev_seq]) := ([list 0 [dict get $msg data]])"
 				after idle [list $coro [list 0 [dict get $msg data]]]
 				#>>>
 			}
 
 			pr_jm { #<<<
 				if {[info exists session_pbkey_chan]} {
-					my log warning "Already have session_pbkey_chan: ($session_pbkey_chan)"
+					log warning "Already have session_pbkey_chan: ($session_pbkey_chan)"
 				}
 				set session_pbkey_chan	[list [dict get $msg seq] [dict get $msg prev_seq]]
 				#>>>
@@ -737,7 +764,7 @@ cflib::pclass create m2::authenticator {
 
 			jm { #<<<
 				if {[dict get $msg seq] != [lindex $session_pbkey_chan 0]} {
-					my log error "unrecognised jm chan: ([dict get $msg seq])"
+					log error "unrecognised jm chan: ([dict get $msg seq])"
 					return
 				}
 
@@ -758,7 +785,7 @@ cflib::pclass create m2::authenticator {
 						#>>>
 					}
 					default { #<<<
-						my log error "jm(session_pbkey_chan): invalid op: ($op), data: ([dict get $msg data])"
+						log error "jm(session_pbkey_chan): invalid op: ($op), data: ([dict get $msg data])"
 						#>>>
 					}
 				}
@@ -773,7 +800,7 @@ cflib::pclass create m2::authenticator {
 					unset session_pbkey_chan
 					my logout
 				} else {
-					my log warning "non session_pbkey_chan jm cancelled"
+					log warning "non session_pbkey_chan jm cancelled"
 				}
 				#>>>
 			}
@@ -784,15 +811,15 @@ cflib::pclass create m2::authenticator {
 	method _session_pbkey_update_result {msg} { #<<<
 		switch -- [dict get $msg type] {
 			ack {
-				#my log debug "session key update ok: ([dict get $msg data])"
+				#log debug "session key update ok: ([dict get $msg data])"
 			}
 
 			nack {
-				my log error "session key update problem: ([dict get $msg data])"
+				log error "session key update problem: ([dict get $msg data])"
 			}
 
 			default {
-				my log error "unhandled type: [dict get $msg type]"
+				log error "unhandled type: [dict get $msg type]"
 			}
 		}
 	}
@@ -822,7 +849,7 @@ cflib::pclass create m2::authenticator {
 				}
 
 				default	{
-					my log warning "Not expecting reply type ([dict get $msg type])"
+					log warning "Not expecting reply type ([dict get $msg type])"
 				}
 			}
 		}
@@ -899,7 +926,7 @@ cflib::pclass create m2::authenticator {
 			}
 
 			default { #<<<
-				my log error "unexpected update type: ([lindex $data 0])"
+				log error "unexpected update type: ([lindex $data 0])"
 				#>>>
 			}
 		}
@@ -909,7 +936,7 @@ cflib::pclass create m2::authenticator {
 	method _setup_heartbeat {heartbeat_interval session_jmid} { #<<<
 		set heartbeat_interval	[expr {$heartbeat_interval - 10}]
 		if {$heartbeat_interval < 1} {
-			my log warning "Very short heartbeat interval: $heartbeat_interval"
+			log warning "Very short heartbeat interval: $heartbeat_interval"
 			set heartbeat_interval	1
 		}
 

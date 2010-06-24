@@ -6,7 +6,6 @@ oo::class create webmodule::authwebmodule {
 		auth
 		title
 		icon
-		page
 		svc
 		baseurl
 		required_perms
@@ -14,13 +13,16 @@ oo::class create webmodule::authwebmodule {
 		httpd
 		docroot
 		init_script
-		cleanup_script
 		comp
 		prkey_fn
 	}
 
 	constructor {args} { #<<<
 		if {[self next] ne ""} next
+
+		namespace path [concat [namespace path] {
+			::oo::Helpers::cflib
+		}]
 
 		package require m2
 
@@ -29,10 +31,8 @@ oo::class create webmodule::authwebmodule {
 			-myhost				""
 			-myport				""
 			-required_perms		{}
-			-page				"main.html"
 			-docroot			"docroot"
 			-init_script		"init.js"
-			-cleanup_script		"cleanup.js"
 		} $args]
 
 		dict for {key val} $settings {
@@ -55,17 +55,14 @@ oo::class create webmodule::authwebmodule {
 		if {$init_script eq ""} {
 			set init_script		"init.js"
 		}
-		if {$cleanup_script eq ""} {
-			set cleanup_script	"cleanup.js"
-		}
 
 		if {![info object isa object $auth]} {
 			error "Value specified for -auth is not an object"
 		}
 
-		set svc		"authwebmodule/$modulename"
+		set svc		authwebmodule/$modulename
 
-		set baseurl	"http://$myhost:$myport/"
+		set baseurl	http://$myhost:$myport
 
 		set httpd	[my make_httpd -port $myport -docroot $docroot]
 
@@ -74,10 +71,10 @@ oo::class create webmodule::authwebmodule {
 				-auth		$auth \
 				-prkeyfn	$prkey_fn]
 
-		$comp register_handler user_login [namespace code {my _check_perms}]
+		$comp register_handler user_login [code _check_perms]
 
-		$comp handler module_info [namespace code {my _module_info}]
-		$comp handler http_get [namespace code {my _http_get}]
+		$comp handler module_info	[code _module_info]
+		$comp handler http_get		[code _http_get]
 		oo::objdefine [self] forward handler [namespace which -command $comp] handler
 	}
 
@@ -109,8 +106,7 @@ oo::class create webmodule::authwebmodule {
 		try {
 			lassign $data relfile
 			?? {log debug "Got http_get request for \"$relfile\""}
-			set base	[string trimright $baseurl /]
-			string map [list %h $base] [$httpd get $relfile]
+			string map [list %h $baseurl] [$httpd get [regsub -all //+ $relfile /]]
 		} trap not_found {errmsg} {
 			$auth nack $seq $errmsg
 		} trap forbidden {errmsg} {
@@ -129,24 +125,16 @@ oo::class create webmodule::authwebmodule {
 	method _module_info {auth user seq data} { #<<<
 		try {
 			set init_fn			[file join $docroot $init_script]
-			set cleanup_fn		[file join $docroot $cleanup_script]
 			if {[file exists $init_fn]} {
 				set init	[cflib::readfile $init_fn]
 			} else {
 				set init	""
 			}
-			if {[file exists $cleanup_fn]} {
-				set cleanup	[cflib::readfile $cleanup_fn]
-			} else {
-				set cleanup	""
-			}
 			dict create \
 					title			$title \
 					icon			$icon \
 					baseurl			$baseurl \
-					page			$page \
 					init			$init \
-					cleanup			$cleanup \
 					required_perms	$required_perms
 		} trap nack {errmsg} {
 			$auth nack $seq $errmsg
@@ -181,10 +169,10 @@ oo::class create webmodule::authwebmodule {
 			foreach line [split $raw \n] {
 				lassign $line proto rxq txq localaddr remoteattr state
 
-				if {
-					$state ne "LISTEN" ||
-					$proto ne "tcp"
-				} continue
+				#if {
+				#	$state ne "LISTEN" ||
+				#	$proto ne "tcp"
+				#} continue
 
 				lassign [split $localaddr :] ip port
 

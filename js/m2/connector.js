@@ -2,7 +2,6 @@ m2.connector = function(a_auth, a_svc, params) { //<<<<
 	if (typeof params == 'undefined') {
 		params = {};
 	}
-	Baselog.call(this, params);
 
 	this.auth = a_auth;
 	this.svc = a_svc;
@@ -40,8 +39,6 @@ m2.connector = function(a_auth, a_svc, params) { //<<<<
 };
 
 //>>>>
-m2.connector.prototype = new Baselog();
-m2.connector.prototype.constructor = m2.connector;
 
 m2.connector.prototype.destroy = function() { //<<<<
 	// TODO: the stuff that goes here
@@ -108,7 +105,7 @@ m2.connector.prototype.auth = function() { //<<<<
 //>>>>
 m2.connector.prototype._connect_ready_changed = function(newstate) { //<<<<
 	if (newstate) {
-		//this.log('debug', 'setting reconnect in motion');
+		//log.debug('setting reconnect in motion');
 		this.dominos.need_reconnect.tip();
 	}
 };
@@ -117,7 +114,7 @@ m2.connector.prototype._connect_ready_changed = function(newstate) { //<<<<
 m2.connector.prototype._reconnect = function() { //<<<<
 	var csprng, skey, cookie, n, e, msg, ks, iv, tail, self;
 
-	this.log('debug', 'reconnecting to '+this.svc);
+	log.debug('reconnecting to '+this.svc);
 	if (this.signals.connected.state()) {
 		this.disconnect();
 	}
@@ -126,14 +123,14 @@ m2.connector.prototype._reconnect = function() { //<<<<
 
 	skey = this.auth.generate_key();
 	cookie = csprng.getbytes(8);
-	//console.log('this._pbkey: ', this._pbkey);
+	//log.debug('this._pbkey: ', this._pbkey);
 	n = this._pbkey.n;
 	e = this._pbkey.e;
-	//this.log('debug', 'n bitlength: '+n.bitLength());
-	//this.log('debug', 'Encrypting session key with n: '+n.toString(16)+', e: '+e.toString(16));
+	//log.debug('n bitlength: '+n.bitLength());
+	//log.debug('Encrypting session key with n: '+n.toString(16)+', e: '+e.toString(16));
 	msg = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, skey, "");
-	//this.log('debug', 'skey base64: '+Base64.encode(skey));
-	//this.log('debug', 'reconnect msg length: '+msg.length+' base64 e_skey: '+Base64.encode(msg));
+	//log.debug('skey base64: '+Base64.encode(skey));
+	//log.debug('reconnect msg length: '+msg.length+' base64 e_skey: '+Base64.encode(msg));
 	ks = new cfcrypto.blowfish(skey);
 	iv = csprng.getbytes(8);
 	tail = ks.encrypt_cbc(serialize_tcl_list([cookie, this.auth.fqun(), iv]), iv);
@@ -141,7 +138,7 @@ m2.connector.prototype._reconnect = function() { //<<<<
 	this._cookie = cookie;
 
 	self = this;
-	//this.log('debug', '"setup " cookie base64: '+Base64.encode(cookie));
+	//log.debug('"setup " cookie base64: '+Base64.encode(cookie));
 	this.auth.req(this.svc, 'setup '+serialize_tcl_list([msg, tail, iv]), function(msg){
 		self._resp(msg);
 	});
@@ -156,14 +153,14 @@ m2.connector.prototype._resp = function(msg) { //<<<<
 	switch (msg.type) {
 		case 'ack': //<<<<
 			if (this._e_chan === null) {
-				this.log('error', 'Incomplete encrypted channel setup: got ack but no pr_jm');
+				log.error('Incomplete encrypted channel setup: got ack but no pr_jm');
 				return;
 			}
 			this.signals.connected.set_state(true);
-			//this.log('debug', 'msg.data.length: '+msg.data.length+' msg.data: (e_cookie2 base64) '+Base64.encode(msg.data));
+			//log.debug('msg.data.length: '+msg.data.length+' msg.data: (e_cookie2 base64) '+Base64.encode(msg.data));
 			svc_cookie = this.auth.decrypt_with_session_prkey(msg.data);
-			//this.log('debug', 'Got cookie2: base64: '+Base64.encode(svc_cookie));
-			//this.log('debug', 'sending proof of identity');
+			//log.debug('Got cookie2: base64: '+Base64.encode(svc_cookie));
+			//log.debug('sending proof of identity');
 			this.auth.rsj_req(this._e_chan, svc_cookie, function(msg){
 				self._auth_resp(msg);
 			});
@@ -176,7 +173,7 @@ m2.connector.prototype._resp = function(msg) { //<<<<
 			if (this._e_chan_prev_seq !== null) {
 				this._e_chan_prev_seq = null;
 			}
-			this.log('error', 'Got nacked: ('+msg.data+')');
+			log.error('Got nacked: ('+msg.data+')');
 			break; //>>>>
 
 		case 'pr_jm': //<<<<
@@ -185,11 +182,11 @@ m2.connector.prototype._resp = function(msg) { //<<<<
 				if (pdata === this._cookie) {
 					this._e_chan = msg.seq;
 					this._e_chan_prev_seq = msg.prev_seq;
-					//this.log('debug', 'got matching cookie, storing e_chan ('+this._e_chan+') and registering it with auth::register_jm_key');
+					//log.debug('got matching cookie, storing e_chan ('+this._e_chan+') and registering it with auth::register_jm_key');
 					this.auth.register_jm_key(this._e_chan, this._skey);
 				} else {
-					//this.log('error', 'did not get correct response from component: expecting: ('+Base64.encode(this._cookie)+')['+this._cookie.length+'] got: ('+Base64.encode(pdata)+')['+pdata.length+']');
-					this.log('error', 'did not get correct response from component');
+					//log.error('did not get correct response from component: expecting: ('+Base64.encode(this._cookie)+')['+this._cookie.length+'] got: ('+Base64.encode(pdata)+')['+pdata.length+']');
+					log.error('did not get correct response from component');
 				}
 			}
 			break; //>>>>
@@ -204,7 +201,7 @@ m2.connector.prototype._resp = function(msg) { //<<<<
 			break; //>>>>
 
 		default: //<<<<
-			this.log('warning', 'Not expecting response type ('+msg.type+')');
+			log.warning('Not expecting response type ('+msg.type+')');
 			break; //>>>>
 	}
 };
@@ -213,16 +210,16 @@ m2.connector.prototype._resp = function(msg) { //<<<<
 m2.connector.prototype._auth_resp = function(msg) { //<<<<
 	switch (msg.type) {
 		case 'ack':
-			//this.log('debug', 'got ack: ('+msg.data+')');
+			//log.debug('got ack: ('+msg.data+')');
 			this.signals.authenticated.set_state(true);
 			break;
 
 		case 'nack':
-			this.log('error', 'got nack: ('+msg.data+')');
+			log.error('got nack: ('+msg.data+')');
 			break;
 
 		default:
-			this.log('error', 'unexpected type: ('+msg.type+')');
+			log.error('unexpected type: ('+msg.type+')');
 			break;
 	}
 };
@@ -232,23 +229,23 @@ m2.connector.prototype._authenticated_changed = function(newstate) { //<<<<
 	var self;
 
 	if (newstate) {
-		//this.log('debug', 'requesting public key for ('+this.svc+') ...');
+		//log.debug('requesting public key for ('+this.svc+') ...');
 		self = this;
 		this.auth.get_svc_pbkey(this.svc, function(ok, data) {
 			if (ok) {
 				self._pbkey_asc = data;
-				//self.log('debug', 'got public key ascii format for ('+self.svc+'), loading into key ...');
+				//log.debug('got public key ascii format for ('+self.svc+'), loading into key ...');
 				try {
-					//self.log('debug', 'Attempting to extract public key from: '+self._pbkey_asc);
+					//log.debug('Attempting to extract public key from: '+self._pbkey_asc);
 					self._pbkey = cfcrypto.rsa.load_asn1_pubkey_from_value(self._pbkey_asc);
-					//self.log('debug', 'got public key for ('+self.svc+')');
-					//console.log('self._pbkey: ', self._pbkey);
+					//log.debug('got public key for ('+self.svc+')');
+					//log.debug('self._pbkey: ', self._pbkey);
 					self.signals.got_svc_pbkey.set_state(true);
 				} catch(e) {
-					self.log('error', 'error decoding public key for ('+self.svc+'): '+e);
+					log.error('error decoding public key for ('+self.svc+'): '+e);
 				}
 			} else {
-				self.log('error', 'error fetching public key for ('+self.svc+'): '+data);
+				log.error('error fetching public key for ('+self.svc+'): '+data);
 			}
 		});
 	} else {

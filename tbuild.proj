@@ -1,4 +1,4 @@
-set version	0.37.0
+set version	0.38.0
 
 set summary "m2 messagebus node"
 
@@ -56,6 +56,7 @@ application "m2_node" { #<<<
 		cflib
 		dsl
 		logging
+		evlog
 	}
 
 	files {
@@ -110,7 +111,7 @@ application "m2_node_install" { #<<<
 
 #>>>
 application "authenticatord" { #<<<
-	version 0.22.0
+	version $::version
 
 	runtime cfkit8.6
 	#runtime rozkit8.6
@@ -126,6 +127,8 @@ application "authenticatord" { #<<<
 		dsl
 		crypto
 		hash
+		logging
+		evlog
 
 		sha1
 	}
@@ -138,12 +141,16 @@ application "authenticatord" { #<<<
 	platform linux-glibc2.3-ix86 {
 		requires {
 			sqlite3
+			unix_sockets
+			sockopt
 		}
 	}
 
 	platform [this_platform] {
 		requires {
 			sqlite3
+			unix_sockets
+			sockopt
 		}
 	}
 }

@@ -6,9 +6,9 @@
 
 
 m2.authenticator = function(params) { //<<<
-	//console.log('Constructing m2.authenticator: ', params);
+	//log.debug('Constructing m2.authenticator: ', params);
 	m2.api.call(this, params);
-	//console.log('this is ', this);
+	//log.debug('this is ', this);
 
 	// Public
 	this.pbkey = 'authenticator.pub';
@@ -20,9 +20,6 @@ m2.authenticator = function(params) { //<<<
 		}
 		if (typeof params.port != 'undefined') {
 			this.port = params.port;
-		}
-		if (typeof params.log != 'undefined') {
-			this.log = params.log;
 		}
 
 		if (typeof params.pbkey != 'undefined') {
@@ -141,21 +138,21 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 		switch (msg.type) {
 			case 'ack': //<<<
 				if (self.login_chan === null) {
-					self.log('got ack, but no login_chan!');
+					log.warning('got ack, but no login_chan!');
 				}
 
 				self._fqun = username;
-				self.log('Logged in ok, generating key');
+				log.debug('Logged in ok, generating key');
 				before = new Date();
 				K = cfcrypto.rsa.RSAKG(512, 0x10001);
 				after = new Date();
-				self.log('512 bit key generation time: '+(after-before)+'ms');
+				log.debug('512 bit key generation time: '+(after-before)+'ms');
 				pbkey = [
 					'n', K.n,
 					'e', K.e
 				];
-				//console.log('session_prkey: ', K);
-				//console.log('n: '+K.n.toString(10)+', e: '+K.e.toString(10));
+				//log.debug('session_prkey: ', K);
+				//log.debug('n: '+K.n.toString(10)+', e: '+K.e.toString(10));
 				self.session_prkey = K;
 				self.rsj_req(self.login_chan[0], serialize_tcl_list(['session_pbkey_update', serialize_tcl_list(pbkey)]), function(msg) {
 					switch (msg.type) {
@@ -170,14 +167,14 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 						case 'pr_jm': //<<<
 							if (self.session_pbkey_chan !== null) {
-								self.log('Already have session_pbkey_chan: ('+self.session_pbkey_chan+')');
+								log.warn('Already have session_pbkey_chan: ('+self.session_pbkey_chan+')');
 							}
 							self.session_pbkey_chan = [msg.seq, msg.prev_seq];
 							break; //>>>
 
 						case 'jm': //<<<
 							if (self.session_pbkey_chan === null || msg.seq != self.session_pbkey_chan[0]) {
-								self.log('unrecognised jm chan: ('+msg.seq+')');
+								log.warn('unrecognised jm chan: ('+msg.seq+')');
 								return;
 							}
 
@@ -185,31 +182,31 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 							op = parts[0];
 							switch (op) {
 								case 'refresh_key':
-									self.log('jm(session_pbkey_chan): got notifiction to renew session keypair');
-									self.log('jm(session_pbkey_chan): generating keypair');
+									log.debug('jm(session_pbkey_chan): got notifiction to renew session keypair');
+									log.debug('jm(session_pbkey_chan): generating keypair');
 									before = new Date();
 									K = cfcrypto.rsa.RSAKG(512, 0x10001, 16);
 									after = new Date();
-									self.log('512 bit key generation time: '+(after-before)+'ms');
+									log.debug('512 bit key generation time: '+(after-before)+'ms');
 									pbkey = [
 										'n', K.n,
 										'e', K.e
 									];
 									self.session_prkey = K;
-									self.log('jm(session_pbkey_chan): sending public key to backend');
+									log.debug('jm(session_pbkey_chan): sending public key to backend');
 
 									self.rsj_req(self.session_pbkey_chan[0], serialize_tcl_list(['session_pbkey_update', pbkey]), function(msg) {
 										switch (msg.type) {
 											case 'ack':
-												self.log('session key update ok: ('+msg.data+')');
+												log.debug('session key update ok: ('+msg.data+')');
 												break;
 
 											case 'nack':
-												self.log('session key update problem: ('+msg.data+')');
+												log.error('session key update problem: ('+msg.data+')');
 												break;
 
 											default:
-												self.log('unhandled response type: ('+msg.type+') to session_pbkey_update request');
+												log.error('unhandled response type: ('+msg.type+') to session_pbkey_update request');
 												break;
 										}
 									});
@@ -225,12 +222,12 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 								self.session_pbkey_chan = null;
 								self.logout();
 							} else {
-								self.log('error: non session_pbkey_chan jm cancelled');
+								log.error('error: non session_pbkey_chan jm cancelled');
 							}
 							break; //>>>
 
 						default: //<<<
-							self.log('Unexpected response type to session_pbkey_update request: ('+msg.type+')');
+							log.error('Unexpected response type to session_pbkey_update request: ('+msg.type+')');
 							break; //>>>
 					}
 				});
@@ -238,7 +235,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 			case 'nack': //<<<
 				self.last_login_message = msg.data;
-				self.log('Error logging in: '+msg.data);
+				log.error('Error logging in: '+msg.data);
 				self._signals.getItem('login_pending').set_state(false);
 				break; //>>>
 
@@ -249,7 +246,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 			case 'jm': //<<<
 				key = msg.seq + '/' + msg.prev_seq;
 				if (!self.login_subchans.hasItem(key)) {
-					self.log('not sure what to do with jm: ('+msg.svc+','+msg.seq+','+msg.prev_seq+') ('+msg.data+')');
+					log.warning('not sure what to do with jm: ('+msg.svc+','+msg.seq+','+msg.prev_seq+') ('+msg.data+')');
 					return;
 				}
 
@@ -263,7 +260,7 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 						break;
 
 					default:
-						self.log('registered but unhandled login subchan seq: ('+key+') type: ('+self.login_subchans.getItem(key)+')');
+						log.warning('registered but unhandled login subchan seq: ('+key+') type: ('+self.login_subchans.getItem(key)+')');
 						break;
 				}
 				break; //>>>
@@ -271,14 +268,14 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 			case 'jm_can': //<<<
 				if (self.login_chan !== null && self.login_chan[0] == msg.seq) {
 					self.login_chan = null;
-					self.log('Got login_chan cancel, calling logout');
+					log.debug('Got login_chan cancel, calling logout');
 					self.logout();
 				} else {
 					key = msg.seq + '/' + msg.prev_seq;
 					if (self.login_subchans.hasItem(key)) {
 						switch (self.login_subchans.getItem(key)) {
 							case 'userinfo':
-								self.log('userinfo channel cancelled');
+								log.debug('userinfo channel cancelled');
 								self._signals.getItem('got_perms').set_state(false);
 								self._signals.getItem('got_attribs').set_state(false);
 								self._signals.getItem('got_prefs').set_state(false);
@@ -289,27 +286,27 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 								break;
 
 							case 'admin_chan':
-								self.log('admin_chan cancelled');
+								log.debug('admin_chan cancelled');
 								self.admin_info = {};
 								break;
 
 							case 'session_chan':
-								self.log('session_chan cancelled');
+								log.debug('session_chan cancelled');
 								break;
 
 							default:
-								self.log('registered but unhandled login subchan cancel: seq: ('+msg.seq+') type: ('+self.login_subchans.getItem(key)+')');
+								log.warning('registered but unhandled login subchan cancel: seq: ('+msg.seq+') type: ('+self.login_subchans.getItem(key)+')');
 								break;
 						}
 						self.login_subchans.removeItem(key);
 					} else {
-						self.log('unexpected jm_can: seq: ('+msg.seq+')');
+						log.warning('unexpected jm_can: seq: ('+msg.seq+')');
 					}
 				}
 				break; //>>>
 
 			default: //<<<
-				self.log('Unexpected response type to login request: '+msg.type);
+				log.warning('Unexpected response type to login request: '+msg.type);
 				break; //>>>
 		}
 	});
@@ -319,11 +316,13 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 m2.authenticator.prototype.logout = function() { //<<<
 	var self;
 
+	log.debug('In logout');
 	if (!this._signals.getItem('authenticated').state()) {
-		self.log('Authenticator logout: not logged in');
+		log.warning('Authenticator logout: not logged in');
 		return;
 	}
 	if (this.login_chan !== null) {
+		log.debug('Sending login_chan jm_disconnect: seq: '+this.login_chan[0]+', prev_seq: '+this.login_chan[1]);
 		this.jm_disconnect(this.login_chan[0], this.login_chan[1]);
 		this.login_chan = null;
 	}
@@ -331,10 +330,34 @@ m2.authenticator.prototype.logout = function() { //<<<
 	this.login_subchans.forEach(function(key, value) {
 		var parts;
 		parts = key.split('/');
+		log.debug('Sending login subchan disconnect: seq: '+parts[0]+', prev_seq: '+parts[1]);
 		self.jm_disconnect(parts[0], parts[1]);
+		switch (value) {
+			case 'userinfo':
+				self._signals.getItem('got_perms').set_state(false);
+				self._signals.getItem('got_attribs').set_state(false);
+				self._signals.getItem('got_prefs').set_state(false);
+
+				self.perms = new Hash();
+				self.attribs = new Hash();
+				self.prefs = new Hash();
+				break;
+
+			case 'admin_chan':
+				self.admin_info = {};
+				break;
+
+			case 'session_chan':
+				break;
+
+			default:
+				log.warning('Cancelled unhandled login subchan type "'+value+'"');
+				break;
+		}
 	});
 	this.login_subchans = new Hash();
 	if (this.session_pbkey_chan !== null) {
+		log.debug('Sending session_pbkey_chan jm_disconnect: seq: '+this.session_pbkey_chan[0]+', prev_seq: '+this.session_pbkey_chan[1]);
 		this.jm_disconnect(this.session_pbkey_chan[0], this.session_pbkey_chan[1]);
 		this.session_pbkey_chan = null;
 	}
@@ -360,7 +383,7 @@ m2.authenticator.prototype.get_svc_pbkey = function(svc, cb) { //<<<
 				break;
 
 			default:
-				self.log('Unexpected response type to get_svc_pubkey request: ('+msg.type+')');
+				log.warning('Unexpected response type to get_svc_pubkey request: ('+msg.type+')');
 				break;
 		}
 	});
@@ -393,17 +416,15 @@ m2.authenticator.prototype.get_user_pbkey = function(fqun, cb) { //<<<
 	if (!this._signals.getItem('established').state()) {
 		throw('No encrypted channel to the authenticator established yet');
 	}
-	//this.log('sending request on '+this.enc_chan);
+	//log.debug('sending request on '+this.enc_chan);
 	self = this;
 	this.rsj_req(this.enc_chan, serialize_tcl_list(['get_user_pbkey', fqun]), function(msg) {
 		switch (msg.type) {
 			case 'ack':
-				self.log('OK!');
 				cb(true, msg.data);
 				break;
 
 			case 'nack':
-				self.log('DENIED!');
 				cb(false, msg.data);
 				break;
 
@@ -450,7 +471,7 @@ m2.authenticator.prototype.attrib = function(attrib, default_value) { //<<<
 		return this.attribs.getItem(attrib);
 	} else {
 		if (typeof default_value != 'undefined') {
-			this.log('attrib not set, using fallback');
+			log.debug('attrib not set, using fallback');
 			return default_value;
 		} else {
 			throw('No attrib ('+attrib+') defined');
@@ -485,15 +506,15 @@ m2.authenticator.prototype.set_pref = function(pref, newvalue) { //<<<
 	this.rsj_req(this.login_chan[0], serialize_tcl_list(['set_pref', pref, newvalue]), function(msg) {
 		switch (msg.type) {
 			case 'ack':
-				self.log('pref updated');
+				log.debug('pref updated');
 				break;
 
 			case 'nack':
-				self.log('error setting pref ('+pref+') to newvalue: ('+newvalue+'): '+msg.data);
+				log.error('error setting pref ('+pref+') to newvalue: ('+newvalue+'): '+msg.data);
 				break;
 
 			default:
-				self.log('Unexpected response type ('+msg.type+') to set_pref request');
+				log.warning('Unexpected response type ('+msg.type+') to set_pref request');
 				break;
 		}
 	});
@@ -511,15 +532,15 @@ m2.authenticator.prototype.change_password = function(old, new1, new2) { //<<<
 	this.rsj_req(this.login_chan[0], serialize_tcl_list(['change_password', old, new1, new2]), function(msg) {
 		switch (msg.type) {
 			case 'ack':
-				self.log('password updated');
+				log.debug('password updated');
 				break;
 
 			case 'nack':
-				self.log('error updating password: '+msg.data);
+				log.error('error updating password: '+msg.data);
 				break;
 
 			default:
-				self.log('Unexpected response type ('+msg.type+') to change_password request');
+				log.warning('Unexpected response type ('+msg.type+') to change_password request');
 				break;
 		}
 	});
@@ -556,7 +577,7 @@ m2.authenticator.prototype.admin = function(op, data, cb) { //<<<
 				break;
 
 			default:
-				self.log('Not expecting response type ('+msg.type+')');
+				log.warning('Not expecting response type ('+msg.type+')');
 				break;
 		}
 	});
@@ -595,7 +616,7 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 						pdata = self.decrypt(self._keys.main, msg.data);
 						was_encrypted = true;
 					} catch(e) {
-						self.log('error decrypting message: '+e);
+						log.error('error decrypting message: '+e);
 						return;
 					}
 					break;
@@ -611,21 +632,21 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 					if (pdata === pending_cookie) {
 						self._signals.getItem('established').set_state(true);
 					} else {
-						self.log('cookie challenge from server did not match');
+						log.error('cookie challenge from server did not match');
 					}
 					break;
 
 				case 'nack':
-					self.log('got nack: '+msg.data);
+					log.error('got nack: '+msg.data);
 					break;
 
 				case 'pr_jm':
 					self.register_jm_key(msg.seq, self._keys.main);
-					//self.log('Got pr_jm: '+msg.seq+', registering key base64: '+self._keys.main);
+					//log.debug('Got pr_jm: '+msg.seq+', registering key base64: '+self._keys.main);
 					if (self.enc_chan === null) {
 						self.enc_chan = msg.seq;
 					} else {
-						self.log('already have enc_chan??');
+						log.warning('already have enc_chan??');
 					}
 					break;
 
@@ -635,7 +656,7 @@ m2.authenticator.prototype._crypt_setup = function() { //<<<
 					break;
 			}
 		} catch(e2) {
-			self.log('Error handling authenticator response ('+msg.type+'): '+e2);
+			log.warning('Error handling authenticator response ('+msg.type+'): '+e2);
 		}
 	});
 };
@@ -650,9 +671,10 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 	switch (tag) {
 		case 'login_chan':
 			if (this.login_chan === null) {
+				log.debug('got login_chan pr_jm: seq: '+msg.seq+', prev_seq: '+msg.prev_seq);
 				this.login_chan = [msg.seq, msg.prev_seq];
 			} else {
-				this.log('got a login_chan pr_jm ('+msg.seq+') when we already have a login_chan set ('+this.login_chan+')');
+				log.warning('got a login_chan pr_jm ('+msg.seq+') when we already have a login_chan set ('+this.login_chan+')');
 			}
 			break;
 
@@ -663,13 +685,13 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 			} else {
 				try {
 					if (this.profile_cb === null) {
-						this.log('Asked to select a profile but no profile_cb was defined');
+						log.warning('Asked to select a profile but no profile_cb was defined');
 						this.select_profile(msg.seq, '');
 					} else {
 						this.profile_cb(msg.seq, defined_profiles);
 					}
 				} catch(e) {
-					this.log('Unhandled error: '+e);
+					log.error('Unhandled error: '+e);
 					this.select_profile(msg.seq, '');
 				}
 			}
@@ -678,12 +700,14 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 		case 'perms':
 		case 'prefs':
 		case 'attribs':
+			log.debug('got userinfo "'+tag+'" pr_jm: seq: '+msg.seq+', prev_seq: '+msg.prev_seq);
 			key = msg.seq + '/' + msg.prev_seq;
 			this.login_subchans.setItem(key, 'userinfo');
 			this._update_userinfo(parts);
 			break;
 
 		case 'session_chan':
+			log.debug('got session_chan pr_jm: seq: '+msg.seq+', prev_seq: '+msg.prev_seq);
 			heartbeat_interval = parts[1];
 			key = msg.seq + '/' + msg.prev_seq;
 			// Isn't strictly a sub channel of login_chan...
@@ -694,6 +718,7 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 			break;
 
 		case 'admin_chan':
+			log.debug('got admin_chan pr_jm: seq: '+msg.seq+', prev_seq: '+msg.prev_seq);
 			key = msg.seq + '/' + msg.prev_seq;
 			// Isn't strictly a sub channel of login_chan...
 			this.login_subchans.setItem(key, 'admin_chan');
@@ -707,7 +732,7 @@ m2.authenticator.prototype._login_resp_pr_jm = function(msg) { //<<<
 
 		default:
 			key = msg.seq + '/' + msg.prev_seq;
-			this.log('unknown login subchan: ('+key+') ('+tag+')');
+			log.error('unknown login subchan: ('+key+') ('+tag+')');
 			this.login_subchans.setItem(key, 'unknown');
 			break;
 	}
@@ -786,7 +811,7 @@ m2.authenticator.prototype._update_userinfo = function(data) { //<<<
 			break;
 
 		default:
-			this.log('unexpected update type: ('+data[0]+')');
+			log.warning('unexpected update type: ('+data[0]+')');
 			break;
 	}
 };
@@ -798,7 +823,7 @@ m2.authenticator.prototype._setup_heartbeat = function(heartbeat_interval, sessi
 	heartbeat_interval -= 10;
 
 	if (heartbeat_interval < 1) {
-		this.log('Very short heartbeat interval: '+heartbeat_interval);
+		log.warning('Very short heartbeat interval: '+heartbeat_interval);
 		heartbeat_interval = 1;
 	}
 
@@ -846,7 +871,7 @@ m2.authenticator.prototype._admin_chan_update = function(data) { //<<<
 			break;
 
 		default:
-			this.log('Unrecognised admin update: ('+op+')');
+			log.warning('Unrecognised admin update: ('+op+')');
 			break;
 	}
 };

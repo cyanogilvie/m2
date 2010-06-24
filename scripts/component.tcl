@@ -27,6 +27,10 @@ cflib::pclass create m2::component {
 
 		set login_busy		0
 
+		namespace path [concat [namespace path] {
+			::oo::Helpers::cflib
+		}]
+
 		my configure {*}$args
 
 		foreach reqf {svc auth prkeyfn} {
@@ -39,14 +43,14 @@ cflib::pclass create m2::component {
 		set prkey	[crypto::rsa::load_asn1_prkey $prkeyfn]
 		
 		[$auth signal_ref established] attach_output \
-				[my code _established_changed]
+				[code _established_changed]
 
 		[$auth signal_ref authenticated] attach_output \
-				[my code authenticated_changed]
+				[code authenticated_changed]
 
 		if {$login} {
 			[$auth signal_ref login_allowed] attach_output \
-					[my code _login_allowed_changed]
+					[code _login_allowed_changed]
 		}
 	}
 
@@ -54,14 +58,14 @@ cflib::pclass create m2::component {
 	destructor { #<<<
 		if {[info exists auth] && [info object isa object $auth]} {
 			[$auth signal_ref established] detach_output \
-					[my code _established_changed]
+					[code _established_changed]
 
 			[$auth signal_ref authenticated] detach_output \
-					[my code authenticated_changed]
+					[code authenticated_changed]
 
 			if {$login} {
 				[$auth signal_ref login_allowed] detach_output \
-						[my code _login_allowed_changed]
+						[code _login_allowed_changed]
 			}
 		}
 	}
@@ -124,15 +128,18 @@ cflib::pclass create m2::component {
 			#log debug "Decrypted _svc_handler \"setup \" request ok, cookie base64: [binary encode base64 $cookie]"
 		}
 
+		set chan	[$auth unique_id]
+
 		# Create a user object <<<
 		set mycookie	[$auth generate_key 16]
-		set userobj		[m2::userinfo new $fqun $auth $svc]
+		set userobj		[m2::userinfo new $fqun $auth $svc $chan]
 		# Create a user object >>>
 
-		set chan	[$auth unique_id]
 		$auth crypto register_chan $chan $skey
 		$auth chans register_chan $chan \
-				[my code _userchan_cb $userobj $chan $mycookie]
+				[code _userchan_cb $userobj $mycookie]
+		$userobj register_handler session_killed \
+				[code _userinfo_chan_killed $userobj]
 		#log debug "sending pr_jm ($chan) with cookie ([$auth mungekey $cookie]) encrypted with skey ([$auth mungekey $skey])"
 		#log debug "sending pr_jm ($chan) with cookie [binary encode base64 $cookie] encrypted with skey [binary encode base64 $skey]"
 		$auth pr_jm $chan $seq $cookie
@@ -152,7 +159,18 @@ cflib::pclass create m2::component {
 	}
 
 	#>>>
-	method _userchan_cb {user chan mycookie op data} { #<<<
+	method _userinfo_chan_killed {user} { #<<<
+		log debug "Userinfo session killed"
+		set chan	[$user authchan]
+		dict unset chan_auth $chan
+		$auth jm_can $chan ""
+		my invoke_handlers user_logout $user
+		$user destroy
+	}
+
+	#>>>
+	method _userchan_cb {user mycookie op data} { #<<<
+		set chan	[$user authchan]
 		switch -- $op {
 			cancelled { #<<<
 				dict unset chan_auth $chan
@@ -171,7 +189,7 @@ cflib::pclass create m2::component {
 						dict set chan_auth $chan	1
 						my invoke_handlers user_login_bare $user
 						[$user signal_ref got_all] attach_output \
-								[my code _user_permissioned $auth $seq $user]
+								[code _user_permissioned $auth $seq $user]
 					} else {
 						$auth nack $seq "Cookie is bad"
 					}
@@ -210,7 +228,7 @@ cflib::pclass create m2::component {
 	method _established_changed {newstate} { #<<<
 		if {$newstate} {
 			if {$advertise} {
-				$auth handle_svc $svc [my code _svc_handler]
+				$auth handle_svc $svc [code _svc_handler]
 			}
 		} else {
 			$auth handle_svc $svc {}

@@ -19,16 +19,18 @@ oo::class create webmodule::webmodule {
 	constructor {args} { #<<<
 		if {[self next] ne ""} next
 
+		namespace path [concat [namespace path] {
+			::oo::Helpers::cflib
+		}]
+
 		package require m2
 
 		set settings		[dict merge {
 			-auth			"auth"
 			-myhost			""
 			-myport			""
-			-page			"main.html"
 			-docroot		"docroot"
 			-init_script	"init.js"
-			-cleanup_script	"cleanup.js"
 		} $args]
 
 		dict for {key val} $settings {
@@ -59,12 +61,11 @@ oo::class create webmodule::webmodule {
 			error "Value specified for -auth is not an object"
 		}
 
-		set svc		"webmodule/$modulename"
+		set svc		webmodule/$modulename
 
-		[$auth signal_ref connected] attach_output \
-				[namespace code {my _connected_changed}]
+		[$auth signal_ref connected] attach_output [code _connected_changed]
 
-		set baseurl	"http://$myhost:$myport/"
+		set baseurl	http://$myhost:$myport
 
 		set httpd	[my make_httpd -port $myport -docroot $docroot]
 	}
@@ -72,8 +73,7 @@ oo::class create webmodule::webmodule {
 	#>>>
 	destructor { #<<<
 		if {[info exists auth] && [info object isa object $auth]} {
-			[$auth signal_ref connected] detach_output \
-					[namespace code {my _connected_changed}]
+			[$auth signal_ref connected] detach_output [code _connected_changed]
 		}
 
 		if {[info exists httpd] && [info object isa object $httpd]} {
@@ -109,9 +109,8 @@ oo::class create webmodule::webmodule {
 				http_get {
 					lassign $rest relfile
 					?? {log debug "Got http_get request for \"$relfile\""}
-					set base	[string trimright $baseurl /]
 					try {
-						string map [list %h $base] [$httpd get $relfile]
+						string map [list %h $baseurl] [$httpd get [regsub -all //+ $relfile /]]
 					} trap not_found {errmsg} {
 						$auth nack $seq $errmsg
 					} trap forbidden {errmsg} {
@@ -167,10 +166,10 @@ oo::class create webmodule::webmodule {
 			foreach line [split $raw \n] {
 				lassign $line proto rxq txq localaddr remoteattr state
 
-				if {
-					$state ne "LISTEN" ||
-					$proto ne "tcp"
-				} continue
+				#if {
+				#	$state ne "LISTEN" ||
+				#	$proto ne "tcp"
+				#} continue
 
 				lassign [split $localaddr :] ip port
 

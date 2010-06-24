@@ -9,8 +9,8 @@
 #	incoming,$msgtype(msgdict)	- specific message type, ie send,req
 
 cflib::pclass create m2::api {
-	#superclass cflib::handlers sop::signalsource cflib::baselog
-	superclass sop::signalsource cflib::handlers cflib::baselog
+	#superclass cflib::handlers sop::signalsource
+	superclass sop::signalsource cflib::handlers
 
 	property uri				""			_need_reconnect
 	property ip					""			_need_reconnect

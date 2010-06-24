@@ -145,6 +145,9 @@ oo::class create User {
 	method _session_chan_cb {op data} { #<<<
 		switch -- $op {
 			cancelled {
+				if {[info exists session_jmid]} {
+					unset session_jmid
+				}
 				my _logout
 			}
 

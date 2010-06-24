@@ -35,7 +35,7 @@ cflib::config create cfg $argv {
 
 evlog connect "[file tail [info script]] [info hostname] [pid]" [cfg get evlog_uri]
 
-logging::logger ::log [cfg get loglevel]
+logging::logger ::log [cfg get loglevel] -hook {evlog event log.%level% {$msg}}
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}
@@ -73,9 +73,9 @@ test_ds_backend add_item "hello" {1 foo1 bar1 baz1}
 test_ds_backend add_item "hello" {2 foo2 bar2 baz2}
 test_ds_backend add_item "hello" {3 foo3 bar3 baz3}
 set i	4
-for {set i 4} {$i < 128 + 64 + 32 + 0*16 + 0*8 + 1*4 + 0*2 + 1*1 - 2} {incr i} {
-	test_ds_backend add_item "hello" [list $i "auto item $i" "bar" "baz"]
-}
+#for {set i 4} {$i < 128 + 64 + 32 + 0*16 + 0*8 + 1*4 + 0*2 + 1*1 - 2} {incr i} {
+#	test_ds_backend add_item "hello" [list $i "auto item $i" "bar" "baz"]
+#}
 
 set seq	$i
 proc append_element {} {
