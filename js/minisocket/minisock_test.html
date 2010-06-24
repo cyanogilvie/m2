@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Minisock Test</title>
+		<script type="text/javascript" src="dojo/dojo/dojo.js"
+			djConfig="isDebug: true, parseOnLoad: false, defaultTestTheme: 'tundra', locale: 'en-us', preventBackButtonFix: false"></script>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/base64.js"></script>
+		<script type="text/javascript" src="cfcrypto/webtoolkit/utf8.js"></script>
+		<script type="text/javascript" src="logging/logging.js"></script>
+		<script type="text/javascript" src="sop/hash.js"></script>
+		<script type="text/javascript" src="sop/signal.js"></script>
+		<script type="text/javascript" src="minisocket/minisocket.js"></script>
+		<script type="text/javascript">
+			log = new logging.logger();
+
+			function connect() {
+				jsSocket.swf = 'minisocket/jsSocket.swf';
+
+				sock = new jsSocket({
+					host: 'localhost',
+					port: 1234
+				});
+
+				sock.received = function(data) {
+					data = Utf8.decode(data);
+					console.log('got data: ', data);
+				};
+
+				sock.signals.connected.attach_output(function(newstate) {
+					if (newstate) {
+						sock.send(Utf8.encode('hello, world'));
+					}
+				});
+			}
+
+			dojo.addOnLoad(connect);
+		</script>
+	</head>
+	<body>
+	</body>
+</html>
