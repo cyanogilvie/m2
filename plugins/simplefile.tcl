@@ -143,6 +143,7 @@ oo::class create Plugin {
 			variable fn			"/etc/codeforge/users"
 			variable detailsfn	"/etc/codeforge/userdetails"
 			variable ignorecase	{}	;# list of "username", "password"
+			variable hashed		0
 		}
 
 		if {![file readable [cfg get fn]]} {
@@ -178,14 +179,11 @@ oo::class create Plugin {
 
 	#>>>
 	method _check_pw {pw1 pw2} { #<<<
-		if {"password" in [cfg get ignorecase]} {
-			return [expr {
-				[string tolower $pw1] eq [string tolower $pw2]
-			}]
-		} else {
-			return [expr {
-				$pw1 eq $pw2
-			}]
+		if {[cfg get hashed]} {
+			set pw1	[binary encode base64 [hash::md5 $pw1]]
+		}
+		expr {
+			$pw1 eq $pw2
 		}
 	}
 
