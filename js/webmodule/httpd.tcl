@@ -4,10 +4,6 @@ package require cflib
 package require oodaemons 0.3
 package require oodaemons::httpd 0.3
 
-if {[info commands ::??] ne "::??"} {
-	proc ?? {args} {}
-}
-
 cflib::pclass create webmodule::httpd {
 	superclass oodaemons::httpd
 

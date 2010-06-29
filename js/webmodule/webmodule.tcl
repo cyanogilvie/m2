@@ -6,14 +6,12 @@ oo::class create webmodule::webmodule {
 		auth
 		title
 		icon
-		page
 		svc
 		baseurl
 		myhost
 		httpd
 		docroot
 		init_script
-		cleanup_script
 	}
 
 	constructor {args} { #<<<
@@ -26,11 +24,12 @@ oo::class create webmodule::webmodule {
 		package require m2
 
 		set settings		[dict merge {
-			-auth			"auth"
+			-auth			auth
 			-myhost			""
 			-myport			""
-			-docroot		"docroot"
-			-init_script	"init.js"
+			-docroot		docroot
+			-init_script	init.js
+			-icon			images/moduleicon.png
 		} $args]
 
 		dict for {key val} $settings {
@@ -52,9 +51,6 @@ oo::class create webmodule::webmodule {
 
 		if {$init_script eq ""} {
 			set init_script		"init.js"
-		}
-		if {$cleanup_script eq ""} {
-			set cleanup_script	"cleanup.js"
 		}
 
 		if {![info object isa object $auth]} {
@@ -136,24 +132,16 @@ oo::class create webmodule::webmodule {
 	#>>>
 	method _module_info {} { #<<<
 		set init_fn		[file join $docroot $init_script]
-		set cleanup_fn	[file join $docroot $cleanup_script]
 		if {[file exists $init_fn]} {
 			set init	[cflib::readfile $init_fn]
 		} else {
 			set init	""
 		}
-		if {[file exists $cleanup_fn]} {
-			set cleanup	[cflib::readfile $cleanup_fn]
-		} else {
-			set cleanup	""
-		}
 		dict create \
 				title	$title \
 				icon	$icon \
 				baseurl	$baseurl \
-				page	$page \
-				init	$init \
-				cleanup	$cleanup
+				init	$init
 	}
 
 	#>>>

@@ -8,7 +8,7 @@
 cflib::pclass create m2::authenticator {
 	superclass m2::api2
 
-	property pbkey		"authenticator.pub"
+	property pbkey		/etc/codeforge/authenticator/keys/env/authenticator.pb
 	property profile_cb	""
 
 	variable {*}{

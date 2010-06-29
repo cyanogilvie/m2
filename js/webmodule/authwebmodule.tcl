@@ -27,12 +27,14 @@ oo::class create webmodule::authwebmodule {
 		package require m2
 
 		set settings		[dict merge {
-			-auth				"auth"
+			-auth				auth
 			-myhost				""
 			-myport				""
 			-required_perms		{}
-			-docroot			"docroot"
-			-init_script		"init.js"
+			-docroot			docroot
+			-init_script		init.js
+			-icon				images/moduleicon.png
+			-prkey_fn			/etc/codeforge/authenticator/keys/env/authwebmodule.%n.pr
 		} $args]
 
 		dict for {key val} $settings {
@@ -44,6 +46,7 @@ oo::class create webmodule::authwebmodule {
 				error "Must specify -$reqf"
 			}
 		}
+		set prkey_fn	[string map [list %n $modulename] $prkey_fn]
 
 		if {$myhost eq ""} {
 			set myhost	[info hostname]
@@ -60,7 +63,7 @@ oo::class create webmodule::authwebmodule {
 			error "Value specified for -auth is not an object"
 		}
 
-		set svc		authwebmodule/$modulename
+		set svc		authwebmodule.$modulename
 
 		set baseurl	http://$myhost:$myport
 
@@ -73,16 +76,15 @@ oo::class create webmodule::authwebmodule {
 
 		$comp register_handler user_login [code _check_perms]
 
-		$comp handler module_info	[code _module_info]
-		$comp handler http_get		[code _http_get]
+		$comp handler module_info	[code _handle _module_info]
+		$comp handler http_get		[code _handle _http_get]
 		oo::objdefine [self] forward handler [namespace which -command $comp] handler
 	}
 
 	#>>>
 	destructor { #<<<
 		if {[info exists auth] && [info object isa object $auth]} {
-			[$auth signal_ref connected] detach_output \
-					[namespace code {my _connected_changed}]
+			[$auth signal_ref connected] detach_output [code _connected_changed]
 		}
 
 		if {[info exists httpd] && [info object isa object $httpd]} {
@@ -102,19 +104,13 @@ oo::class create webmodule::authwebmodule {
 	}
 
 	#>>>
-	method _http_get {auth user seq data} { #<<<
+	method _handle {cmd auth user seq data} { #<<<
 		try {
-			lassign $data relfile
-			?? {log debug "Got http_get request for \"$relfile\""}
-			string map [list %h $baseurl] [$httpd get [regsub -all //+ $relfile /]]
-		} trap not_found {errmsg} {
-			$auth nack $seq $errmsg
-		} trap forbidden {errmsg} {
-			$auth nack $seq $errmsg
+			my $cmd {*}$data
 		} trap nack {errmsg} {
 			$auth nack $seq $errmsg
 		} on error {errmsg options} {
-			log error "Error handling request: [dict get $options -errorinfo]"
+			log error "Error handling $cmd request: [dict get $options -errorinfo]"
 			$auth nack $seq "Internal error"
 		} on ok {res} {
 			$auth ack $seq $res
@@ -122,28 +118,31 @@ oo::class create webmodule::authwebmodule {
 	}
 
 	#>>>
-	method _module_info {auth user seq data} { #<<<
+	method _http_get {relfile} { #<<<
 		try {
-			set init_fn			[file join $docroot $init_script]
-			if {[file exists $init_fn]} {
-				set init	[cflib::readfile $init_fn]
-			} else {
-				set init	""
-			}
-			dict create \
-					title			$title \
-					icon			$icon \
-					baseurl			$baseurl \
-					init			$init \
-					required_perms	$required_perms
-		} trap nack {errmsg} {
-			$auth nack $seq $errmsg
-		} on error {errmsg options} {
-			log error "Error handling request: [dict get $options -errorinfo]"
-			$auth nack $seq "Internal error"
-		} on ok {res} {
-			$auth ack $seq $res
+			?? {log debug "Got http_get request for \"$relfile\""}
+			string map [list %h $baseurl] [$httpd get [regsub -all //+ $relfile /]]
+		} trap not_found {errmsg} {
+			throw nack $seq $errmsg
+		} trap forbidden {errmsg} {
+			throw nack $seq $errmsg
 		}
+	}
+
+	#>>>
+	method _module_info {} { #<<<
+		set init_fn			[file join $docroot $init_script]
+		if {[file exists $init_fn]} {
+			set init	[cflib::readfile $init_fn]
+		} else {
+			set init	""
+		}
+		dict create \
+				title			$title \
+				icon			$icon \
+				baseurl			$baseurl \
+				init			$init \
+				required_perms	$required_perms
 	}
 
 	#>>>
