@@ -13,6 +13,7 @@ m2.authenticator = function(params) { //<<<
 	// Public
 	this.pbkey = 'authenticator.pub';
 	this.profile_cb = null;
+	this.default_domain = null;
 
 	if (typeof params != 'undefined') {
 		if (typeof params.host != 'undefined') {
@@ -27,6 +28,9 @@ m2.authenticator = function(params) { //<<<
 		}
 		if (typeof params.profile_cb != 'undefined') {
 			this.profile_cb = params.profile_cb;
+		}
+		if (typeof params.default_domain != 'undefined') {
+			this.default_domain = params.default_domain;
 		}
 	}
 
@@ -127,6 +131,13 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 
 	if (!this._signals.getItem('login_allowed').state()) {
 		throw('Cannot login at this time');
+	}
+
+	if (username.indexOf('@') == -1) {
+		if (this.default_domain === null) {
+			throw('No domain specified and no default domain');
+		}
+		username += '@'+this.default_domain;
 	}
 
 	this._signals.getItem('login_pending').set_state(true);

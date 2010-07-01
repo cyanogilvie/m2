@@ -10,6 +10,7 @@ cflib::pclass create m2::authenticator {
 
 	property pbkey		/etc/codeforge/authenticator/keys/env/authenticator.pb
 	property profile_cb	""
+	property default_domain	""
 
 	variable {*}{
 		signals
@@ -77,6 +78,13 @@ cflib::pclass create m2::authenticator {
 	method login {username password args} { #<<<
 		if {![$signals(login_allowed) state]} {
 			error "Cannot login at this time"
+		}
+
+		if {[string first @ $username] == -1} {
+			if {$default_domain eq ""} {
+				error "No domain specified and no default domain"
+			}
+			set username	$username@$default_domain
 		}
 
 		my rsj_req $enc_chan [list login $username $password] \
