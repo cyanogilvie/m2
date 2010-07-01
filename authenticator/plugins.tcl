@@ -121,6 +121,8 @@ oo::class create Plugins {
 	method _init_slave {slave} { #<<<
 		$slave alias log log
 		$slave eval [format {
+			set argv	{}
+			load {} trofs
 			set ::auto_path	%s
 			tcl::tm::path add %s
 		} [list $::auto_path] [tcl::tm::path list]]
