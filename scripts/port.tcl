@@ -132,7 +132,7 @@ oo::class create m2::port {
 						if {[info commands "dutils::daemon_log"] ne {}} {
 							dutils::daemon_log LOG_ERR $errmsg
 						} else {
-							puts stderr $errmsg
+							log error $errmsg
 						}
 						# Should never happen
 						break
@@ -161,7 +161,7 @@ oo::class create m2::port {
 					dict for {s ps} $_pending_jm_setup {
 						foreach p [dict keys $ps] {
 							if {$p eq $prev_seq} {
-								puts stderr "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
+								log debug "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
 								dict unset _pending_jm_setup $s $p
 								if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
 									dict unset _pending_jm_setup $s
@@ -273,14 +273,15 @@ oo::class create m2::port {
 		
 		$server unregister_port [self]
 		#invoke_handlers onclose
-		dict for {type cbs} [my dump_handlers] {
-			if {$type eq "onclose"} {
-				foreach cb $cbs {
-					try {
-						uplevel #0 $cb
-					} on error {errmsg options} {
-						puts stderr "m2::Port([self])::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
-					}
+		set handlers	[my dump_handlers]
+		?? {log debug "m2::Port([self])::destructor: calling registered onclose handlers: $handlers"}
+		if {[dict exists $handlers onclose]} {
+			foreach cb [dict get $handlers onclose] {
+				?? {log debug "m2::Port([self])::destructor: attempting to call onclose handler ($cb)"}
+				try {
+					uplevel #0 $cb
+				} on error {errmsg options} {
+					log error "m2::Port([self])::destructor: error calling onclose handler: ($cb): $errmsg\n[dict get $options -errorcode]"
 				}
 			}
 		}
@@ -341,9 +342,11 @@ oo::class create m2::port {
 
 			jm_disconnect { #<<<
 				# TODO: more efficiently
+				?? {log debug "m2::Port([self])::send: sending jm_disconnect($m_seq)"}
 				dict for {up down} $jm {
 					if {$down == $m_seq} {
-						return [my _remove_jm_dport	$srcport $up $m_prev_seq]
+						?? {log debug "Found upstream path for jm: ($up), calling _remove_jm_dport"}
+						return [my _remove_jm_dport $srcport $up $m_prev_seq]
 					}
 				}
 				#parray jm
@@ -518,7 +521,7 @@ oo::class create m2::port {
 					#log debug "--------- dport ($dport) type is \"[$dport type]\" \[[$dport cached_station_id]\]"
 					if {[$dport type] eq "application"} {
 						if {
-							![dict exists $jm_prev $dport,$jmid] || 
+							![dict exists $jm_prev $dport,$jmid] ||
 							$oldmsgseq ni [dict get $jm_prev $dport,$jmid]
 						} {
 							dict lappend jm_prev $dport,$jmid	$oldmsgseq
@@ -596,7 +599,7 @@ oo::class create m2::port {
 				}
 				set jmid	[dict get $jm $m_prev_seq]
 
-				set rand_dest	[expr {round(rand() * ([llength [dict get $jm_ports $jmid]] - 1))}]
+				set rand_dest	[expr {int(rand() * [llength [dict get $jm_ports $jmid]])}]
 				set dport		[lindex [dict get $jm_ports $jmid] $rand_dest]
 				#puts "randomly picked idx $rand_dest of [llength [dict get $jm_ports $jmid]]: ($dport)"
 
@@ -663,7 +666,8 @@ oo::class create m2::port {
 	#>>>
 	method _remove_jm_dport {dport upstream_jmid prev_seq} { #<<<
 		set jmid	[dict get $jm $upstream_jmid]
-		if {$prev_seq == "" || $prev_seq == 0} {
+		if {$prev_seq eq "" || $prev_seq == 0} {
+			?? {log warning "m2::Port::_remove_jm_dport called with prev_seq: ($prev_seq)"}
 			dict unset jm_prev		$dport,$jmid
 		} else {
 			if {[dict exists $jm_prev $dport,$jmid]} {
@@ -679,22 +683,29 @@ oo::class create m2::port {
 			}
 		}
 		if {[dict exists $jm_prev $dport,$jmid]} {
+			?? {log debug "Still have destinations for $dport,$jmid: ([dict get $jm_prev $dport,$jmid])"}
 			return 0
 		}
+		#?? {log debug "Deregistering ($dport) onclose handler for ([namespace code [list my _remove_jm_dport $dport $upstream_jmid \"\"]]), before:\n([join [dict get [$dport dump_handlers] onclose] \n])"}
 		$dport deregister_handler onclose [namespace code [list my _remove_jm_dport $dport $upstream_jmid ""]]
+		#?? {log debug "Deregistering ($dport) onclose handler for ([namespace code [list my _remove_jm_dport $dport $upstream_jmid \"\"]]), after:\n([join [dict get [$dport dump_handlers] onclose] \n])"}
 
 		set idx		[lsearch [dict get $jm_ports $jmid] $dport]
-		if {$idx == -1} return
+		if {$idx == -1} {
+			#?? {log debug "m2::Port::_remove_jm_dport: dport ($dport) not a destination for ($jmid)"}
+			return
+		}
 		dict set jm_ports $jmid		[lreplace [dict get $jm_ports $jmid] $idx $idx]
-		#puts stderr "m2::Port::remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"
+		#?? {log debug "m2::Port::_remove_jm_dport: removing dport: ($dport) ($upstream_jmid) ($jmid)"}
 		if {[llength [dict get $jm_ports $jmid]] == 0} {
-			#puts stderr "m2::Port::remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_can upstream"
-			
+			#?? {log debug "m2::Port::_remove_jm_dport: all destinations for ($upstream_jmid) ($jmid) disconnected, sending jm_disconnect upstream"}
+
 			my _dispatch [m2::msg::new [list \
 				type	jm_disconnect \
 				seq		$upstream_jmid \
 			]]
 
+			#?? {log debug "jm(\$upstream_jmid<$upstream_jmid>): [dict get $jm $upstream_jmid]"}
 			dict unset jm		$upstream_jmid
 			dict unset jm_ports	$jmid
 			#if {[catch {
@@ -744,9 +755,9 @@ oo::class create m2::port {
 			}
 			$dport send [self] $msg
 		} trap {CONNECTION DPORT_COLLAPSED} {} {
-			puts stderr "m2::Port::send_dport($dport,<msg>): this: ([self]) dport collapsed before we could send it the msg (type: \"[dict get $msg type]\", svc: \"[dict get $msg svc]\", seq: \"[dict get $msg seq]\", prev_seq: \"[dict get $msg prev_seq]\"), dropping msg"
+			log warning "m2::Port::send_dport($dport,<msg>): this: ([self]) dport collapsed before we could send it the msg (type: \"[dict get $msg type]\", svc: \"[dict get $msg svc]\", seq: \"[dict get $msg seq]\", prev_seq: \"[dict get $msg prev_seq]\"), dropping msg"
 		} on error {errmsg options} {
-			puts stderr "m2::Port::send_dport($dport,<msg>): this: ([self]) error sending ([dict get $msg svc]): $errmsg {[dict get $options -errorcode]}\n[dict get $options -errorinfo]"
+			log error "m2::Port::send_dport($dport,<msg>): this: ([self]) error sending ([dict get $msg svc]): $errmsg {[dict get $options -errorcode]}\n[dict get $options -errorinfo]"
 		}
 	}
 

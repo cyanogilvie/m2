@@ -53,7 +53,7 @@ application "m2_node" { #<<<
 		{netdgram::jssocket 0.6.1}
 		{netdgram::uds 0.6.1}
 		{sop 1.2}
-		cflib
+		{cflib 1.8.2}
 		dsl
 		logging
 		evlog
@@ -96,7 +96,7 @@ application "m2_node_install" { #<<<
 	runtime cfkit8.6
 
 	requires {
-		cflib
+		{cflib 1.8.2}
 		dsl
 		sop
 	}
@@ -123,7 +123,7 @@ application "authenticatord" { #<<<
 		{netdgram 0.5.5}
 		{netdgram::tcp 0.5.5}
 		{netdgram::uds 0.5.5}
-		cflib
+		{cflib 1.8.2}
 		sop
 		dsl
 		crypto
@@ -172,7 +172,7 @@ application "m2_keys" { #<<<
 
 	requires {
 		crypto
-		cflib
+		{cflib 1.8.2}
 		dsl
 		sop
 	}

@@ -27,7 +27,7 @@ proc mungekey {args} {}
 
 set here	[file dirname [file normalize [info script]]]
 
-package require cflib
+package require cflib 1.8.2
 
 cflib::config create cfg $argv {
 	variable uri				tcp://localhost:5300

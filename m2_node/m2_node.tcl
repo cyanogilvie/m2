@@ -21,7 +21,7 @@ if {![info exists ::tcl::basekit]} {
 package require Tcl 8.6
 package require netdgram 0.6.1
 package require m2
-package require cflib
+package require cflib 1.8.2
 package require logging
 package require evlog
 
