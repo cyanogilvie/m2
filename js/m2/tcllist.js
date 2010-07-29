@@ -95,6 +95,10 @@ function parse_tcl_list(str) { //<<<
 	var pow;
 	var lsd;
 
+	if (typeof str == 'undefined' || str === null) {
+		return [];
+	}
+
 	var hexmap = {
 		'a': 10,
 		'b': 11,
@@ -313,7 +317,7 @@ function parse_tcl_list(str) { //<<<
 		//>>>
 		if (braced) { // continues <<<
 			if (braceescape) {
-				elem += c;
+				elem += '\\'+c;
 				braceescape = false;
 				continue;
 			}

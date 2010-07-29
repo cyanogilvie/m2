@@ -126,7 +126,7 @@ m2.authenticator.prototype._load_pbkey = function(pbkey) { //<<<
 };
 
 //>>>
-m2.authenticator.prototype.login = function(username, password) { //<<<
+m2.authenticator.prototype.login = function(username, password, cb) { //<<<
 	var self;
 
 	if (!this._signals.getItem('login_allowed').state()) {
@@ -170,10 +170,16 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 						case 'ack': //<<<
 							self._signals.getItem('authenticated').set_state(true);
 							self._signals.getItem('login_pending').set_state(false);
+							if (typeof cb != 'undefined') {
+								cb.call(null, true);
+							}
 							break; //>>>
 
 						case 'nack': //<<<
 							self._signals.getItem('login_pending').set_state(false);
+							if (typeof cb != 'undefined') {
+								cb.call(null, false, msg.data);
+							}
 							break; //>>>
 
 						case 'pr_jm': //<<<
@@ -248,6 +254,9 @@ m2.authenticator.prototype.login = function(username, password) { //<<<
 				self.last_login_message = msg.data;
 				log.error('Error logging in: '+msg.data);
 				self._signals.getItem('login_pending').set_state(false);
+				if (typeof cb != 'undefined') {
+					cb.call(null, false, msg.data);
+				}
 				break; //>>>
 
 			case 'pr_jm': //<<<

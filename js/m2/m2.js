@@ -1,5 +1,6 @@
 function m2() {} // namespace
 
+
 m2.api = function(params) { //<<<
 	if (typeof params == 'undefined') {
 		return;
@@ -40,6 +41,23 @@ m2.api = function(params) { //<<<
 	this._jm_keys = new Hash();
 	this._key_schedules = new Hash();
 	this._pending_keys = new Hash();
+	var t = [];
+	if (typeof t.indexOf == 'undefined') {
+		this._arr_indexOf = function(arr, item) {
+			var i;
+			//log.debug('Using custom _arr_indexOf');
+			for (i=0; i<arr.length; i++) {
+				if (item == arr[i]) {
+					return i;
+				}
+			}
+			return -1;
+		};
+	} else {
+		this._arr_indexOf = function(arr, item) {
+			return arr.indexOf(item);
+		}
+	}
 
 	log.debug('attempting to connect to m2_node on ('+this.host+') ('+this.port+')');
 	this._signals.setItem('connected', new Signal({
@@ -161,7 +179,9 @@ m2.api.prototype.jm_disconnect = function(jm_seq, prev_seq) { //<<<
 	});
 
 	if (this._jm_prev_seq.hasItem(jm_seq)) {
-		var idx = this._jm_prev_seq.getItem(jm_seq).indexOf(prev_seq);
+		var idx, pseq_tmp, i;
+		pseq_tmp = this._jm_prev_seq.getItem(jm_seq);
+		idx = this._arr_indexOf(pseq_tmp, prev_seq);
 		var new_prev_seqs, old_prev_seqs, i;
 
 		if (idx == -1) {
@@ -471,9 +491,18 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 
 			if (!this._jm_prev_seq.hasItem(msg.seq)) {
 				this._jm_prev_seq.setItem(msg.seq, [msg.prev_seq]);
-			} else if (this._jm_prev_seq.getItem(msg.seq).indexOf(msg.prev_seq) == -1) {
+			} else if (this._arr_indexOf(this._jm_prev_seq.getItem(msg.seq), msg.prev_seq) == -1) {
+				var t;
+				t = this._jm_prev_seq.getItem(msg.seq);
+				if (typeof t.push == 'undefined') {
+					log.error('something went badly wrong with jm_prev_seq('+msg.seq+'): ', t);
+				} else {
+					t.push(msg.prev_seq);
+				}
+				/*
 				this._jm_prev_seq.setItem(msg.seq,
-						this._jm_prev_seq.getItem(msg.seq).push(msg.prev_seq));
+					this._jm_prev_seq.getItem(msg.seq).push(msg.prev_seq));
+				*/
 			}
 
 			if (this._pending_keys.hasItem(msg.prev_seq)) {
@@ -683,11 +712,13 @@ m2.api.prototype._enqueue = function(sdata, msg) { //<<<
 
 //>>>
 m2.api.prototype._socket_connected_changed = function(newstate) { //<<<
-	var keys, i, inf;
+	var keys, i, inf, self;
+
+	self = this;
 	if (newstate) {
 		this._send({
-			type: 'neighbour_info',
-			data: serialize_tcl_list(['type', 'application'])
+			type:	'neighbour_info',
+			data:	serialize_tcl_list(['type', 'application'])
 		});
 
 		try {
@@ -706,6 +737,19 @@ m2.api.prototype._socket_connected_changed = function(newstate) { //<<<
 				inf.sig.set_state(false);
 			}
 			//log.debug('API setting connected to false');
+			this._jm_prev_seq.forEach(function(seq, prev_seq) {
+				var msg;
+
+				msg = {
+					type:	'jm_can',
+					svc:	'sys'
+				};
+				self._set_default_msg_fields(msg);
+
+				msg.seq = seq;
+				msg.prev_seq = serialize_tcl_list([prev_seq]);
+				self._jm_can(msg);
+			});
 			this._signals.getItem('connected').set_state(false);
 			this._dispatch_event('connected', false);
 		} catch (e2) {

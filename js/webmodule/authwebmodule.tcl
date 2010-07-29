@@ -154,6 +154,7 @@ oo::class create webmodule::authwebmodule {
 			}
 		}
 		if {[llength $missing] > 0} {
+			log debug "Required permission(s) missing: [join $missing {, }]"
 			throw deny "Required permission(s) missing: [join $missing {, }]"
 		}
 	}
