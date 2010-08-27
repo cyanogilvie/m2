@@ -1,4 +1,4 @@
-set version	0.40.0
+set version	0.40.1
 
 set summary "m2 messagebus node"
 
@@ -78,7 +78,7 @@ application "m2_node" { #<<<
 	#	requires {daemon}
 	#}
 
-	platform [this_platform] {
+	platform linux-glibc2.11-x86_64 {
 		requires {
 			sockopt
 			unix_sockets

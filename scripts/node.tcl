@@ -207,7 +207,7 @@ oo::class create m2::node {
 			switch -- [llength $tmp] {
 				1 {
 					set upip	[lindex $tmp 0]
-					set upport	5307
+					set upport	5300
 				}
 
 				2 {
