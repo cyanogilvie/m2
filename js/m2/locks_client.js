@@ -44,6 +44,14 @@ m2.locks_client.prototype.destroy = function() { //<<<
 };
 
 //>>>
+m2.locks_client.prototype.signal_ref = function(name) { //<<<
+	if (!this._signals.hasItem(name)) {
+        throw('Signal "'+name+'" doesn\'t exist');
+    }
+    return this._signals.getItem(name);
+}
+
+//>>>
 m2.locks_client.prototype.relock = function() { //<<<
 	var lock_info;
 	if (this._signals.getItem('locked').state()) {
