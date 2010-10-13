@@ -53,14 +53,14 @@ m2.locks_client.prototype.signal_ref = function(name) { //<<<
 
 //>>>
 m2.locks_client.prototype.relock = function() { //<<<
-	var lock_info;
+	var lock_info, self;
 	if (this._signals.getItem('locked').state()) {
 		throw('Already have a lock');
 	}
-
+	self = this;
 	try {
 		this.connector.req_async(this.tag, this.id, function(msg) {
-				this._lock_cb(msg);
+				self._lock_cb(msg);
 		});
 	} catch(e) {
 		this._signals.getItem('locked').set_state('false');
@@ -76,8 +76,13 @@ m2.locks_client.prototype.lock_req = function(op, data) { //<<<
 	if (!this._signals.getItem('locked').state() || this.lock_jmid === null) {
 		throw('Can;t apply action, no lock held');
 	}
-
-	this.connector.chan_req_async(this.lock_jmid, serialize_tcl_list([op, data]));
+	try {
+		this.connector.chan_req_async(this.lock_jmid, serialize_tcl_list([op, data]), function(msg) {
+				log.debug('got response '+msg.data);
+		});
+	} catch (e) {
+		log.warning('error on lock req '+e);
+	}
 };
 
 //>>>
@@ -119,7 +124,7 @@ m2.locks_client.prototype._lock_cb = function(msg) { //<<<
 			this.lock_prev_seq = msg.prev_seq;
 			this._signals.getItem('locked').set_state(true);
 			break;
-			case 'jm':
+		case 'jm':
 			this._lock_jm_update(msg.data);
 			break;
 		case 'jm_can':
