@@ -72,17 +72,15 @@ m2.locks_client.prototype.relock = function() { //<<<
 };
 
 //>>>
-m2.locks_client.prototype.lock_req = function(op, data) { //<<<
+m2.locks_client.prototype.lock_req = function(op, data, cb) { //<<<
 	if (!this._signals.getItem('locked').state() || this.lock_jmid === null) {
-		throw('Can;t apply action, no lock held');
+		throw('Can not apply action, no lock held');
 	}
-	try {
-		this.connector.chan_req_async(this.lock_jmid, serialize_tcl_list([op, data]), function(msg) {
-				log.debug('got response '+msg.data);
-		});
-	} catch (e) {
-		log.warning('error on lock req '+e);
-	}
+	this.connector.chan_req_async(this.lock_jmid, serialize_tcl_list([op, data]), function(msg) {
+			if (cb != 'undefined') {
+				cb.call(null, msg);
+			}
+	});
 };
 
 //>>>
