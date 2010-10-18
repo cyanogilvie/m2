@@ -91,7 +91,7 @@ m2.locks_client.prototype.unlock = function() { //<<<
 
 	this.connector.jm_disconnect(this.lock_jmid, this.lock_prev_seq);
 	this.lock_jmid = null;
-	this.lock_prev.seq = null;
+	this.lock_prev_seq = null;
 
 	/*
 		Normally here we would call :
