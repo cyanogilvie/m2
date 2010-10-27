@@ -444,6 +444,20 @@ m2.api.prototype._response = function(msg) { //<<<
 };
 
 //>>>
+m2.api.prototype._evlog_msg = function(msg) { //<<<
+	return serialize_tcl_list([
+		'svc',		msg.svc,
+		'type',		msg.type,
+		'seq',		msg.seq,
+		'prev_seq',	msg.prev_seq,
+		'meta',		msg.meta,
+		'oob_type',	msg.oob_type,
+		'oob_data',	msg.oob_data,
+		'data',		msg.data
+	]);
+};
+
+//>>>
 m2.api.prototype._got_msg = function(msg) { //<<<
 	/*
 	this.log('got m2 msg:');
@@ -456,6 +470,10 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 	this.log('msg.oob_data: ('+msg.oob_data+')');
 	this.log('msg.data: ('+msg.data+')');
 	*/
+	evlog.event('m2.receive_msg', serialize_tcl_list([
+		'from', this.host+':'+this.port,
+		'msg', this._evlog_msg(msg)
+	]));
 
 	// Decrypt any encrypted data, store jm_keys for new jm channels <<<
 	switch (msg.type) {
@@ -602,7 +620,7 @@ m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 	if (is_tail) {
 		complete = so_far;
 		this._defrag_buf.removeItem(msgid);
-		this._receive_msg(complete);
+		this._receive_msg(Utf8.decode(complete));
 	} else {
 		this._defrag_buf.setItem(msgid, so_far);
 	}
@@ -611,7 +629,7 @@ m2.api.prototype._receive_fragment = function(msgid, is_tail, frag) { //<<<
 //>>>
 m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 	var packet;
-	packet = Utf8.decode(Base64.decode(packet_base64));
+	packet = Base64.decode(packet_base64);
 	//this.log('_queue_receive_raw: ('+packet+')');
 	var lineend, head, msgid, is_tail, fragment_len, frag, rest;
 	rest = packet;
@@ -634,6 +652,11 @@ m2.api.prototype._receive_raw = function(packet_base64) { //<<<
 		is_tail = Boolean(Number(head[1]));
 		fragment_len = Number(head[2]);
 		frag = rest.substr(lineend + 1, fragment_len);
+		//this.log('fragment_len: '+fragment_len+', frag.length: '+frag.length);
+		if (fragment_len !== frag.length) {
+			throw('Fragment length mismatch: expecting '+fragment_len+', got: '+frag.length);
+		}
+		//rest = rest.substr(lineend + 1 + fragment_len);
 		rest = rest.substr(lineend + 1 + fragment_len);
 		this._receive_fragment(msgid, is_tail, frag);
 	}
@@ -671,6 +694,10 @@ m2.api.prototype._enqueue = function(sdata, msg) { //<<<
 	msgid = this._msgid_seq++;
 
 	payload = Base64.encode(String(msgid)+' 1 '+sdata.length+'\n'+sdata);
+	evlog.event('m2.queue_msg', serialize_tcl_list([
+		'to', this.host+':'+this.port,
+		'msg', this._evlog_msg(msg)
+	]));
 	//payload = Base64.encode(Utf8.encode(String(msgid)+'\n'+sdata));
 	this._socket.send(payload);
 };
