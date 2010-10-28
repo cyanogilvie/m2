@@ -1,4 +1,4 @@
-set version	0.40.1
+set version	0.40.2
 
 set summary "m2 messagebus node"
 
@@ -26,7 +26,15 @@ tm "m2" { #<<<
 	}
 
 	init {
+		package require cflib
+		package require sop
+		package require netdgram
+
 		namespace eval m2 {}
+
+		if {[info commands ??] ne {??}} {
+			proc ?? {args} {}
+		}
 	}
 
 	files {
