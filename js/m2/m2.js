@@ -1,3 +1,5 @@
+/*global Base64 Hash Signal Utf8 cfcrypto evlog jsSocket log parse_tcl_list serialize_tcl_list window */
+
 function m2() {} // namespace
 
 
@@ -7,7 +9,7 @@ m2.api = function(params) { //<<<
 	}
 	// Public
 	this.host = null;
-	this.port = null
+	this.port = null;
 	if (typeof params.host != 'undefined') {
 		this.host = params.host;
 	}
@@ -56,7 +58,7 @@ m2.api = function(params) { //<<<
 	} else {
 		this._arr_indexOf = function(arr, item) {
 			return arr.indexOf(item);
-		}
+		};
 	}
 
 	log.debug('attempting to connect to m2_node on ('+this.host+') ('+this.port+')');
@@ -79,7 +81,7 @@ m2.api = function(params) { //<<<
 
 //>>>
 m2.api.prototype.destroy = function() { //<<<
-	self._socket.close();
+	this._socket.close();
 	return null;
 };
 
@@ -179,10 +181,9 @@ m2.api.prototype.jm_disconnect = function(jm_seq, prev_seq) { //<<<
 	});
 
 	if (this._jm_prev_seq.hasItem(jm_seq)) {
-		var idx, pseq_tmp, i;
+		var idx, pseq_tmp, i, new_prev_seqs, old_prev_seqs;
 		pseq_tmp = this._jm_prev_seq.getItem(jm_seq);
 		idx = this._arr_indexOf(pseq_tmp, prev_seq);
-		var new_prev_seqs, old_prev_seqs, i;
 
 		if (idx == -1) {
 			// prev_seq invalid
@@ -568,7 +569,9 @@ m2.api.prototype._got_msg = function(msg) { //<<<
 			log.error('Invalid msg.type: ('+msg.type+')');
 			var key;
 			for (key in msg) {
-				log.error('msg.'+key+': ('+msg[key]+')');
+				if (msg.hasOwnProperty(key)) {
+					log.error('msg.'+key+': ('+msg[key]+')');
+				}
 			}
 			break;
 	}

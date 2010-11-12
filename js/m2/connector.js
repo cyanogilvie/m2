@@ -1,3 +1,5 @@
+/*global Domino Gate Signal cfcrypto log m2 serialize_tcl_list */
+
 m2.connector = function(a_auth, a_svc, params) { //<<<<
 	if (typeof params == 'undefined') {
 		params = {};

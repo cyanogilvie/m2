@@ -1,4 +1,5 @@
 // vim: ft=javascript foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+/*global Hash */
 
 function is_space(char) { //<<<
 	// Not perfect
@@ -99,6 +100,7 @@ function parse_tcl_list(str) { //<<<
 		return [];
 	}
 
+	/*
 	var hexmap = {
 		'a': 10,
 		'b': 11,
@@ -113,6 +115,7 @@ function parse_tcl_list(str) { //<<<
 		'E': 14,
 		'F': 15
 	};
+	*/
 
 	for (var i=0; i<str.length; i++) {
 		ofs++;
@@ -432,7 +435,7 @@ function parse_tcl_list(str) { //<<<
 
 			default:
 				throw 'Error in escape sequence parser state: invalid state "'+escape_mode+'"';
-				break;
+				//break;
 		}
 	}
 	//>>>
@@ -465,8 +468,8 @@ function serialize_tcl_list(arr) { //<<<
 			elem.indexOf('\n') == -1 &&
 			elem.indexOf('\r') == -1 &&
 			elem.indexOf('\v') == -1 &&
-			elem.indexOf('\[') == -1 &&
-			elem.indexOf('\]') == -1) {
+			elem.indexOf('[') == -1 &&
+			elem.indexOf(']') == -1) {
 			if (elem.indexOf('\\') == -1) {
 				staged.push(elem);
 			} else {
@@ -536,6 +539,6 @@ function array2hash(arr) { //<<<
 //>>>
 function list2hash(list) { //<<<
 	return array2hash(parse_tcl_list(list));
-};
+}
 
 //>>>

@@ -1,3 +1,4 @@
+/*global BigInteger Gate Hash Signal array2hash cfcrypto list2dict log m2 parse_tcl_list serialize_tcl_list setTimeout */
 /*
  * TODO
  * session_pbkey keypair generation
