@@ -1,4 +1,5 @@
 // vim: ft=javascript foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
+/*global Hash Signal log m2 serialize_tcl_list */
 
 m2.locks_client = function(params) { //<<<
 	this.heartbeat_interval = null;
@@ -49,11 +50,11 @@ m2.locks_client.prototype.signal_ref = function(name) { //<<<
         throw('Signal "'+name+'" doesn\'t exist');
     }
     return this._signals.getItem(name);
-}
+};
 
 //>>>
 m2.locks_client.prototype.relock = function() { //<<<
-	var lock_info, self;
+	var self;
 	if (this._signals.getItem('locked').state()) {
 		throw('Already have a lock');
 	}
