@@ -302,7 +302,9 @@ function parse_tcl_list(str) { //<<<
 						while (escape_seq.length < 4) {
 							escape_seq = '0'+escape_seq;
 						}
+						/*jslint evil: true */
 						elem += eval('"\\u'+escape_seq+'"');
+						/*jslint evil: false */
 						escape_seq = '';
 					}
 					escape_mode = '';
@@ -427,7 +429,9 @@ function parse_tcl_list(str) { //<<<
 					while (escape_seq.length < 4) {
 						escape_seq = '0'+escape_seq;
 					}
+					/*jslint evil: true */
 					elem += eval('"\\u'+escape_seq+'"');
+					/*jslint evil: false */
 				}
 				escape_mode = '';
 				escaped = false;
