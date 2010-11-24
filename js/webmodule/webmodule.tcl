@@ -57,7 +57,7 @@ oo::class create webmodule::webmodule {
 			error "Value specified for -auth is not an object"
 		}
 
-		set svc		webmodule/$modulename
+		set svc		webmodule.$modulename
 
 		[$auth signal_ref connected] attach_output [code _connected_changed]
 
