@@ -226,8 +226,18 @@ oo::class create m2::node {
 			set addr	"tcp://$upip:$upport/?flags=$flags"
 		}
 
-		if {$flags eq "NA"} {
-			set flags	"N"
+		set uri_obj	[netdgram::uri new $addr]
+		try {
+			set query	[dict get [$uri_obj as_dict] query]
+			if {[dict exists $query flags]} {
+				set flags	[dict get $query flags]
+			}
+		} finally {
+			$uri_obj destroy
+			unset uri_obj
+			if {[info exists query]} {
+				unset query
+			}
 		}
 
 		set use_keepalive	0
