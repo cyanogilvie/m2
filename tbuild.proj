@@ -1,4 +1,4 @@
-set version	0.41.0
+set version	0.41.1
 
 set summary "m2 messagebus node"
 
@@ -226,7 +226,7 @@ deb "m2node" { #<<<
 	}
 
 	target i386 linux-glibc2.3-ix86
-	target amd64 linux-glibc2.10-x86_64
+	target amd64 linux-glibc2.11-x86_64
 }
 
 #>>>

@@ -811,6 +811,7 @@ oo::class create m2::port {
 
 	#>>>
 	method _compile_filter {filter_config} { #<<<
+		?? {log debug "Compiling filter $filter_config"}
 		set body	[list]
 		lappend body {set allowed 1}
 		foreach term [split $filter_config ";"] {
