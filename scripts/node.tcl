@@ -91,6 +91,7 @@ oo::class create m2::node {
 			foreach dport [my all_ports $port] {
 				# Prune out outbound connections, ala, "orange links" pan in IML
 				if {[dict get $advertise_ports $dport] == 0} continue
+				if {![$dport allow_svc_out $svc]} continue
 				#puts stderr "sending msg: ([m2::msg::display $msg])"
 				try {
 					$dport send $port $msg
@@ -201,6 +202,7 @@ oo::class create m2::node {
 	#>>>
 	method _attempt_outbound_connection {addr} { #<<<
 		set flags	"N"
+		set filter	""
 
 		if {[string first "//" $addr] == -1} {
 			set tmp		[split $addr :]
@@ -231,6 +233,9 @@ oo::class create m2::node {
 			set query	[dict get [$uri_obj as_dict] query]
 			if {[dict exists $query flags]} {
 				set flags	[dict get $query flags]
+			}
+			if {[dict exists $query filter]} {
+				set filter	[dict get $query filter]
 			}
 		} finally {
 			$uri_obj destroy
@@ -280,6 +285,7 @@ oo::class create m2::node {
 						-server [self] \
 						-use_keepalive $use_keepalive \
 						-queue_mode $queue_mode \
+						-filter $filter \
 					] \
 					$queue $params]
 			$p register_handler onclose \

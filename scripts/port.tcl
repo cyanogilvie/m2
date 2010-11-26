@@ -26,6 +26,7 @@ oo::class create m2::port {
 		neighbour_info
 		dieing
 		connected
+		svc_filter
 	}
 
 	constructor {mode parms a_queue a_params} { #<<<
@@ -71,6 +72,15 @@ oo::class create m2::port {
 			outbound			{set outbound	1; set advertise	0}
 			outbound_advertise	{set outbound	1; set advertise	1}
 			default		{error "Invalid mode: ($mode)"}
+		}
+
+		if {[dict exists $parms -filter]} {
+			set svc_filter	[my _compile_filter [dict get $parms -filter]]
+		} else {
+			set svc_filter	[my _compile_filter "allow_in(all)"]
+		}
+		?? {
+			log debug "svc_filter:\n$svc_filter"
 		}
 
 		set queue	$a_queue
@@ -418,6 +428,11 @@ oo::class create m2::port {
 	}
 
 	#>>>
+	method allow_svc_out {svc} { #<<<
+		apply $svc_filter $svc out
+	}
+
+	#>>>
 	method _got_msg {raw_msg} { #<<<
 		set msg	[m2::msg::deserialize $raw_msg]
 		evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}
@@ -436,16 +451,20 @@ oo::class create m2::port {
 		switch -- [dict get $msg type] {
 			svc_avail { #<<<
 				foreach svc [dict get $msg data] {
-					dict set mysvcs $svc	1
-					$server announce_svc $svc [self]
+					if {[apply $svc_filter $svc in]} {
+						dict set mysvcs $svc	1
+						$server announce_svc $svc [self]
+					}
 				}
 				#>>>
 			}
 
 			svc_revoke { #<<<
 				foreach svc [dict get $msg data] {
-					$server revoke_svc $svc [self]
-					dict unset mysvcs $svc
+					if {[apply $svc_filter $svc in]} {
+						$server revoke_svc $svc [self]
+						dict unset mysvcs $svc
+					}
 				}
 				#>>>
 			}
@@ -656,10 +675,16 @@ oo::class create m2::port {
 
 	#>>>
 	method _send_all_svcs {} { #<<<
+		set advertised_services	[list]
+		foreach svc [$server all_svcs] {
+			if {[my allow_svc_out $svc]} {
+				lappend advertised_services	$svc
+			}
+		}
 		my send [self] [m2::msg::new [list \
 			type	svc_avail \
 			seq		[$server unique_id] \
-			data	[$server all_svcs] \
+			data	$advertised_services \
 		]]
 	}
 
@@ -782,6 +807,63 @@ oo::class create m2::port {
 				[clock microseconds] \
 				$point \
 				[my cached_station_id]]
+	}
+
+	#>>>
+	method _compile_filter {filter_config} { #<<<
+		set body	[list]
+		lappend body {set allowed 1}
+		foreach term [split $filter_config ";"] {
+			switch -regexp -matchvar matches -- $term {
+				{^allow\(all\)$} {
+					lappend body	{set allowed 1}
+				}
+				{^allow\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$svc in {%s}} $svcs] {set allowed 1}]
+				}
+				{^allow_in\(all\)$} {
+					lappend body	{if {$dir eq "in"} {set allowed 1}}
+				}
+				{^allow_out\(all\)$} {
+					lappend body	{if {$dir eq "out"} {set allowed 1}}
+				}
+				{^allow_in\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$dir eq "in" && $svc in {%s}} $svcs] {set allowed 1}]
+				}
+				{^allow_out\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$dir eq "out" && $svc in {%s}} $svcs] {set allowed 1}]
+				}
+				{^deny\(all\)$} {
+					lappend body	{set allowed 0}
+				}
+				{^deny\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$svc in {%s}} $svcs] {set allowed 0}]
+				}
+				{^deny_in\(all\)$} {
+					lappend body	{if {$dir eq "in"} {set allowed 0}}
+				}
+				{^deny_out\(all\)$} {
+					lappend body	{if {$dir eq "out"} {set allowed 0}}
+				}
+				{^deny_in\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$dir eq "in" && $svc in {%s}} $svcs] {set allowed 0}]
+				}
+				{^deny_out\((.*?)\)$} {
+					set svcs	[split [lindex $matches 1] ,]
+					lappend body	[list if [format {$dir eq "out" && $svc in {%s}} $svcs] {set allowed 0}]
+				}
+				default {
+					error "Syntax error in svc filter description: unknown op \"$term\""
+				}
+			}
+		}
+		lappend body {set allowed}
+		list {svc dir} [join $body \n]
 	}
 
 	#>>>

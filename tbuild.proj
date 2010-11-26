@@ -1,4 +1,4 @@
-set version	0.40.3
+set version	0.41.0
 
 set summary "m2 messagebus node"
 
@@ -144,7 +144,7 @@ application "authenticatord" { #<<<
 
 	files {
 		authenticator/authenticator
-		authenticator/*
+		authenticator/*.tcl
 	}
 
 	platform linux-glibc2.3-ix86 {
@@ -157,7 +157,7 @@ application "authenticatord" { #<<<
 
 	platform linux-glibc2.11-x86_64 {
 		requires {
-			sockopt
+			sqlite3
 			unix_sockets
 			hash
 		}
@@ -257,6 +257,11 @@ Provides the base of the authentication and encryption facilities on the M2
 network
 	}
 
+	debrequires {
+		m2node
+		m2keys
+	}
+
 	applications {
 		authenticatord
 	}
@@ -267,6 +272,7 @@ network
 		authenticator/defaults/userdetails				/etc/codeforge/
 		plugins/simplefile.tcl							/etc/codeforge/authenticator/plugins/
 		plugins/svc_registry_filesystem.tcl				/etc/codeforge/authenticator/plugins/
+		upstart/authenticatord.conf						/etc/init/
 	}
 
 	target amd64 linux-glibc2.11-x86_64
