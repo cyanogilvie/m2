@@ -147,14 +147,6 @@ application "authenticatord" { #<<<
 		authenticator/*
 	}
 
-	platform linux-glibc2.9-x86_64 {
-		requires {
-			sqlite3
-			unix_sockets
-			sockopt
-		}
-	}
-
 	platform linux-glibc2.3-ix86 {
 		requires {
 			sqlite3
@@ -163,13 +155,14 @@ application "authenticatord" { #<<<
 		}
 	}
 
-	platform [this_platform] {
+	platform linux-glibc2.11-x86_64 {
 		requires {
-			sqlite3
-			unix_sockets
 			sockopt
+			unix_sockets
+			hash
 		}
 	}
+
 }
 
 #>>>
@@ -234,6 +227,49 @@ deb "m2node" { #<<<
 
 	target i386 linux-glibc2.3-ix86
 	target amd64 linux-glibc2.10-x86_64
+}
+
+#>>>
+deb "m2keys" { #<<<
+	version $::version
+
+	summary "M2 key generation utility"
+
+	description {
+Generates keys for use with components and the Authenticator
+	}
+
+	applications {
+		m2_keys
+	}
+
+	target all tcl
+}
+
+#>>>
+deb "authenticatord" { #<<<
+	version $::version
+
+	summary "M2 authenticator"
+
+	description {
+Provides the base of the authentication and encryption facilities on the M2
+network
+	}
+
+	applications {
+		authenticatord
+	}
+
+	files {
+		authenticator/defaults/authenticator.sqlite3	/var/lib/codeforge/authenticator/
+		authenticator/defaults/users					/etc/codeforge/
+		authenticator/defaults/userdetails				/etc/codeforge/
+		plugins/simplefile.tcl							/etc/codeforge/authenticator/plugins/
+		plugins/svc_registry_filesystem.tcl				/etc/codeforge/authenticator/plugins/
+	}
+
+	target amd64 linux-glibc2.11-x86_64
 }
 
 #>>>
