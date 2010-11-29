@@ -1,0 +1,152 @@
+<html>
+	<head>
+		<title>M2 connection example</title>
+		<link rel="stylesheet" type="text/css" href="dojo/dojo/resources/dojo.css" />
+		<link rel="stylesheet" type="text/css" href="dojo/dijit/themes/tundra/tundra.css" />
+		<script src="logging/logging.js"></script>
+		<script src="dojo/dojo/dojo.js" djConfig="isDebug: true, parseOnLoad: false, defaultTestTheme: 'tundra', locale: 'en-us', preventBackButtonFix: false"></script>
+		<script src="minisocket/minisocket.js"></script>
+		<script src="evlog/evlog.js"></script>
+		<script src="cfcrypto/webtoolkit/base64.js"></script>
+		<script src="cfcrypto/webtoolkit/sha1.js"></script>
+		<script src="cfcrypto/webtoolkit/utf8.js"></script>
+		<script src="sop/hash.js"></script>
+		<script src="sop/signal.js"></script>
+		<script src="sop/gate.js"></script>
+		<script src="m2/tcllist.js"></script>
+		<script src="m2/m2.js"></script>
+		<script type="text/javascript">
+			/*global jsSocket, m2, Gate, console, logging, evlog, dojo, dijit */
+			var signals, log, api, pending;
+
+			pending = null;
+
+			dojo.require('dijit.form.Form');
+			dojo.require('dijit.form.Button');
+			dojo.require('dijit.form.TextBox');
+
+			evlog.connect('m2example');
+			log = new logging.logger('debug', {
+				hook: 'evlog.event("log.%level%", arguments[0]);'
+			});
+
+			jsSocket.swf = 'minisocket/jsSocket.swf';
+			api = new m2.api({
+				host: 'localhost',
+				port: 5301
+			});
+
+			signals = {};
+			signals.ready = new Gate({
+				name: 'ready',
+				mode: 'and'
+			});
+			signals.ready.attach_input(api.signal_ref('connected'));
+			signals.ready.attach_input(api.svc_signal('echo'));
+
+			function got_response(msg) {
+				var repsha1;
+
+				repsha1 = SHA1(msg.data);
+				if (repsha1 == pending) {
+					dojo.byId('matched').innerHTML = 'yes: '+repsha1+' == '+pending;
+				} else {
+					dojo.byId('matched').innerHTML = 'no';
+				}
+				console.log('Got response: ', msg);
+			}
+
+			function send_request(data) {
+				var bytes, i;
+				pending = null;
+				bytes = '';
+				for (i=0; i<data; i++) {
+					bytes += String(i%10);
+				}
+				pending = SHA1(bytes);
+				dojo.byId('matched').innerHTML = '';
+				log.debug('sending: ('+data+') bytes: '+bytes);
+				api.req('echo', bytes, got_response);
+			}
+
+			function init() {
+				var table, tr, td, sendbutton, data, tmp;
+
+				table = dojo.create('table', {}, 'msgform');
+				tr = dojo.create('tr', {}, table);
+				td = dojo.create('td', {innerHTML: 'Data length'}, tr);
+				td = dojo.create('td', {}, tr);
+				data = new dijit.form.TextBox({value: '128'}).placeAt(td);
+				tmp = new dijit.form.Button({
+					label: 'x2',
+					onClick: function(){
+						data.set('value', data.get('value')*2);
+					}
+				}).placeAt(td);
+				tmp = new dijit.form.Button({
+					label: '/2',
+					onClick: function(){
+						data.set('value', data.get('value')/2);
+					}
+				}).placeAt(td);
+				tr = dojo.create('tr', {}, table);
+				td = dojo.create('td', {}, tr);
+				td = dojo.create('td', {}, tr);
+				sendbutton = new dijit.form.Button({
+					label: 'Send Request',
+					onClick: function() {send_request(data.get('value'));}
+				}).placeAt(td);
+
+				tr = dojo.create('tr', {}, table);
+				td = dojo.create('td', {innerHTML: 'Response match'}, tr);
+				td = dojo.create('td', {id: 'matched'}, tr);
+
+				signals.ready.attach_output(function(newstate){
+						if (newstate) {
+							sendbutton.set('disabled', false);
+						} else {
+							sendbutton.set('disabled', true);
+						}
+				});
+			}
+
+			dojo.addOnLoad(init);
+		</script>
+	</head>
+	<body class="tundra">
+		<div><img id="connected_status" src="images/connected_indicator_red.png" width="16" height="16" /> connected</div>
+		<div><img id="svc_avail" src="images/connected_indicator_red.png" width="16" height="16" /> echo available</div>
+		<div><img id="ready" src="images/connected_indicator_red.png" width="16" height="16" /> ready</div>
+		<script type="text/javascript">
+			api.signal_ref('connected').attach_output(function(newstate) {
+				var connected_icon;
+				connected_icon = document.getElementById('connected_status');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+			api.svc_signal('echo').attach_output(function(newstate) {
+				var connected_icon;
+				connected_icon = document.getElementById('svc_avail');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+			signals.ready.attach_output(function(newstate) {
+			console.log(signals.ready.explain_txt());
+				var connected_icon;
+				connected_icon = document.getElementById('ready');
+				if (newstate) {
+					connected_icon.setAttribute('src', 'images/connected_indicator_green.png');
+				} else {
+					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
+				}
+			});
+		</script>
+		<div id='msgform'></div>
+	</body>
+</html>

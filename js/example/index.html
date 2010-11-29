@@ -1,36 +1,40 @@
 <html>
 	<head>
 		<title>M2 connection example</title>
-		<script type="text/javascript" src="jssocket/jquery-latest.min.js"></script>
-		<script type="text/javascript" src="jssocket/jquery.media.js"></script>
-		<script type="text/javascript" src="jssocket/jsonStringify.js"></script>
-		<script type="text/javascript" src="jssocket/jsSocket.js"></script>
-		<script type="text/javascript" src="sop/hash.js"></script>
-		<script type="text/javascript" src="sop/baselog.js"></script>
-		<script type="text/javascript" src="sop/signal.js"></script>
-		<script type="text/javascript" src="sop/gate.js"></script>
-		<script type="text/javascript" src="m2/tcllist.js"></script>
-		<script type="text/javascript" src="m2/m2.js"></script>
+		<script src="logging/logging.js"></script>
+		<script src="dojo/dojo/dojo.js" djConfig="isDebug: true, parseOnLoad: false, defaultTestTheme: 'tundra', locale: 'en-us', preventBackButtonFix: false"></script>
+		<script src="minisocket/minisocket.js"></script>
+		<script src="evlog/evlog.js"></script>
+		<script src="cfcrypto/webtoolkit/base64.js"></script>
+		<script src="cfcrypto/webtoolkit/sha1.js"></script>
+		<script src="cfcrypto/webtoolkit/utf8.js"></script>
+		<script src="sop/hash.js"></script>
+		<script src="sop/signal.js"></script>
+		<script src="sop/gate.js"></script>
+		<script src="m2/tcllist.js"></script>
+		<script src="m2/m2.js"></script>
 		<script type="text/javascript">
-			jsSocket.swf = 'jssocket/jsSocket.swf';
-			var api = new m2.api({
+			/*global jsSocket, m2, Gate, console, logging, evlog */
+			var signals, log, api;
+
+			evlog.connect('m2example');
+			log = new logging.logger('debug', {
+				hook: 'evlog.event("log.%level%", arguments[0]);'
+			});
+
+			jsSocket.swf = 'minisocket/jsSocket.swf';
+			api = new m2.api({
 				host: 'localhost',
 				port: 5301
 			});
 
 			signals = {};
-			signals['ready'] = new Gate({
+			signals.ready = new Gate({
 				name: 'ready',
 				mode: 'and'
 			});
-			signals['ready'].attach_input(api.signal_ref('connected'));
-			signals['ready'].attach_input(api.svc_signal('tickertape_prov'));
-
-			/*
-			api.signal_ref('connected').attach_output(function(newstate) {
-				console.log('connected changed: '+newstate);
-			});
-			*/
+			signals.ready.attach_input(api.signal_ref('connected'));
+			signals.ready.attach_input(api.svc_signal('tickertape_prov'));
 		</script>
 	</head>
 	<body>
@@ -56,8 +60,8 @@
 					connected_icon.setAttribute('src', 'images/connected_indicator_red.png');
 				}
 			});
-			signals['ready'].attach_output(function(newstate) {
-				console.log(signals['ready'].explain_txt());
+			signals.ready.attach_output(function(newstate) {
+			console.log(signals.ready.explain_txt());
 				var connected_icon;
 				connected_icon = document.getElementById('ready');
 				if (newstate) {
