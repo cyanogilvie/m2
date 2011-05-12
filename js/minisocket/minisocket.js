@@ -98,7 +98,7 @@ jsSocket.prototype = {
 		secs = 0;
 		self = this;
 
-		log.debug('reconnecting');
+		//log.debug('reconnecting');
 		if (this.reconnect_interval) {
 			clearInterval(this.reconnect_interval);
 
@@ -107,7 +107,7 @@ jsSocket.prototype = {
 			if (this.reconnect_countdown > 48) {
 				this.reconnect_countdown = 48;
 			}
-			log.debug('will reconnect in ' + this.reconnect_countdown);
+			//log.debug('will reconnect in ' + this.reconnect_countdown);
 		}
 
 		this.reconnect_interval = setInterval(function() {
@@ -115,13 +115,13 @@ jsSocket.prototype = {
 
 			remain = self.reconnect_countdown - ++secs;
 			if (remain === 0) {
-				log.debug('reconnecting now...');
+				//log.debug('reconnecting now...');
 				clearInterval(self.reconnect_interval);
 
 				self.autoconnect = true;
 				self.open();
 			} else {
-				log.debug('reconnecting in '+remain);
+				//log.debug('reconnecting in '+remain);
 			}
 		}, 1000);
 	},
@@ -149,14 +149,14 @@ jsSocket.prototype = {
 	close: function() {
 		this.autoreconnect = true;
 		if (this.signals.loaded.state() && this.signals.connected.state()) {
-			this.socket.close();
+			this.sock.close();
 		}
 	},
 
 	callback: function(type, data) {
 		switch (type) {
 			case 'onLoaded':
-				log.debug('loaded');
+				//log.debug('loaded');
 				this.signals.loaded.set_state(true);
 				this.sock = document.getElementById(this.id);
 				if (this.autoconnect) {
@@ -166,14 +166,14 @@ jsSocket.prototype = {
 
 			case 'onOpen':
 				if (data === true) {
-					log.debug('connected');
+					//log.debug('connected');
 					this.reconnect_countdown = 3;
 					if (this.reconnect_interval) {
 						clearInterval(this.reconnect_interval);
 					}
 					this.signals.connected.set_state(true);
 				} else {
-					log.debug('connect failed');
+					//log.debug('connect failed');
 					if (this.autoreconnect) {
 						this.reconnect();
 					}
@@ -181,7 +181,7 @@ jsSocket.prototype = {
 				break;
 
 			case 'onClose':
-				log.debug('disconnected');
+				//log.debug('disconnected');
 				this.signals.connected.set_state(false);
 				if (this.autoreconnect) {
 					this.reconnect();

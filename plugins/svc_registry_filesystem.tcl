@@ -128,13 +128,21 @@ oo::class create Plugin {
 	variable {*}{
 		svc_dir
 		cfg
+		default_details
 	}
 
 	constructor {args} { #<<<
 		if {[self next] ne ""} next
 
+		set default_details	[dict create \
+				attribs	{} \
+				perms	{} \
+				prefs	{} \
+		]
+
 		set cfg	[cflib::config new $args {
 			variable svc_dir		"/etc/codeforge/svcs"
+			variable detailsfn		"/etc/codeforge/svcs_details"
 		}]
 
 		if {
@@ -152,11 +160,30 @@ oo::class create Plugin {
 
 	#>>>
 	method get_info {username subdomain} { #<<<
-		log debug "Got request to provide info for username: ($username), subdomain: ($subdomain)"
-		dict create \
-				attribs	{} \
-				perms	{} \
-				prefs	{}
+		log debug "get_info for \"$username\" subdomain: \"$subdomain\" ------------"
+		if {![file readable [$cfg get detailsfn]]} {
+			log warning "details file \"[$cfg get detailsfn]\" doesn't exist"
+			return $default_details
+		}
+
+		set dat	[dsl::decomment [my _readfile [$cfg get detailsfn]]]
+
+		if {[dict exists $dat $username]} {
+			log debug "Returning attribs for \"$username\": [dict get $dat $username]"
+			dict get $dat $username
+		} else {
+			set default_details
+		}
+	}
+
+	#>>>
+	method _readfile {fn} { #<<<
+		set h	[open $fn r]
+		try {
+			chan read $h
+		} finally {
+			chan close $h
+		}
 	}
 
 	#>>>

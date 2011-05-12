@@ -821,7 +821,14 @@ oo::class create m2::port {
 				}
 				{^allow\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$svc in {%s}} $svcs] {set allowed 1}]
+					lappend body	[format {
+						foreach p %s {
+							if {[string match $p $svc]} {
+								set allowed 1
+								break
+							}
+						}
+					} [list $svcs]]
 				}
 				{^allow_in\(all\)$} {
 					lappend body	{if {$dir eq "in"} {set allowed 1}}
@@ -831,18 +838,43 @@ oo::class create m2::port {
 				}
 				{^allow_in\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$dir eq "in" && $svc in {%s}} $svcs] {set allowed 1}]
+					lappend body	[format {
+						if {$dir eq "in"} {
+							foreach p %s {
+								if {[string match $p $svc]} {
+									set allowed	1
+									break
+								}
+							} [list $svcs]
+						}
+					}
 				}
 				{^allow_out\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$dir eq "out" && $svc in {%s}} $svcs] {set allowed 1}]
+					lappend body	[format {
+						if {$dir eq "out"} {
+							foreach p %s {
+								if {[string match $p $svc]} {
+									set allowed	1
+									break
+								}
+							}
+						}
+					} [list $svcs]]
 				}
 				{^deny\(all\)$} {
 					lappend body	{set allowed 0}
 				}
 				{^deny\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$svc in {%s}} $svcs] {set allowed 0}]
+					lappend body	[format {
+						foreach p %s {
+							if {[string match $p $svc]} {
+								set allowed 0
+								break
+							}
+						}
+					} [list $svcs]]
 				}
 				{^deny_in\(all\)$} {
 					lappend body	{if {$dir eq "in"} {set allowed 0}}
@@ -852,11 +884,29 @@ oo::class create m2::port {
 				}
 				{^deny_in\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$dir eq "in" && $svc in {%s}} $svcs] {set allowed 0}]
+					lappend body [format {
+						if {$dir eq "in"} {
+							foreach p %s {
+								if {[string match $p $svc]} {
+									set allowed	0
+									break
+								}
+							}
+						}
+					} [list $svcs]]
 				}
 				{^deny_out\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
-					lappend body	[list if [format {$dir eq "out" && $svc in {%s}} $svcs] {set allowed 0}]
+					lappend body [format {
+						if {$dir eq "in"} {
+							foreach p %s {
+								if {[string match $p $svc]} {
+									set allowed	0
+									break
+								}
+							}
+						}
+					} [list $svcs]]
 				}
 				default {
 					error "Syntax error in svc filter description: unknown op \"$term\""

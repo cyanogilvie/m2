@@ -66,6 +66,9 @@ cflib::pclass create m2::component {
 			if {$login} {
 				[$auth signal_ref login_allowed] detach_output \
 						[code _login_allowed_changed]
+				if {[$auth signal_state authenticated]} {
+					$auth logout
+				}
 			}
 		}
 	}

@@ -197,9 +197,9 @@ cflib::pclass create m2::authenticator {
 					$signals(got_perms) set_state 0
 					$signals(got_attribs) set_state 0
 					$signals(got_prefs) set_state 0
-					unset perms
-					unset prefs
-					unset attribs
+					if {[info exists perms]} {unset perms}
+					if {[info exists prefs]} {unset prefs}
+					if {[info exists attribs]} {unset attribs}
 					array set perms		{}
 					array set prefs		{}
 					array set attribs	{}
