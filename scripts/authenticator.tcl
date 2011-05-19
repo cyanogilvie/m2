@@ -186,7 +186,7 @@ cflib::pclass create m2::authenticator {
 		}
 		if {[info exists login_chan]} {
 			?? {log debug "Sending login_chan jm_disconnect: seq: [lindex $login_chan 0], prev_seq: [lindex $login_chan 1]"}
-			my jm_disconnect [lindexperms $login_chan 0] [lindex $login_chan 1]
+			my jm_disconnect [lindex $login_chan 0] [lindex $login_chan 1]
 			unset login_chan
 		}
 		dict for {subchan name} $login_subchans {
