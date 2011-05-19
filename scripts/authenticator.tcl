@@ -242,8 +242,12 @@ cflib::pclass create m2::authenticator {
 	}
 
 	#>>>
-	method connect_svc {svc} { #<<<
-		m2::connector new [self] $svc
+	method connect_svc {svc {objname ""}} { #<<<
+		if {$objname eq ""} {
+			uplevel 1 [list m2::connector new [self] $svc]
+		} else {
+			uplevel 1 [list m2::connector create $objname [self] $svc]
+		}
 	}
 
 	#>>>
