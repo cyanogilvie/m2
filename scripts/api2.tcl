@@ -91,8 +91,10 @@ cflib::pclass create m2::api2 {
 				if {[dict exists $pending_keys $m_prev_seq]} {
 					dict set msg data [my decrypt [dict get $pending_keys $m_prev_seq] [dict get $msg data]]
 					if {![dict exists $jm_keys $m_seq]} {
-						if {[string length [dict get $msg data]] != 56} {
-							#log debug "pr_jm: dubious looking key: ([dict get $msg data])"
+						?? {
+							if {[string length [dict get $msg data]] != 56} {
+								log debug "pr_jm: warning looking key: ([dict get $msg data])"
+							}
 						}
 						#log debug "pr_jm: registering key for ($m_seq): ([my mungekey [dict get $msg data]])"
 						my register_jm_key $m_seq	[dict get $msg data]

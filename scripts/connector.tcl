@@ -1,7 +1,7 @@
 # vim: ft=tcl foldmarker=<<<,>>> foldmethod=marker ts=4 shiftwidth=4
 
 cflib::pclass create m2::connector {
-	superclass sop::signalsource cflib::baselog cflib::refcounted
+	superclass sop::signalsource cflib::refcounted
 
 	property lifecycle	"manual"	_lifecycle_changed	;# or "refcounted"
 
@@ -104,7 +104,7 @@ cflib::pclass create m2::connector {
 				ack		{return $data}
 				nack	{throw [list connector_req_failed $op $data] $data}
 				default {
-					my log warning "Not expecting response type: ([dict get $msg type])"
+					log warning "Not expecting response type: ([dict get $msg type])"
 				}
 			}
 		}
@@ -146,7 +146,7 @@ cflib::pclass create m2::connector {
 				ack		{return $data}
 				nack	{throw [list chan_req_failed $jmid $rdata $data] $data}
 				default {
-					my log warning "Not expecting response type: ([dict get $msg_data type])"
+					log warning "Not expecting response type: ([dict get $msg_data type])"
 				}
 			}
 		}
@@ -202,12 +202,12 @@ cflib::pclass create m2::connector {
 			$old_lifecycle ne "refcounted"
 		} {
 			my autoscoperef
-			my log notice "Switching to refcounted mode.  current refcount: ([my refcount])"
+			log notice "Switching to refcounted mode.  current refcount: ([my refcount])"
 		} elseif {
 			$lifecycle ne "refcounted" &&
 			$old_lifecycle eq "refcounted"
 		} {
-			my log warning "There is really no going back from a refcounted mode.  You'd better have registered a reference to me or I won't be around much longer"
+			log warning "There is really no going back from a refcounted mode.  You'd better have registered a reference to me or I won't be around much longer"
 		}
 		set old_lifecycle	$lifecycle
 	}
@@ -241,7 +241,7 @@ cflib::pclass create m2::connector {
 		switch -- [dict get $msg_data type] {
 			ack { #<<<
 				if {![info exists e_chan]} {
-					my log error "Incomplete encrypted channel setup: got ack but no pr_jm"
+					log error "Incomplete encrypted channel setup: got ack but no pr_jm"
 					return
 				}
 				$signals(connected) set_state 1
@@ -257,7 +257,7 @@ cflib::pclass create m2::connector {
 				if {[info exists e_chan_prev_seq]} {
 					unset e_chan_prev_seq
 				}
-				my log error "Got nacked: ([dict get $msg_data data])"
+				log error "Got nacked: ([dict get $msg_data data])"
 				#>>>
 			}
 			pr_jm { #<<<
@@ -268,7 +268,7 @@ cflib::pclass create m2::connector {
 						set e_chan_prev_seq	[dict get $msg_data prev_seq]
 						$auth register_jm_key $e_chan $skey
 					} else {
-						my log error "did not get correct response from component: expecting: ([$auth mungekey $cookie]) got: ([$auth mungekey $pdata]), decrypted with ([$auth mungekey $skey])\nencrypted data: ([$auth mungekey [dict get $msg_data data]])" -suppress data
+						log error "did not get correct response from component: expecting: ([$auth mungekey $cookie]) got: ([$auth mungekey $pdata]), decrypted with ([$auth mungekey $skey])\nencrypted data: ([$auth mungekey [dict get $msg_data data]])" -suppress data
 					}
 				}
 				#>>>
@@ -283,7 +283,7 @@ cflib::pclass create m2::connector {
 				#>>>
 			}
 			default { #<<<
-				my log warning "Not expecting response type ([dict get $msg_data type])"
+				log warning "Not expecting response type ([dict get $msg_data type])"
 				#>>>
 			}
 		}
@@ -297,11 +297,11 @@ cflib::pclass create m2::connector {
 			}
 
 			nack {
-				my log error "got nack: ([dict get $msg_data data])"
+				log error "got nack: ([dict get $msg_data data])"
 			}
 
 			default {
-				my log error "unexpected type: ([dict get $msg_data type])"
+				log error "unexpected type: ([dict get $msg_data type])"
 			}
 		}
 	}
@@ -311,7 +311,7 @@ cflib::pclass create m2::connector {
 		try {
 			uplevel #0 $cb [list $msg_data]
 		} on error {errmsg options} {
-			my log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]"
+			log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]"
 		}
 	}
 
@@ -335,18 +335,18 @@ cflib::pclass create m2::connector {
 						coroutine coro_resp_[incr ::coro_seq] {*}$cb $msg_data
 					} on error {errmsg options} {
 						if {[string match "*invalid command name \"::item*\"" $errmsg]} {
-							my log error "error invoking cb ($cb): item object died too soon?" -suppress data
+							log error "error invoking cb ($cb): item object died too soon?" -suppress data
 						} else {
-							my log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]" -suppress data
+							log error "error invoking cb ($cb): $errmsg\n[dict get $options -errorinfo]" -suppress data
 						}
 					}
 				} else {
-					my log warning "got $type, but no cb set." -suppress data
+					log warning "got $type, but no cb set." -suppress data
 				}
 			}
 
 			default {
-				my log error "unexpected type: ([dict get $msg_data type])" -suppress data
+				log error "unexpected type: ([dict get $msg_data type])" -suppress data
 			}
 		}
 	}
@@ -359,7 +359,7 @@ cflib::pclass create m2::connector {
 				set pbkey_asc	[$auth get_svc_pbkey $svc]
 				set pbkey		[crypto::rsa::load_asn1_pubkey_from_value $pbkey_asc]
 			} on error {errmsg options} {
-				my log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"
+				log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"
 			} on ok {} {
 				$signals(got_svc_pbkey) set_state 1
 			}

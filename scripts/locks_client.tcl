@@ -6,7 +6,7 @@
 #							may contain a reason
 
 cflib::pclass create m2::locks::client {
-	superclass sop::signalsource cflib::baselog cflib::handlers
+	superclass sop::signalsource cflib::handlers
 
 	property tag		""
 	property connector	""
@@ -52,7 +52,7 @@ cflib::pclass create m2::locks::client {
 
 	method relock {} { #<<<
 		if {[$signals(locked) state] && [info exists lock_jmid]} {
-			my log warning "Already have a lock"
+			log warning "Already have a lock"
 			return
 		}
 		try {
@@ -80,7 +80,7 @@ cflib::pclass create m2::locks::client {
 	#>>>
 	method unlock {} { #<<<
 		if {![$signals(locked) state] || ![info exists lock_jmid]} {
-			#my log warning "No lock held"
+			#log warning "No lock held"
 			return
 		}
 		try {
@@ -92,7 +92,7 @@ cflib::pclass create m2::locks::client {
 			my invoke_handlers lock_lost
 			my invoke_handlers lock_lost_detail "Explicit unlock"
 		} on error {errmsg options} {
-			my log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
+			log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
 		}
 	}
 
@@ -101,7 +101,7 @@ cflib::pclass create m2::locks::client {
 	# Protected
 	method lock_jm_update {data} { #<<<
 		# Override this in the derived class to handle app specific jm updates
-		my log error "got jm update we weren't expecting"
+		log error "got jm update we weren't expecting"
 	}
 
 	#>>>
@@ -129,7 +129,7 @@ cflib::pclass create m2::locks::client {
 					[info exists lock_jmid] &&
 					$jmid eq $lock_jmid
 				} {
-					?? {my log debug "lock channel canned: ($lock_jmid)"}
+					?? {log debug "lock channel canned: ($lock_jmid)"}
 					unset lock_jmid
 					unset lock_prev_seq
 					$signals(locked) set_state 0
@@ -141,7 +141,7 @@ cflib::pclass create m2::locks::client {
 				#>>>
 			}
 			default { #<<<
-				my log error "unexpected type: ([dict get $msg type])"
+				log error "unexpected type: ([dict get $msg type])"
 				#>>>
 			}
 		}
@@ -151,7 +151,7 @@ cflib::pclass create m2::locks::client {
 	method _setup_heartbeat {heartbeat} { #<<<
 		set heartbeat_interval	[expr {$heartbeat - 60}]
 		if {$heartbeat <= 0} {
-			my log warning "Really short heartbeat requested: $heartbeat"
+			log warning "Really short heartbeat requested: $heartbeat"
 			set heartbeat	1
 		}
 
@@ -164,7 +164,7 @@ cflib::pclass create m2::locks::client {
 		after cancel $heartbeat_afterid; set heartbeat_afterid	""
 
 		if {![info exists lock_jmid]} {
-			my log warning "No lock channel to send heartbeat over"
+			log warning "No lock channel to send heartbeat over"
 			return
 		}
 		$connector chan_req_async $lock_jmid [list "_heartbeat"] [list apply {

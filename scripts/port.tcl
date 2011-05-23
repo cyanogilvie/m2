@@ -6,7 +6,7 @@
 #	onclose()		- fired when socket is closed and object is dieing
 
 oo::class create m2::port {
-	superclass cflib::handlers cflib::baselog
+	superclass cflib::handlers
 
 	variable {*}{
 		server
@@ -253,9 +253,9 @@ oo::class create m2::port {
 			try {
 				$srcport send [self] $msg
 			} on error {errmsg options} {
-				my log warning "Failed to sent swansong nack: $errmsg"
+				log warning "Failed to sent swansong nack: $errmsg"
 			} on ok {errmsg options} {
-				my log notice "Send swansong nack"
+				log notice "Send swansong nack"
 			}
 			dict unset req $seq
 		}
@@ -603,7 +603,7 @@ oo::class create m2::port {
 						log error "Error sending nack for rsj_req: [dict get $options -errorinfo]"
 					}
 				}
-				
+
 				[dict get $jm_sport $m_prev_seq] send [self] $msg
 				#>>>
 			}

@@ -1,7 +1,7 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 cflib::pclass create m2::module {
-	superclass cflib::baselog sop::signalsource
+	superclass sop::signalsource
 
 	property auth			""
 	property svc			""
@@ -23,8 +23,6 @@ cflib::pclass create m2::module {
 	}
 
 	constructor {args} { #<<<
-		my log debug [self]
-
 		set on_unmount		{}
 
 		sop::gate new signals(mounted) -name "[self] mounted" -mode and
@@ -55,7 +53,6 @@ cflib::pclass create m2::module {
 
 	#>>>
 	destructor { #<<<
-		my log debug [self]
 		if {[info exists connector] && [info object isa object $connector]} {
 			$connector detach_output [my code _authenticated_changed]
 		}
@@ -135,7 +132,7 @@ cflib::pclass create m2::module {
 
 			$signals(mounted) attach_input [$vfs signal_ref mounted]
 
-			my log debug "Initiated mount of pool $pool in \"$modulebase\" pwd: \"[pwd]\""
+			?? {log debug "Initiated mount of pool $pool in \"$modulebase\" pwd: \"[pwd]\""}
 
 			[$vfs signal_ref mounted] attach_output [my code _on_mounted]
 		} else {
@@ -149,7 +146,7 @@ cflib::pclass create m2::module {
 					namespace eval $module_ns $on_unmount
 				}
 			} on error {errmsg options} {
-				my log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
+				log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
 			}
 		}
 	}
@@ -176,7 +173,7 @@ cflib::pclass create m2::module {
 					namespace eval \
 							$module_ns [list source $on_login_fn]
 				} else {
-					my log error "Missing bootstrap file: \"$on_unmount_fn\" for svc \"$svc\""
+					log error "Missing bootstrap file: \"$on_unmount_fn\" for svc \"$svc\""
 				}
 			}
 			$signals(ready) set_state 1

@@ -11,7 +11,7 @@
 #									<op> arrives on a lock channel
 
 cflib::pclass create m2::locks::component {
-	superclass cflib::handlers cflib::baselog
+	superclass cflib::handlers
 
 	property comp			""
 	property tag			""
@@ -63,7 +63,7 @@ cflib::pclass create m2::locks::component {
 			my invoke_handlers lock_released $id
 			my invoke_handlers lock_released_user $holder $id
 		} on error {errmsg options} {
-			my log error "\nerror in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
+			log error "error in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
 		}
 	}
 
@@ -100,7 +100,7 @@ cflib::pclass create m2::locks::component {
 		if {[dict exists $locks $id]} {
 			set userobj		[dict get $locks $id userobj]
 			set username	[dict get $locks $id username]
-			my log notice "request to lock ($id) by ([$user name]) rejected - lock already held by ($username)"
+			log notice "request to lock ($id) by ([$user name]) rejected - lock already held by ($username)"
 			$auth nack $seq "Already locked by $username"
 			return
 		}
@@ -108,11 +108,11 @@ cflib::pclass create m2::locks::component {
 		try {
 			my invoke_handlers aquire_lock $user $id
 		} trap {response error} {errmsg options} {
-			my log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
+			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq $errmsg
 			return
 		} on error {errmsg options} {
-			my log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
+			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
 			$auth nack $seq "Lock denied"
 			return
 		}
@@ -149,7 +149,7 @@ cflib::pclass create m2::locks::component {
 
 				set holder	[dict get $locks $id userobj]
 
-				my log debug "lock on ($id) held by user ($un) cancelled"
+				?? {log debug "lock on ($id) held by user ($un) cancelled"}
 				after cancel [dict get $locks $id heartbeat]
 				dict unset locks $id
 
@@ -157,7 +157,7 @@ cflib::pclass create m2::locks::component {
 					my invoke_handlers lock_released $id
 					my invoke_handlers lock_released_user $holder $id
 				} on error {errmsg options} {
-					my log error "\nerror in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
+					log error "\nerror in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
 				}
 				#>>>
 			}
@@ -174,12 +174,12 @@ cflib::pclass create m2::locks::component {
 
 				try {
 					if {![dict exists $locks $id]} {
-						my log error "Got req on a lock_cb that had already been unlocked!"
+						log error "Got req on a lock_cb that had already been unlocked!"
 						throw nack "Lock not held anymore"
 					}
 
 					if {![my handlers_available lock_req_$op]} {
-						my log error "no handlers registered for req type ($op)"
+						log error "no handlers registered for req type ($op)"
 						throw nack "Invalid op: ($op)"
 					}
 
@@ -188,7 +188,7 @@ cflib::pclass create m2::locks::component {
 				} trap nack {errmsg} {
 					$auth nack $seq $errmsg
 				} on error {errmsg options} {
-					my log error "error invoking handlers for lock_req_$op: $errmsg\n[dict get $options -errorinfo]"
+					log error "error invoking handlers for lock_req_$op: $errmsg\n[dict get $options -errorinfo]"
 					$auth nack $seq "Internal error"
 				}
 				#>>>
