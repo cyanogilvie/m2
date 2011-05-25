@@ -24,6 +24,7 @@ application "m2test_backend" { #<<<
 			unix_sockets
 		}
 	}
+	platform [this_platform]
 }
 
 #>>>
@@ -53,6 +54,7 @@ application "m2test_frontend" { #<<<
 			unix_sockets
 		}
 	}
+	platform [this_platform]
 }
 
 #>>>
