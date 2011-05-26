@@ -43,7 +43,7 @@ oo::class create m2::node {
 		set upstream			{}
 		set evlog				""
 		set queue_mode			fancy
-		set io_threads			0
+		set io_threads			1
 
 		dict for {k v} $args {
 			if {[string index $k 0] ne "-"} {
