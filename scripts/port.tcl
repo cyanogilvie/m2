@@ -216,9 +216,8 @@ oo::class create m2::port {
 			oo::objdefine %queueobj% method receive raw_msg {
 				thread::send -async %port_tid% [list %cb_got_msg% [m2::msg::deserialize $raw_msg]]
 			}
-			oo::objdefine %queueobj% forward closed {} {
+			oo::objdefine %queueobj% forward closed \
 				thread::send -async %port_tid% [list %cb_closed%]
-			}
 		}]
 
 		set connected	1

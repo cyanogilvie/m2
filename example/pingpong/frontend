@@ -19,22 +19,27 @@ package require m2
 package require sop
 package require cflib
 package require evlog
+package require logging
 
 cflib::config create cfg $argv {
-	variable uri		"tcp://localhost:5300"
-	variable profiling	1
-	variable debug		0
-	variable senders	1
-	variable evlog_uri	""
+	variable uri			tcp://:5300
+	variable profiling		1
+	variable debug			0
+	variable senders		1
+	variable evlog_uri		""
+	variable loglevel		notice
+	variable threaded_io	0
 }
 
 evlog connect "[file tail [info script]] [info hostname] [pid]" [cfg get evlog_uri]
 
 if {[cfg get debug]} {
-	proc ?? {script} {uplevel 1 $script}
+	proc ?? script {uplevel 1 $script}
 } else {
-	proc ?? {args} {}
+	proc ?? args {}
 }
+
+::logging::logger ::log [cfg get loglevel]
 
 interp bgerror {} [list apply {
 	{errmsg options} {
@@ -51,27 +56,19 @@ sop::signal new signals(ping) -name "ping"
 $signals(ready) attach_input $signals(ping)
 
 if {[cfg get profiling]} {
-	m2::api2 create m2 -uri [cfg get uri] -oob_type "profiling"
+	m2::api2 create m2 -uri [cfg get uri] -oob_type "profiling" -threaded_io [cfg get threaded_io]
 } else {
-	m2::api2 create m2 -uri [cfg get uri]
+	m2::api2 create m2 -uri [cfg get uri] -threaded_io [cfg get threaded_io]
 }
 oo::objdefine m2 method station_id {} {
 	return "pingpong frontend ([next])"
 }
 $signals(ready) attach_input [m2 signal_ref connected]
 
-proc svc_avail_changed {} {
-	puts stderr "svc_avail_changed"
-	puts stderr "ping available? ([m2 svc_avail ping])"
+oo::objdefine m2 method svc_avail_changed {} {
+	puts stderr "svc_avail_changed: [m2 svc_avail ping]"
 	$::signals(ping) set_state [m2 svc_avail "ping"]
 }
-#m2 register_handler svc_avail_changed svc_avail_changed
-m2 register_handler svc_avail_changed [list apply {
-	{} {
-		puts stderr "svc_avail_changed: [m2 svc_avail ping]"
-		$::signals(ping) set_state [m2 svc_avail "ping"]
-	}
-}]
 
 [m2 signal_ref connected] attach_output [list apply {
 	{newstate} {
@@ -137,7 +134,7 @@ proc got_ping {msg} {
 				set usec_from_last	[expr {$usec_abs - $last_usec}]
 				set last_usec		$usec_abs
 
-				puts stderr [format "%11.4f %10.4f %7s %s" \
+				puts stderr [format "%11.3f %10.3f %7s %s" \
 						[expr {$usec_from_start / 1000.0}] \
 						[expr {$usec_from_last / 1000.0}] \
 						$point \
@@ -212,7 +209,7 @@ proc ping {} {
 					set usec_from_last	[expr {$usec_abs - $last_usec}]
 					set last_usec		$usec_abs
 
-					puts stderr [format "%11.4f %10.4f %7s %s" \
+					puts stderr [format "%11.3f %10.3f %7s %s" \
 							[expr {$usec_from_start / 1000.0}] \
 							[expr {$usec_from_last / 1000.0}] \
 							$point \

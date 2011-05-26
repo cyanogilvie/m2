@@ -1,14 +1,15 @@
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-# Handlers fired:
-#	outstanding_reqs(count)			- fired when the count of outstanding
-#									  requests changes
-
-cflib::pclass create m2::api2 {
+oo::class create m2::api2 {
 	superclass m2::api
+	#superclass m2::threaded_api
 
-	property oob_type	"none"
-	property cb_mode	"msg_dict" ;# set to separate_args for the old behaviour
+	method _properties {} {
+		format {%s
+			variable oob_type		none
+			variable threaded_io	1
+		} [next]
+	}
 
 	variable {*}{
 		e_pending
@@ -25,7 +26,9 @@ cflib::pclass create m2::api2 {
 		outstanding_reqs
 	}
 
-	constructor {args} { #<<<
+	constructor args { #<<<
+		my _init_props $args
+
 		set e_pending			[dict create]
 		set sent_key			[dict create]
 		set svc_handlers		[dict create]
@@ -39,24 +42,22 @@ cflib::pclass create m2::api2 {
 		set chans				[dict create]
 		set outstanding_reqs	[dict create]
 
-		#tlc::Vardomino #auto dominos(outstanding_reqs_changed) \
-		#		-textvariable	[my varname outstanding_reqs] \
-		#		-name			"[self] outstanding_reqs_changed"
+		if {[prop get threaded_io]} {
+			oo::objdefine [self] mixin m2::threaded_api
+		}
 
-		my configure {*}$args
+		next
 
-		my register_handler incoming [my code _incoming]
-
-		my register_handler lost_connection [my code _lost_connection]
-		#$dominos(outstanding_reqs_changed) attach_output \
-		#		[my code _outstanding_reqs_changed]
+		if {"::tcl::mathop" ni [namespace path]} {
+			namespace path [concat [namespace path] {
+				::tcl::mathop
+			}]
+		}
 	}
 
 	#>>>
 
-	method _incoming {msg} { #<<<
-		?? {log trivia "-> Got [m2::msg::display $msg]"}
-
+	method _incoming msg { #<<<
 		set m_seq		[dict get $msg seq]
 		set m_prev_seq	[dict get $msg prev_seq]
 
@@ -93,7 +94,7 @@ cflib::pclass create m2::api2 {
 					if {![dict exists $jm_keys $m_seq]} {
 						?? {
 							if {[string length [dict get $msg data]] != 56} {
-								log debug "pr_jm: warning looking key: ([dict get $msg data])"
+								log warning "pr_jm: warning strange looking key: ([dict get $msg data])"
 							}
 						}
 						#log debug "pr_jm: registering key for ($m_seq): ([my mungekey [dict get $msg data]])"
@@ -169,26 +170,8 @@ cflib::pclass create m2::api2 {
 						set cb		[dict get $pending $prev_seq]
 						if {$cb ne {}} {
 							try {
-								switch -- $cb_mode {
-									"separate_args" {
-										coroutine coro_jm_can_[incr ::coro_seq] \
-												{*}$cb \
-												[dict get $msg type] \
-												[dict get $msg svc] \
-												[dict get $msg data] \
-												$m_seq \
-												$prev_seq
-									}
-
-									"msg_dict" {
-										coroutine coro_jm_can_[incr ::coro_seq] \
-												{*}$cb $msg
-									}
-
-									default {
-										error "Invalid -cb_mode, expecting one of \"separate_args\" or \"msg_dict\""
-									}
-								}
+								coroutine coro_jm_can_[incr ::coro_seq] \
+										{*}$cb $msg
 							} on error {errmsg options} {
 								log error "API2::incoming/jm_can: error invoking handler: ($cb)\n[dict get $options -errorinfo]"
 								log error "jm_can: error invoking handler: $errmsg\n[dict get $options -errorinfo]"
@@ -253,26 +236,8 @@ cflib::pclass create m2::api2 {
 						&& [dict get $pending $jm_prev] ne ""
 					} {
 						set cb	[dict get $pending $jm_prev]
-						switch -- $cb_mode {
-							"separate_args" {
-								coroutine coro_jm_req_[incr ::coro_seq] \
-										{*}$cb \
-										[dict get $msg type] \
-										[dict get $msg svc] \
-										[dict get $msg data] \
-										$m_seq \
-										$m_prev_seq
-							}
-
-							"msg_dict" {
-								coroutine coro_jm_req_[incr ::coro_seq] \
-										{*}$cb $msg
-							}
-
-							default {
-								error "Invalid -cb_mode, expecting one of \"separate_args\" or \"msg_dict\""
-							}
-						}
+						coroutine coro_jm_req_[incr ::coro_seq] \
+								{*}$cb $msg
 					} else {
 						#log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
 					}
@@ -308,26 +273,8 @@ cflib::pclass create m2::api2 {
 											[dict get $msg oob_data]]
 								}
 								# Add profiling stamp if requested >>>
-								switch -- $cb_mode {
-									"separate_args" {
-										coroutine coro_resp_[incr ::coro_seq] \
-												{*}$cb \
-												[dict get $msg type] \
-												[dict get $msg svc] \
-												[dict get $msg data] \
-												$m_seq \
-												$prev_seq
-									}
-
-									"msg_dict" {
-										coroutine coro_resp_[incr ::coro_seq] \
-												{*}$cb $msg
-									}
-
-									default {
-										error "Invalid -cb_mode, expecting one of \"separate_args\" or \"msg_dict\""
-									}
-								}
+								coroutine coro_resp_[incr ::coro_seq] \
+										{*}$cb $msg
 							} on error {errmsg options} {
 								#log debug "API2::incoming/([dict get $msg type]): error invoking callback ($cb): $errmsg\n[dict get $options -errorinfo]" 
 								log error "error invoking callback: $errmsg\n[dict get $options -errorinfo]" 
@@ -336,7 +283,7 @@ cflib::pclass create m2::api2 {
 							#log debug "no handler for seq: ($m_seq), prev_seq: ($prev_seq)"
 						}
 					} else {
-						log debug "API2::incoming/([dict get $msg type]): unexpected response: [dict get $msg svc] [dict get $msg type] prev_seq: ($prev_seq) seq: ($m_seq)"
+						log warning "API2::incoming/([dict get $msg type]): unexpected response: [dict get $msg svc] [dict get $msg type] prev_seq: ($prev_seq) seq: ($m_seq)"
 					}
 					if {![dict exists $jm $prev_seq]} {
 						#log debug "API2::incoming/([dict get $msg type]): lost jm($prev_seq):\n[m2::msg::display $msg]"
@@ -518,7 +465,7 @@ cflib::pclass create m2::api2 {
 				seq			$seq \
 				data		$data \
 		]]
-		if {$oob_type eq "profiling"} {
+		if {[prop get oob_type] eq "profiling"} {
 			set profile_so_far	[my _add_profile_stamp "req_out" {}]
 			dict set msg oob_type	"profiling"
 			dict set msg oob_data	$profile_so_far
@@ -551,7 +498,7 @@ cflib::pclass create m2::api2 {
 				prev_seq	$jm_seq \
 				data		$e_data \
 		]]
-		if {$oob_type eq "profiling"} {
+		if {[prop get oob_type] eq "profiling"} {
 			set profile_so_far	[my _add_profile_stamp "req_out" {}]
 			dict set msg oob_type	"profiling"
 			dict set msg oob_data	$profile_so_far
@@ -888,14 +835,7 @@ cflib::pclass create m2::api2 {
 
 	#>>>
 	method answered {seq} { #<<<
-		expr {
-			![dict exists $outstanding_reqs $seq]
-		}
-	}
-
-	#>>>
-	method _outstanding_reqs_changed {} { #<<<
-		my invoke_handlers outstanding_reqs [dict size $outstanding_reqs]
+		! [dict exists $outstanding_reqs $seq]
 	}
 
 	#>>>
@@ -944,11 +884,6 @@ cflib::pclass create m2::api2 {
 			set station_id	[my station_id]
 		}
 		return $station_id
-	}
-
-	#>>>
-	method station_id {} { #<<<
-		[$queue con] human_id
 	}
 
 	#>>>

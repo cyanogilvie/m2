@@ -18,14 +18,18 @@ foreach platform [platform::patterns [platform::identify]] {
 package require m2
 package require cflib
 package require evlog
+package require logging
 
 cflib::config create cfg $argv {
-	variable uri		"tcp://localhost:5300"
-	variable debug		0
-	variable evlog_uri	""
+	variable uri			tcp://:5300
+	variable debug			0
+	variable evlog_uri		""
+	variable loglevel		notice
+	variable threaded_io	0
 }
 
 evlog connect "[file tail [info script]] [info hostname] [pid]" [cfg get evlog_uri]
+logging::logger ::log [cfg get loglevel]
 
 if {[cfg get debug]} {
 	proc ?? {script} {uplevel 1 $script}
@@ -33,7 +37,7 @@ if {[cfg get debug]} {
 	proc ?? {args} {}
 }
 
-m2::api2 create m2 -uri [cfg get uri]
+m2::api2 create m2 -uri [cfg get uri] -threaded_io [cfg get threaded_io]
 
 set seq	0
 proc ping {seq data} {

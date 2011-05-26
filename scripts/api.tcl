@@ -1,38 +1,48 @@
 # vim: foldmarker=<<<,>>> ft=tcl foldmethod=marker shiftwidth=4 ts=4
 
-# Signals:
-#	connected()					- fired when connection is established
-#	lost_connection()			- fired when connection is lost
-#	send(msgdict)				- called with msg we are sending
-#	send,$msgtype(msgdict)		- specific message type, ie send,svc_avail
-#	incoming(msgdict)			- called with incoming msg
-#	incoming,$msgtype(msgdict)	- specific message type, ie send,req
+oo::class create m2::api {
+	superclass cflib::props sop::signalsource
 
-cflib::pclass create m2::api {
-	#superclass cflib::handlers sop::signalsource
-	superclass sop::signalsource cflib::handlers
-
-	property uri				""			_need_reconnect
-	property ip					""			_need_reconnect
-	property port				""			_need_reconnect
-	property connection_retry	10
-
-	protected_property dominos
-	protected_property con
-	protected_property unique					0
-	protected_property svcs						[dict create]
-	protected_property connect_after_id			""
-	protected_property queue
-	protected_property queue_roundrobin			{}
-	protected_property last_connection_attempt	0
+	method _properties {} {
+		format {%s
+			variable uri				""
+			variable connection_retry	10
+		} [next]
+	}
 
 	variable {*}{
 		signals
 		svc_signals
 		neighbour_info
+		uri
+
+		dominos
+		con
+		unique
+		svcs
+		connect_after_id
+		queue
+		queue_roundrobin
+		last_connection_attempt
 	}
 
-	constructor {args} { #<<<
+	constructor args { #<<<
+		my _init_props $args
+
+		if {[self next] ne ""} next
+
+		set unique					0
+		set svcs					[dict create]
+		set connect_after_id		""
+		set queue_roundrobin		{}
+		set last_connection_attempt	0
+
+		if {"::oo::Helpers::cflib" ni [namespace path]} {
+			namespace path	[concat [namespace path] {
+				::oo::Helpers::cflib
+			}]
+		}
+
 		package require evlog
 
 		array set dominos		{}
@@ -48,23 +58,32 @@ cflib::pclass create m2::api {
 		sop::signal new signals(connected) -name "[self] connected"
 		sop::domino new dominos(svc_avail_changed) -name "[self] svc_avail_changed"
 
-		$dominos(svc_avail_changed) attach_output [my code _svc_avail_changed]
-		$dominos(need_reconnect) attach_output [my code _attempt_connection]
+		$dominos(svc_avail_changed) attach_output [code svc_avail_changed]
+		$dominos(need_reconnect) attach_output [code _attempt_connection]
 
 		package require netdgram::tcp
 		oo::define netdgram::connectionmethod::tcp method default_port {} {
 			return 5300
 		}
 
-		my configure {*}$args
+		my _init
+
+		prop register_handler onchange,uri [code _need_reconnect]
+		my _need_reconnect
 	}
 
 	#>>>
 	destructor { #<<<
 		my _close_con
+		my _destroy
+		if {[self next] ne ""} next
 	}
 
 	#>>>
+
+	# These are like constructor / destructor, but work for mixins
+	method _init {} {}
+	method _destroy {} {}
 
 	method new_svcs {args} { #<<<
 		if {![$signals(connected) state]} {
@@ -117,11 +136,7 @@ cflib::pclass create m2::api {
 	}
 
 	#>>>
-	method send {msg} { #<<<
-		my invoke_handlers send $msg
-		my invoke_handlers send,[dict get $msg type] $msg
-
-		?? {log trivia "<- Enqueuing msg: [m2::msg::display $msg]"}
+	method send msg { #<<<
 		evlog event m2.queue_msg {[list to $uri msg $msg]}
 		$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 	}
@@ -133,8 +148,13 @@ cflib::pclass create m2::api {
 
 	#>>>
 
-	method _got_msg {raw_msg} { #<<<
-		set msg		[m2::msg::deserialize $raw_msg]
+	method _got_msg_raw raw_msg { #<<<
+		#tailcall my _got_msg [m2::msg::deserialize $raw_msg]
+		my _got_msg [m2::msg::deserialize $raw_msg]
+	}
+
+	#>>>
+	method _got_msg msg { #<<<
 		evlog event m2.receive_msg {[list from $uri msg $msg]}
 
 		switch -- [dict get $msg type] {
@@ -159,26 +179,7 @@ cflib::pclass create m2::api {
 			}
 		}
 
-		switch -- [dict get $msg type] {
-			svc_avail -
-			svc_revoke -
-			req -
-			rsj_req -
-			ack -
-			nack -
-			pr_jm -
-			jm -
-			jm_can -
-			jm_req -
-			jm_disconnect {
-				my invoke_handlers incoming $msg
-				my invoke_handlers incoming,[dict get $msg type] $msg
-			}
-
-			default {
-				error "Got unexpected msg type: ([dict get $msg type])"
-			}
-		}
+		my _incoming $msg
 	}
 
 	#>>>
@@ -190,16 +191,37 @@ cflib::pclass create m2::api {
 		if {[info exists con]} {
 			my _close_con
 		}
+		set uri	[prop get uri]
+		if {$uri eq ""} {
+			set uri	"tcp://${ip}:${port}"
+		}
 		try {
-			if {$uri eq ""} {
-				set uri	"tcp://${ip}:${port}"
-			}
-			set con	[netdgram::connect_uri $uri]
+			my _create_con $uri
+		} on error {errmsg options} {
+			my _schedule_reconnect_attempt
+		} on ok {} {
+			# Tell the node that we are an application rather than another node.
+			# Mostly it doesn't care, but there are odd cases involving multiple
+			# listeners on a single jm channel from a single app that cannot be
+			# handled efficiently without it.
+			my send [m2::msg::new [list \
+					type	neighbour_info \
+					data	$neighbour_info \
+			]]
+
+			$signals(connected) set_state 1
+		}
+	}
+
+	#>>>
+	method _create_con a_uri { #<<<
+		try {
+			set con	[netdgram::connect_uri $a_uri]
 			set queue	[netdgram::queue new]
 			$queue attach $con
 
-			oo::objdefine $queue forward closed {*}[my code _connection_lost]
-			oo::objdefine $queue forward receive {*}[my code _got_msg]
+			oo::objdefine $queue forward closed {*}[code _connection_lost]
+			oo::objdefine $queue forward receive {*}[code _got_msg_raw]
 			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
 				switch -- $type {
 					rsj_req - req {
@@ -295,34 +317,13 @@ cflib::pclass create m2::api {
 				$con destroy
 				# $con unset by close_con
 			}
-			my _schedule_reconnect_attempt
-		} on ok {} {
-			# Tell the node that we are an application rather than another node.
-			# Mostly it doesn't care, but there are odd cases involving multiple
-			# listeners on a single jm channel from a single app that cannot be
-			# handled efficiently without it.
-			my send [m2::msg::new [list \
-					type	neighbour_info \
-					data	$neighbour_info \
-			]]
 
-			$signals(connected) set_state 1
-			my invoke_handlers connected
-		}
-	}
-
-	#>>>
-	method _svc_avail_changed {} { #<<<
-		try {
-			my invoke_handlers svc_avail_changed
-		} on error {errmsg options} {
-			puts "Error in handler: $errmsg\n[dict get $options -errorinfo]"
-			dict incr options -level
 			return -options $options $errmsg
 		}
 	}
 
 	#>>>
+	method svc_avail_changed {} {}
 	method _close_con {} { #<<<
 		after cancel $connect_after_id; set connect_after_id	""
 		if {[info exists con]} {
@@ -340,7 +341,6 @@ cflib::pclass create m2::api {
 			foreach svc [array names svc_signals] {
 				$svc_signals($svc) set_state 0
 			}
-			my invoke_handlers lost_connection
 		}
 	}
 
@@ -354,24 +354,24 @@ cflib::pclass create m2::api {
 		}
 		$dominos(svc_avail_changed) tip
 		$dominos(svc_avail_changed) force_if_pending
-		my invoke_handlers lost_connection
+		my _lost_connection
 		my _schedule_reconnect_attempt
 	}
 
 	#>>>
+	method _lost_connection {} {}
 	method _need_reconnect {} { #<<<
 		$dominos(need_reconnect) tip
 	}
 
 	#>>>
 	method _schedule_reconnect_attempt {} { #<<<
-		if {[clock seconds] - $last_connection_attempt > $connection_retry} {
+		if {[clock seconds] - $last_connection_attempt > [prop @connection_retry]} {
 			set after_interval	"idle"
 		} else {
-			set after_interval	[expr {int($connection_retry * 1000)}]
+			set after_interval	[expr {int([prop @connection_retry] * 1000)}]
 		}
-		set connect_after_id	[after $after_interval \
-				[my code _attempt_connection]]
+		set connect_after_id [after $after_interval [code _attempt_connection]]
 	}
 
 	#>>>
@@ -388,6 +388,11 @@ cflib::pclass create m2::api {
 				type	neighbour_info \
 				data	$dict \
 		]]
+	}
+
+	#>>>
+	method station_id {} { #<<<
+		[$queue con] human_id
 	}
 
 	#>>>

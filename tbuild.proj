@@ -18,16 +18,17 @@ tm "m2" { #<<<
 	}
 
 	requires {
+		{cflib 1.13.0}
+		{sop 1.2}
 		{Tcl 8.6}
 		{netdgram 0.7.1}
-		{sop 1.2}
 		sha1
 		evlog
 	}
 
 	init {
-		package require cflib
-		package require sop
+		package require cflib 1.13
+		package require sop 1.2
 		package require netdgram
 
 		namespace eval m2 {}
@@ -39,6 +40,7 @@ tm "m2" { #<<<
 
 	files {
 		scripts/api.tcl
+		scripts/threaded_api.tcl
 		scripts/api2.tcl
 		scripts/*.tcl
 	}

@@ -33,7 +33,7 @@ cflib::config create cfg $argv {
 	variable daemon			0		;# Obsolete
 	variable loglevel		notice
 	variable evlog_uri		""
-	variable io_threads		0
+	variable io_threads		1
 } /etc/codeforge/m2_node.conf
 
 evlog connect "m2_node [info hostname] [pid]" [cfg get evlog_uri]

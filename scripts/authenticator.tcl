@@ -5,12 +5,17 @@
 #								  (only if authenticated as a user with
 #								  system.admin perm)
 
-cflib::pclass create m2::authenticator {
-	superclass m2::api2
+oo::class create m2::authenticator {
+	superclass m2::api2 cflib::handlers
 
-	property pbkey		/etc/codeforge/authenticator/keys/env/authenticator.pb
-	property profile_cb	""
-	property default_domain	""
+	method _properties {} {
+		format {%s
+			variable pbkey \
+					/etc/codeforge/authenticator/keys/env/authenticator.pb
+			variable profile_cb		""
+			variable default_domain	""
+		} [next]
+	}
 
 	variable {*}{
 		signals
@@ -28,10 +33,13 @@ cflib::pclass create m2::authenticator {
 		prefs
 		admin_info
 		coro_pref
+		dominos
 	}
 
-	constructor {args} { #<<<
+	constructor args { #<<<
 		package require crypto
+
+		my _init_props $args
 
 		set coro_pref	"coro_[string map {:: _} [self]]"
 		array set keys			{}
@@ -57,14 +65,14 @@ cflib::pclass create m2::authenticator {
 		$signals(login_allowed) attach_input $signals(login_pending) inverted
 		$signals(login_allowed) attach_input $signals(authenticated) inverted
 		$signals(login_allowed) attach_input $signals(established)
-		
-		my configure {*}$args
 
-		if {![file exists $pbkey]} {
-			error "Cannot find authenticator public key: \"$pbkey\""
+		next
+
+		if {![file exists [prop @pbkey]]} {
+			error "Cannot find authenticator public key: \"[prop @pbkey]\""
 		}
 
-		set pubkey		[crypto::rsa::load_asn1_pubkey $pbkey]
+		set pubkey		[crypto::rsa::load_asn1_pubkey [prop @pbkey]]
 		set keys(main)	[my generate_key]
 
 		$signals(connected) attach_output [my code _connected_changed]
@@ -81,10 +89,10 @@ cflib::pclass create m2::authenticator {
 		}
 
 		if {[string first @ $username] == -1} {
-			if {$default_domain eq ""} {
+			if {[prop @default_domain] eq ""} {
 				error "No domain specified and no default domain"
 			}
-			set username	$username@$default_domain
+			set username	$username@[prop @default_domain]
 		}
 
 		my rsj_req $enc_chan [list login $username $password] \
@@ -95,14 +103,14 @@ cflib::pclass create m2::authenticator {
 
 		if {$ok} {
 			set fqun	$username
-			log debug "Logged in ok, generating key" -suppress password
+			?? {log debug "Logged in ok, generating key"}
 			#set handle	[crypto::rsa_generate_key 1024 17]
 			#set pbkey	[crypto::rsa_get_public_key $handle]
 			#set session_prkey	$handle
 			set before	[clock microseconds]
 			set K		[crypto::rsa::RSAKG 1024 0x10001]
 			set after	[clock microseconds]
-			log debug [format "1024 bit key generation time: %.3fms" [expr {($after - $before) / 1000.0}]] -suppress password
+			?? {log debug [format "1024 bit key generation time: %.3fms" [expr {($after - $before) / 1000.0}]]}
 			set pbkey	[dict create \
 					n		[dict get $K n] \
 					e		[dict get $K e]]
@@ -598,12 +606,12 @@ cflib::pclass create m2::authenticator {
 							set selected_profile	[lindex $defined_profiles 0]
 						} else {
 							try {
-								if {$profile_cb eq ""} {
+								if {[prop @profile_cb] eq ""} {
 									log warning "Asked to select a profile but no profile_cb was defined"
 									set selected_profile	""
 								} else {
 									set selected_profile \
-											[uplevel #0 $profile_cb [list $defined_profiles]]
+											[uplevel #0 [profile @profile_cb] [list $defined_profiles]]
 								}
 							} on error {errmsg options} {
 								log error "Unhandled error: $errmsg\n[dict get $options -errorinfo]"
