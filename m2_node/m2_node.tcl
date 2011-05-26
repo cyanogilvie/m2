@@ -33,6 +33,7 @@ cflib::config create cfg $argv {
 	variable daemon			0		;# Obsolete
 	variable loglevel		notice
 	variable evlog_uri		""
+	variable io_threads		0
 } /etc/codeforge/m2_node.conf
 
 evlog connect "m2_node [info hostname] [pid]" [cfg get evlog_uri]
@@ -62,10 +63,11 @@ proc init {} { #<<<
 		m2::node create server \
 				-listen_on	[cfg get listen_on] \
 				-upstream	[cfg get upstream] \
-				-queue_mode	[cfg get queue_mode]
+				-queue_mode	[cfg get queue_mode] \
+				-io_threads	[cfg get io_threads]
 	} on error {errmsg options} {
 		log error "Could not start m2 node: $errmsg"
-		?? {log error [dict get options -errorinfo]}
+		?? {log error [dict get $options -errorinfo]}
 		exit 1
 	}
 	log notice "Ready"

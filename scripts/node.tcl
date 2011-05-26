@@ -1,17 +1,80 @@
 # vim: ts=4 foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
+proc m2::_accept {con} {
+	set queue [netdgram::queue new]
+	$queue attach $con
+	set queue
+}
+
+proc m2::_enqueue {queue msg} {
+	$queue enqueue [m2::msg::serialize $msg] \
+			[dict get $msg type] \
+			[dict get $msg seq] \
+			[dict get $msg prev_seq]
+}
+
+proc m2::_destroy_queue {queue} {
+	if {[info exists queue] && [info object is object $queue]} {
+		set con	[$queue con]
+		# $queue dies when $con does, close_con unsets $con
+		if {[info object isa object $con]} {
+			$con destroy
+		} else {
+			log warning "con $con died mysteriously under queue $queue"
+			$queue destroy
+		}
+	}
+}
+
+proc m2::_activate {con} {
+	try {
+		$con activate
+	} on error {errmsg options} {
+		log error "Unexpected error activating $con: [dict get $options -errorinfo]"
+		if {[info object isa object $con]} {
+			$con destroy
+			unset con
+		}
+	}
+}
+
 oo::class create m2::node {
+	variable {*}{
+		listen_on
+		connection_retry
+		upstream
+		queue_mode
+		io_threads
+
+		listens
+		svcs
+		id
+		ports
+		outbound_ports
+		advertise_ports
+		outbound_connection_afterids
+		threads
+	}
+
 	constructor {args} { #<<<
+		if {[self next] ne ""} next
+
 		set svcs							[dict create]
 		set ports							[dict create]
 		set outbound_ports					[dict create]
 		set advertise_ports					[dict create]
 		set outbound_connection_afterids	[dict create]
+		set threads							[dict create]
 
+		package require Thread 2.6.6
 		package require netdgram::tcp
 		oo::define netdgram::connectionmethod::tcp method default_port {} {
 			return 5300
 		}
+
+		namespace path [concat [namespace path] {
+			::tcl::mathop
+		}]
 
 		# Defaults
 		set listen_on			{"tcp://:5300"}
@@ -19,6 +82,7 @@ oo::class create m2::node {
 		set upstream			{}
 		set evlog				""
 		set queue_mode			fancy
+		set io_threads			0
 
 		dict for {k v} $args {
 			if {[string index $k 0] ne "-"} {
@@ -26,11 +90,33 @@ oo::class create m2::node {
 			}
 			set k	[string range $k 1 end]
 			if {$k ni {
-				listen_on connection_retry upstream evlog queue_mode
+				listen_on connection_retry upstream evlog queue_mode io_threads
 			}} {
 				error "Invalid parameter: -$k"
 			}
 			set $k $v
+		}
+
+		if {$io_threads > 0} {
+			for {set i 0} {$i < $io_threads} {incr i} {
+				set tid	[thread::create -preserved [string map [list \
+						%tm_path%	[tcl::tm::path list] \
+						%auto_path%	[list $::auto_path] \
+						%main_tid%	[list [thread::id]] \
+				] {
+					tcl::tm::path add %tm_path%
+					set ::auto_path	%auto_path%
+					set main_tid	%main_tid%
+					package require netdgram
+					package require m2
+
+					proc ?? args {}
+					proc log args {}
+
+					thread::wait
+				}]]
+				dict set threads $tid {}
+			}
 		}
 
 		# private vars
@@ -55,25 +141,11 @@ oo::class create m2::node {
 		dict for {addr id} $outbound_connection_afterids {
 			after cancel $id; dict set $outbound_connection_afterids $addr 	""
 		}
-		if {[self next] ne {}} {next}
+		# TODO: destroy ports, io_threads
+		if {[self next] ne ""} next
 	}
 
 	#>>>
-
-	variable {*}{
-		listen_on
-		connection_retry
-		upstream
-		queue_mode
-
-		listens
-		svcs
-		id
-		ports
-		outbound_ports
-		advertise_ports
-		outbound_connection_afterids
-	}
 
 	method announce_svc {svc port} { #<<<
 		set new		[expr {![dict exists $svcs $svc]}]
@@ -192,7 +264,7 @@ oo::class create m2::node {
 			set listen	[netdgram::listen_uri $address]
 
 			oo::objdefine $listen forward accept \
-					{*}[namespace code {my _accept_inbound}]
+					{*}[namespace code {my _accept_inbound_pre}]
 
 			lappend listens	$listen
 			log notice "Ready on ($address), version [package require m2]"
@@ -212,13 +284,8 @@ oo::class create m2::node {
 					set upport	5300
 				}
 
-				2 {
-					lassign $tmp upip upport
-				}
-
-				3 {
-					lassign $tmp upip upport flags
-				}
+				2 {lassign $tmp upip upport}
+				3 {lassign $tmp upip upport flags}
 
 				default {
 					error "Invalid upstream address specification: ($addr)"
@@ -248,17 +315,9 @@ oo::class create m2::node {
 		set use_keepalive	0
 		foreach flag [split $flags {}] {
 			switch -- $flag {
-				"N" {
-					set contype	"outbound"
-				}
-
-				"A" {
-					set contype	"outbound_advertise"
-				}
-
-				"K" {
-					set use_keepalive	1
-				}
+				N {set contype	"outbound"}
+				A {set contype	"outbound_advertise"}
+				K {set use_keepalive	1}
 				
 				default {
 					log warning "Node::attempt_outbound_connection: invalid flag: ($flag)"
@@ -270,16 +329,30 @@ oo::class create m2::node {
 		}
 
 		try {
-			set con		[netdgram::connect_uri $addr]
-			set queue	[netdgram::queue new]
-			$queue attach $con
+			netdgram::connect_uri $addr
 		} on error {errmsg options} {
 			log notice "m2::Node::constructor: error connecting to upstream: ($addr): $errmsg\n[dict get $options -errorinfo]"
 
 			dict set outbound_connection_afterids $addr	[after \
 					[expr {int($connection_retry * 1000)}] \
 					[namespace code [list my _attempt_outbound_connection $addr]]]
-		} on ok {res options} {
+		} on ok {con} {
+			try {
+				if {$io_threads > 0} {
+					set chosen_tid	[my _pick_thread]
+					$con teleport $chosen_tid
+				} else {
+					set chosen_tid	[thread::id]
+					set con
+				}
+			} trap not_teleportable {} {
+				set chosen_tid	[thread::id]
+				set queue	[netdgram::queue new]
+				$queue attach $con
+			} on ok {teleported_con} {
+				set con		$teleported_con
+				set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
+			}
 			set params	{}		;# !?
 			set p	[m2::port new $contype [list \
 						-server [self] \
@@ -287,19 +360,47 @@ oo::class create m2::node {
 						-queue_mode $queue_mode \
 						-filter $filter \
 					] \
-					$queue $params]
+					$queue $chosen_tid $params]
 			$p register_handler onclose \
 					[namespace code [list my _attempt_outbound_connection $addr]]
-			$con activate
+			thread::send -async $chosen_tid [list m2::_activate $con]
 		}
+	}
+
+	#>>>
+	method _accept_inbound_pre {con args} { #<<<
+		after idle [namespace code [list my _accept_inbound $con {*}$args]]
 	}
 
 	#>>>
 	method _accept_inbound {con args} { #<<<
 		log debug "node::_accept_inbound: con: ($con) args: ($args)"
-		set queue [netdgram::queue new]
-		$queue attach $con
-		m2::port new inbound [list -server [self]] $queue $args
+		try {
+			if {$io_threads > 0} {
+				set chosen_tid	[my _pick_thread]
+				$con teleport $chosen_tid
+			} else {
+				set chosen_tid	[thread::id]
+				set con
+			}
+		} on ok {teleported_con} {
+			set con		$teleported_con
+			set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
+		} trap not_teleportable {} {
+			set chosen_tid	[thread::id]
+			set queue [netdgram::queue new]
+			$queue attach $con
+		}
+		m2::port new inbound [list -server [self]] $queue $chosen_tid $args
+		thread::send $chosen_tid [list m2::_activate $con]
+	}
+
+	#>>>
+	method _pick_thread {} { #<<<
+		my variable thread_idx
+		incr thread_idx
+		set thread_idx	[expr {$thread_idx % [dict size $threads]}]
+		lindex [dict keys $threads] $thread_idx
 	}
 
 	#>>>

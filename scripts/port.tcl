@@ -22,6 +22,7 @@ oo::class create m2::port {
 		outbound
 		signals
 		queue
+		tid
 		advertise
 		neighbour_info
 		dieing
@@ -29,7 +30,7 @@ oo::class create m2::port {
 		svc_filter
 	}
 
-	constructor {mode parms a_queue a_params} { #<<<
+	constructor {mode parms a_queue a_tid a_params} { #<<<
 		package require evlog
 
 		next
@@ -84,125 +85,141 @@ oo::class create m2::port {
 		}
 
 		set queue	$a_queue
+		set tid		$a_tid
 
 		$server register_port [self] $outbound $advertise
 
 		if {$queue_mode eq "fancy"} {
-			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
-				#if {[info commands "dutils::daemon_log"] ne {}} {
-				#	dutils::daemon_log LOG_DEBUG "queueing $type $seq $prev_seq"
-				#} else {
-				#	puts stderr "queueing $type $seq $prev_seq"
-				#}
-				switch -- $type {
-					rsj_req - req {
-						set seq
-					}
-
-					jm - jm_can {
-						if {$prev_seq eq 0} {
+			thread::send $tid [string map [list %queueobj% [list $queue]] {
+				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
+					#if {[info commands "dutils::daemon_log"] ne {}} {
+					#	dutils::daemon_log LOG_DEBUG "queueing $type $seq $prev_seq"
+					#} else {
+					#	puts stderr "queueing $type $seq $prev_seq"
+					#}
+					switch -- $type {
+						rsj_req - req {
 							set seq
-						} else {
-							my variable _pending_jm_setup
-							#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
-							dict set _pending_jm_setup $seq $prev_seq 1
+						}
+
+						jm - jm_can {
+							if {$prev_seq eq 0} {
+								set seq
+							} else {
+								my variable _pending_jm_setup
+								#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
+								dict set _pending_jm_setup $seq $prev_seq 1
+								set prev_seq
+							}
+						}
+
+						default {
 							set prev_seq
 						}
 					}
-
-					default {
-						set prev_seq
-					}
-				}
-			}
-
-			#>>>
-			oo::objdefine $queue method pick {queues} { #<<<
-				my variable _pending_jm_setup
-				if {![info exists _pending_jm_setup]} {
-					set _pending_jm_setup	[dict create]
 				}
 
-				set q		[next $queues]
-				set first	$q
-
-				# Skip queues for jms that were setup in requests for which
-				# we still haven't sent the ack or nack
-				while {[dict exists $_pending_jm_setup $q]} {
-					set q		[next $queues]
-					if {$q eq $first} {
-						set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
-						foreach p $queues {
-							if {[dict exists $_pending_jm_setup $p]} {
-								append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
-							} else {
-								append errmsg "\n\t($p): --"
-							}
-						}
-						if {[info commands "dutils::daemon_log"] ne {}} {
-							dutils::daemon_log LOG_ERR $errmsg
-						} else {
-							log error $errmsg
-						}
-						# Should never happen
-						break
-					}
-				}
-
-				return $q
-			}
-
-			#>>>
-			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
-				#if {[info commands "dutils::daemon_log"] ne {}} {
-				#	dutils::daemon_log LOG_DEBUG "sent $type $seq $prev_seq"
-				#} else {
-				#	puts stderr "sent $type $seq $prev_seq"
-				#}
-				if {$type in {
-					ack
-					nack
-				}} {
+				#>>>
+				oo::objdefine %queueobj% method pick {queues} { #<<<
 					my variable _pending_jm_setup
 					if {![info exists _pending_jm_setup]} {
 						set _pending_jm_setup	[dict create]
 					}
 
-					dict for {s ps} $_pending_jm_setup {
-						foreach p [dict keys $ps] {
-							if {$p eq $prev_seq} {
-								log debug "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
-								dict unset _pending_jm_setup $s $p
-								if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
-									dict unset _pending_jm_setup $s
+					set q		[next $queues]
+					set first	$q
+
+					# Skip queues for jms that were setup in requests for which
+					# we still haven't sent the ack or nack
+					while {[dict exists $_pending_jm_setup $q]} {
+						set q		[next $queues]
+						if {$q eq $first} {
+							set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
+							foreach p $queues {
+								if {[dict exists $_pending_jm_setup $p]} {
+									append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
+								} else {
+									append errmsg "\n\t($p): --"
+								}
+							}
+							if {[info commands "dutils::daemon_log"] ne {}} {
+								dutils::daemon_log LOG_ERR $errmsg
+							} else {
+								log error $errmsg
+							}
+							# Should never happen
+							break
+						}
+					}
+
+					return $q
+				}
+
+				#>>>
+				oo::objdefine %queueobj% method sent {type seq prev_seq} { #<<<
+					#if {[info commands "dutils::daemon_log"] ne {}} {
+					#	dutils::daemon_log LOG_DEBUG "sent $type $seq $prev_seq"
+					#} else {
+					#	puts stderr "sent $type $seq $prev_seq"
+					#}
+					if {$type in {
+						ack
+						nack
+					}} {
+						my variable _pending_jm_setup
+						if {![info exists _pending_jm_setup]} {
+							set _pending_jm_setup	[dict create]
+						}
+
+						dict for {s ps} $_pending_jm_setup {
+							foreach p [dict keys $ps] {
+								if {$p eq $prev_seq} {
+									log debug "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
+									dict unset _pending_jm_setup $s $p
+									if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
+										dict unset _pending_jm_setup $s
+									}
 								}
 							}
 						}
 					}
 				}
-			}
 
-			#>>>
+				#>>>
+			}]
 		} elseif {$queue_mode eq "fifo"} {
-			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
-				return "_fifo"
-			}
+			thread::send $tid [string map [list %queueobj% [list $queue]] {
+				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
+					return "_fifo"
+				}
 
-			#>>>
-			oo::objdefine $queue method pick {queues} { #<<<
-				return "_fifo"
-			}
+				#>>>
+				oo::objdefine %queueobj% method pick {queues} { #<<<
+					return "_fifo"
+				}
 
-			#>>>
-			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
-			}
+				#>>>
+				oo::objdefine %queueobj% method sent {type seq prev_seq} { #<<<
+				}
 
-			#>>>
+				#>>>
+			}]
 		} else {
 			error "Invalid queue mode: ($queue_mode)"
 		}
-		oo::objdefine $queue forward receive {*}[namespace code {my _got_msg}]
-		oo::objdefine $queue forward closed {*}[namespace code {my _closed}]
+		thread::send $tid [string map [list \
+				%queueobj%		[list $queue] \
+				%port_tid%		[list [thread::id]] \
+				%cb_got_msg%	[namespace code {my _got_msg}] \
+				%cb_closed%		[namespace code {my _closed}] \
+		] {
+			oo::objdefine %queueobj% method receive raw_msg {
+				thread::send -async %port_tid% [list %cb_got_msg% [m2::msg::deserialize $raw_msg]]
+			}
+			oo::objdefine %queueobj% forward closed {} {
+				thread::send -async %port_tid% [list %cb_closed%]
+			}
+		}]
 
 		set connected	1
 		log debug "m2::Port::constructor, self: ([self]), queue: ($queue) connection from ($params)"
@@ -220,15 +237,8 @@ oo::class create m2::port {
 		if {![info exists queue]} {set queue	""}
 		log debug "m2::Port::destructor, self: ([self]), queue: ($queue) connection from ($params) closed"
 		try {
-			if {[info exists queue] && [info object is object $queue]} {
-				set con	[$queue con]
-				# $queue dies when $con does, close_con unsets $con
-				if {[info object isa object $con]} {
-					$con destroy
-				} else {
-					log warning "con $con died mysteriously under queue $queue"
-					$queue destroy
-				}
+			if {[info exists tid] && [thread::exists $tid]} {
+				thread::send $tid [list m2::_destroy_queue $queue]
 				unset queue
 			}
 		} on error {errmsg options} {
@@ -433,8 +443,8 @@ oo::class create m2::port {
 	}
 
 	#>>>
-	method _got_msg {raw_msg} { #<<<
-		set msg	[m2::msg::deserialize $raw_msg]
+	method _got_msg {msg} { #<<<
+		#set msg	[m2::msg::deserialize $raw_msg]
 		evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}
 		?? {log trivia "-> Got msg ([my cached_station_id]) [m2::msg::display $msg]"}
 		# Add profiling stamp if requested <<<
@@ -765,7 +775,8 @@ oo::class create m2::port {
 			?? {log trivia "<- Sending msg ([my cached_station_id]) [m2::msg::display $msg]"}
 
 			evlog event m2.queue_msg {[list to [my cached_station_id] msg $msg]}
-			$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
+			thread::send -async $tid [list m2::_enqueue $queue $msg]
+			#$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 		} on error {errmsg options} {
 			log error "Error queueing message [dict get $msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
 			my _die
@@ -929,7 +940,10 @@ oo::class create m2::port {
 
 	#>>>
 	method station_id {} { #<<<
-		return "m2_node [[$queue con] human_id] \"[dict get $neighbour_info debug_name]\""
+		set con_human_id	[thread::send $tid [format {
+			[%s con] human_id
+		} $queue]]
+		return "m2_node $con_human_id \"[dict get $neighbour_info debug_name]\""
 	}
 
 	#>>>
