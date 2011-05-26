@@ -28,7 +28,6 @@ oo::class create m2::node {
 		set outbound_connection_afterids	[dict create]
 		set threads							[dict create]
 
-		package require Thread 2.6.6
 		package require netdgram::tcp
 		oo::define netdgram::connectionmethod::tcp method default_port {} {
 			return 5300
@@ -60,6 +59,7 @@ oo::class create m2::node {
 		}
 
 		if {$io_threads > 0} {
+			package require Thread 2.6.6
 			for {set i 0} {$i < $io_threads} {incr i} {
 				set tid	[thread::create -preserved [string map [list \
 						%tm_path%	[tcl::tm::path list] \
@@ -305,21 +305,22 @@ oo::class create m2::node {
 					[expr {int($connection_retry * 1000)}] \
 					[namespace code [list my _attempt_outbound_connection $addr]]]
 		} on ok {con} {
-			try {
-				if {$io_threads > 0} {
-					set chosen_tid	[my _pick_thread]
-					$con teleport $chosen_tid
-				} else {
-					set chosen_tid	[thread::id]
-					set con
-				}
-			} trap not_teleportable {} {
-				set chosen_tid	[thread::id]
+			if {$io_threads == 0} {
 				set queue	[netdgram::queue new]
 				$queue attach $con
+				set chosen_tid	""
+			} else {
+			try {
+					set chosen_tid	[my _pick_thread]
+					$con teleport $chosen_tid
+			} trap not_teleportable {} {
+				set queue	[netdgram::queue new]
+				$queue attach $con
+					set chosen_tid	""
 			} on ok {teleported_con} {
 				set con		$teleported_con
 				set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
+			}
 			}
 			set params	{}		;# !?
 			set p	[m2::port new $contype [list \
@@ -331,7 +332,11 @@ oo::class create m2::node {
 					$queue $chosen_tid $params]
 			$p register_handler onclose \
 					[namespace code [list my _attempt_outbound_connection $addr]]
-			thread::send -async $chosen_tid [list m2::_activate $con]
+			if {$chosen_tid eq ""} {
+				$con activate
+			} else {
+				thread::send -async $chosen_tid [list m2::_activate $con]
+			}
 		}
 	}
 
@@ -342,25 +347,28 @@ oo::class create m2::node {
 
 	#>>>
 	method _accept_inbound {con args} { #<<<
-		log debug "node::_accept_inbound: con: ($con) args: ($args)"
-		try {
-			if {$io_threads > 0} {
-				set chosen_tid	[my _pick_thread]
-				$con teleport $chosen_tid
-			} else {
-				set chosen_tid	[thread::id]
-				set con
-			}
-		} on ok {teleported_con} {
-			set con		$teleported_con
-			set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
-		} trap not_teleportable {} {
-			set chosen_tid	[thread::id]
+		?? {log debug "node::_accept_inbound: con: ($con) args: ($args)"}
+		if {$io_threads == 0} {
 			set queue [netdgram::queue new]
 			$queue attach $con
+			m2::port new inbound [list -server [self]] $queue "" $args
+		} else {
+			try {
+				set chosen_tid	[my _pick_thread]
+				$con teleport $chosen_tid
+			} on ok {teleported_con} {
+				set con		$teleported_con
+				set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
+			} trap not_teleportable {} {
+				set chosen_tid	""
+				set queue [netdgram::queue new]
+				$queue attach $con
+			}
+			m2::port new inbound [list -server [self]] $queue $chosen_tid $args
+			if {$chosen_tid ne ""} {
+				thread::send $chosen_tid [list m2::_activate $con]
+			}
 		}
-		m2::port new inbound [list -server [self]] $queue $chosen_tid $args
-		thread::send $chosen_tid [list m2::_activate $con]
 	}
 
 	#>>>

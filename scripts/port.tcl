@@ -34,6 +34,12 @@ oo::class create m2::port {
 		package require evlog
 
 		next
+
+		if {"::oo::Helpers::cflib" ni [namespace path]} {
+			namespace path [concat [namespace path] {
+				::oo::Helpers::cflib
+			}]
+		}
 		my variable params
 		set params	$a_params
 
@@ -80,17 +86,19 @@ oo::class create m2::port {
 		} else {
 			set svc_filter	[my _compile_filter "allow_in(all)"]
 		}
-		?? {
-			log debug "svc_filter:\n$svc_filter"
-		}
 
 		set queue	$a_queue
 		set tid		$a_tid
 
 		$server register_port [self] $outbound $advertise
 
+		if {$tid eq ""} {
+			set prefix	{eval}
+		} else {
+			set prefix	[list thread::send $tid]
+		}
 		if {$queue_mode eq "fancy"} {
-			thread::send $tid [string map [list %queueobj% [list $queue]] {
+			{*}$prefix [string map [list %queueobj% [list $queue]] {
 				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
 					#if {[info commands "dutils::daemon_log"] ne {}} {
 					#	dutils::daemon_log LOG_DEBUG "queueing $type $seq $prev_seq"
@@ -188,7 +196,7 @@ oo::class create m2::port {
 				#>>>
 			}]
 		} elseif {$queue_mode eq "fifo"} {
-			thread::send $tid [string map [list %queueobj% [list $queue]] {
+			{*}$prefix [string map [list %queueobj% [list $queue]] {
 				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
 					return "_fifo"
 				}
@@ -207,21 +215,24 @@ oo::class create m2::port {
 		} else {
 			error "Invalid queue mode: ($queue_mode)"
 		}
-		thread::send $tid [string map [list \
-				%queueobj%		[list $queue] \
-				%port_tid%		[list [thread::id]] \
-				%cb_got_msg%	[namespace code {my _got_msg}] \
-				%cb_closed%		[namespace code {my _closed}] \
-		] {
+		set map	{}
+		dict set map %queueobj%		[list $queue]
+		if {$tid eq ""} {
+			dict set map %cb_got_msg%	[format {%s [m2::msg::deserialize $raw_msg]} [code _got_msg]]
+			dict set map %cb_closed%	[format {%s} [code _closed]]
+		} else {
+			dict set map %cb_got_msg%	[format {thread::send -async %s [list %s [m2::msg::deserialize $raw_msg]]} [list [thread::id]] [code _got_msg]]
+			dict set map %cb_closed%	[format {thread::send -async %s [list %s]} [list [thread::id]] [code _closed]]
+		}
+		{*}$prefix [string map $map {
 			oo::objdefine %queueobj% method receive raw_msg {
-				thread::send -async %port_tid% [list %cb_got_msg% [m2::msg::deserialize $raw_msg]]
+				%cb_got_msg%
 			}
-			oo::objdefine %queueobj% forward closed \
-				thread::send -async %port_tid% [list %cb_closed%]
+			oo::objdefine %queueobj% forward closed %cb_closed%
 		}]
 
 		set connected	1
-		log debug "m2::Port::constructor, self: ([self]), queue: ($queue) connection from ($params)"
+		?? {log debug "m2::Port::constructor, self: ([self]), queue: ($queue) connection from ($params)"}
 
 		if {$advertise} {
 			my _send_all_svcs
@@ -234,10 +245,16 @@ oo::class create m2::port {
 
 		if {![info exists params]} {set params	""}
 		if {![info exists queue]} {set queue	""}
-		log debug "m2::Port::destructor, self: ([self]), queue: ($queue) connection from ($params) closed"
+		?? {log debug "m2::Port::destructor, self: ([self]), queue: ($queue) connection from ($params) closed"}
 		try {
-			if {[info exists tid] && [thread::exists $tid]} {
-				thread::send $tid [list m2::_destroy_queue $queue]
+			if {
+				[info exists queue]
+			} {
+				if {$tid eq ""} {
+					m2::_destroy_queue $queue
+				} else {
+					thread::send $tid [list m2::_destroy_queue $queue]
+				}
 				unset queue
 			}
 		} on error {errmsg options} {
@@ -442,10 +459,8 @@ oo::class create m2::port {
 	}
 
 	#>>>
-	method _got_msg {msg} { #<<<
-		#set msg	[m2::msg::deserialize $raw_msg]
+	method _got_msg msg { #<<<
 		evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}
-		?? {log trivia "-> Got msg ([my cached_station_id]) [m2::msg::display $msg]"}
 		# Add profiling stamp if requested <<<
 		if {[dict get $msg oob_type] eq "profiling"} {
 			dict set msg oob_data [my _add_profile_stamp \
@@ -771,11 +786,13 @@ oo::class create m2::port {
 						[dict get $msg oob_data]]
 			}
 			# Add profiling stamp if requested >>>
-			?? {log trivia "<- Sending msg ([my cached_station_id]) [m2::msg::display $msg]"}
 
 			evlog event m2.queue_msg {[list to [my cached_station_id] msg $msg]}
-			thread::send -async $tid [list m2::_enqueue $queue $msg]
-			#$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
+			if {$tid eq ""} {
+				m2::_enqueue $queue $msg
+			} else {
+				thread::send -async $tid [list m2::_enqueue $queue $msg]
+			}
 		} on error {errmsg options} {
 			log error "Error queueing message [dict get $msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"
 			my _die
@@ -939,9 +956,13 @@ oo::class create m2::port {
 
 	#>>>
 	method station_id {} { #<<<
-		set con_human_id	[thread::send $tid [format {
-			[%s con] human_id
-		} $queue]]
+		if {$tid ne ""} {
+			set con_human_id	[thread::send $tid [format {
+				[%s con] human_id
+			} $queue]]
+		} else {
+			set con_human_id	[[$queue con] human_id]
+		}
 		return "m2_node $con_human_id \"[dict get $neighbour_info debug_name]\""
 	}
 

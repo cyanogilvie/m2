@@ -7,7 +7,7 @@ oo::class create m2::api2 {
 	method _properties {} {
 		format {%s
 			variable oob_type		none
-			variable threaded_io	1
+			variable threaded_io	0
 		} [next]
 	}
 
