@@ -221,7 +221,10 @@ oo::class create m2::port {
 			dict set map %cb_got_msg%	[format {%s [m2::msg::deserialize $raw_msg]} [code _got_msg]]
 			dict set map %cb_closed%	[format {%s} [code _closed]]
 		} else {
-			dict set map %cb_got_msg%	[format {thread::send -async %s [list %s [m2::msg::deserialize $raw_msg]]} [list [thread::id]] [code _got_msg]]
+			dict set map %cb_got_msg%	[format {
+				#thread::send -async %%s [list %%s [m2::msg::deserialize $raw_msg]]
+				thread::send -async %s [list %s $raw_msg]
+			} [list [thread::id]] [code _got_msg_raw]]
 			dict set map %cb_closed%	[format {thread::send -async %s [list %s]} [list [thread::id]] [code _closed]]
 		}
 		{*}$prefix [string map $map {
@@ -456,6 +459,11 @@ oo::class create m2::port {
 	#>>>
 	method allow_svc_out {svc} { #<<<
 		apply $svc_filter $svc out
+	}
+
+	#>>>
+	method _got_msg_raw raw_msg { #<<<
+		my _got_msg [m2::msg::deserialize $raw_msg]
 	}
 
 	#>>>
@@ -791,7 +799,11 @@ oo::class create m2::port {
 			if {$tid eq ""} {
 				m2::_enqueue $queue $msg
 			} else {
-				thread::send -async $tid [list m2::_enqueue $queue $msg]
+				#thread::send -async $tid [list m2::_enqueue $queue $msg]
+				thread::send -async $tid [list $queue enqueue [m2::msg::serialize $msg] \
+						[dict get $msg type] \
+						[dict get $msg seq] \
+						[dict get $msg prev_seq]]
 			}
 		} on error {errmsg options} {
 			log error "Error queueing message [dict get $msg type] for port ([self]): $errmsg\n[dict get $options -errorinfo]"

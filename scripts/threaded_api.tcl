@@ -32,7 +32,11 @@ oo::class create m2::threaded_api {
 	#>>>
 	method send msg { #<<<
 		evlog event m2.queue_msg {[list to $uri msg $msg]}
-		thread::send -async $tid [list m2::_enqueue $queue $msg]
+		#thread::send -async $tid [list m2::_enqueue $queue $msg]
+		thread::send -async $tid [list $queue enqueue [m2::msg::serialize $msg] \
+			[dict get $msg type] \
+			[dict get $msg seq] \
+			[dict get $msg prev_seq]]
 	}
 
 	#>>>
@@ -40,7 +44,7 @@ oo::class create m2::threaded_api {
 		lassign [thread::send $tid [string map [list \
 				%uri%					$a_uri \
 				%connection_lost_cb%	[list [namespace code {my _connection_lost}]] \
-				%got_msg_cb%			[namespace code {my _got_msg}] \
+				%got_msg_cb%			[namespace code {my _got_msg_raw}] \
 				%main_tid%				[list [thread::id]] \
 		] {
 			try {
@@ -51,8 +55,9 @@ oo::class create m2::threaded_api {
 				oo::objdefine $queue forward closed thread::send %main_tid% \
 						%connection_lost_cb%
 				oo::objdefine $queue method receive raw_msg {
-					thread::send -async %main_tid% [list %got_msg_cb% \
-							[m2::msg::deserialize $raw_msg]]
+					thread::send -async %main_tid% [list %got_msg_cb% $raw_msg]
+					#thread::send -async %main_tid% [list %got_msg_cb% \
+					#		[m2::msg::deserialize $raw_msg]]
 				}
 				oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
 					switch -- $type {
