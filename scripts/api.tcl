@@ -137,7 +137,7 @@ oo::class create m2::api {
 
 	#>>>
 	method send msg { #<<<
-		evlog event m2.queue_msg {[list to $uri msg $msg]}
+		?? {evlog event m2.queue_msg {[list to $uri msg $msg]}}
 		$queue enqueue [m2::msg::serialize $msg] [dict get $msg type] [dict get $msg seq] [dict get $msg prev_seq]
 	}
 
@@ -155,7 +155,7 @@ oo::class create m2::api {
 
 	#>>>
 	method _got_msg msg { #<<<
-		evlog event m2.receive_msg {[list from $uri msg $msg]}
+		?? {evlog event m2.receive_msg {[list from $uri msg $msg]}}
 
 		switch -- [dict get $msg type] {
 			svc_avail {

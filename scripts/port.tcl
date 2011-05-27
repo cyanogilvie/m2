@@ -468,7 +468,7 @@ oo::class create m2::port {
 
 	#>>>
 	method _got_msg msg { #<<<
-		evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}
+		?? {evlog event m2.receive_msg {[list from [my cached_station_id] msg $msg]}}
 		# Add profiling stamp if requested <<<
 		if {[dict get $msg oob_type] eq "profiling"} {
 			dict set msg oob_data [my _add_profile_stamp \
@@ -795,7 +795,7 @@ oo::class create m2::port {
 			}
 			# Add profiling stamp if requested >>>
 
-			evlog event m2.queue_msg {[list to [my cached_station_id] msg $msg]}
+			?? {evlog event m2.queue_msg {[list to [my cached_station_id] msg $msg]}}
 			if {$tid eq ""} {
 				m2::_enqueue $queue $msg
 			} else {
