@@ -1,7 +1,7 @@
 # vim: ts=4 foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 proc m2::_accept con {
-	set queue [netdgram::queue new]
+	set queue [m2::queue_fancy new]
 	$queue attach $con
 	set queue
 }

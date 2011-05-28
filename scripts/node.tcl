@@ -306,21 +306,21 @@ oo::class create m2::node {
 					[namespace code [list my _attempt_outbound_connection $addr]]]
 		} on ok {con} {
 			if {$io_threads == 0} {
-				set queue	[netdgram::queue new]
+				set queue	[m2::queue_fancy new]
 				$queue attach $con
 				set chosen_tid	""
 			} else {
-			try {
+				try {
 					set chosen_tid	[my _pick_thread]
 					$con teleport $chosen_tid
-			} trap not_teleportable {} {
-				set queue	[netdgram::queue new]
-				$queue attach $con
+				} trap not_teleportable {} {
+					set queue	[m2::queue_fancy new]
+					$queue attach $con
 					set chosen_tid	""
-			} on ok {teleported_con} {
-				set con		$teleported_con
-				set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
-			}
+				} on ok {teleported_con} {
+					set con		$teleported_con
+					set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
+				}
 			}
 			set params	{}		;# !?
 			set p	[m2::port new $contype [list \
@@ -349,7 +349,7 @@ oo::class create m2::node {
 	method _accept_inbound {con args} { #<<<
 		?? {log debug "node::_accept_inbound: con: ($con) args: ($args)"}
 		if {$io_threads == 0} {
-			set queue [netdgram::queue new]
+			set queue [m2::queue_fancy new]
 			$queue attach $con
 			m2::port new inbound [list -server [self]] $queue "" $args
 		} else {
@@ -361,7 +361,7 @@ oo::class create m2::node {
 				set queue	[thread::send $chosen_tid [format {m2::_accept %s} [list $con]]]
 			} trap not_teleportable {} {
 				set chosen_tid	""
-				set queue [netdgram::queue new]
+				set queue [m2::queue_fancy new]
 				$queue attach $con
 			}
 			m2::port new inbound [list -server [self]] $queue $chosen_tid $args

@@ -435,7 +435,7 @@ oo::class create m2::api2 {
 		}
 		my send [m2::msg::new [list \
 				svc			"" \
-				type		jm \
+				type		pr_jm \
 				seq			$seq \
 				prev_seq	$prev_seq \
 				data		$e_data \

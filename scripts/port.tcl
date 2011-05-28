@@ -1,4 +1,4 @@
-# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> foldmarker=<<<,>>>
+# vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
 # TODO: handle connection collapse
 
@@ -17,7 +17,6 @@ oo::class create m2::port {
 		jm_ports
 		jm_sport
 
-		queue_mode
 		mysvcs
 		outbound
 		signals
@@ -68,11 +67,6 @@ oo::class create m2::port {
 		} else {
 			error "Must set -server"
 		}
-		if {[dict exists $parms -queue_mode]} {
-			set queue_mode	[dict get $parms -queue_mode]
-		} else {
-			set queue_mode	"fancy"
-		}
 
 		switch -- $mode {
 			inbound				{set outbound	0; set advertise	1}
@@ -97,124 +91,6 @@ oo::class create m2::port {
 		} else {
 			set prefix	[list thread::send $tid]
 		}
-		if {$queue_mode eq "fancy"} {
-			{*}$prefix [string map [list %queueobj% [list $queue]] {
-				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
-					#if {[info commands "dutils::daemon_log"] ne {}} {
-					#	dutils::daemon_log LOG_DEBUG "queueing $type $seq $prev_seq"
-					#} else {
-					#	puts stderr "queueing $type $seq $prev_seq"
-					#}
-					switch -- $type {
-						rsj_req - req {
-							set seq
-						}
-
-						jm - jm_can {
-							if {$prev_seq eq 0} {
-								set seq
-							} else {
-								my variable _pending_jm_setup
-								#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
-								dict set _pending_jm_setup $seq $prev_seq 1
-								set prev_seq
-							}
-						}
-
-						default {
-							set prev_seq
-						}
-					}
-				}
-
-				#>>>
-				oo::objdefine %queueobj% method pick {queues} { #<<<
-					my variable _pending_jm_setup
-					if {![info exists _pending_jm_setup]} {
-						set _pending_jm_setup	[dict create]
-					}
-
-					set q		[next $queues]
-					set first	$q
-
-					# Skip queues for jms that were setup in requests for which
-					# we still haven't sent the ack or nack
-					while {[dict exists $_pending_jm_setup $q]} {
-						set q		[next $queues]
-						if {$q eq $first} {
-							set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
-							foreach p $queues {
-								if {[dict exists $_pending_jm_setup $p]} {
-									append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
-								} else {
-									append errmsg "\n\t($p): --"
-								}
-							}
-							if {[info commands "dutils::daemon_log"] ne {}} {
-								dutils::daemon_log LOG_ERR $errmsg
-							} else {
-								log error $errmsg
-							}
-							# Should never happen
-							break
-						}
-					}
-
-					return $q
-				}
-
-				#>>>
-				oo::objdefine %queueobj% method sent {type seq prev_seq} { #<<<
-					#if {[info commands "dutils::daemon_log"] ne {}} {
-					#	dutils::daemon_log LOG_DEBUG "sent $type $seq $prev_seq"
-					#} else {
-					#	puts stderr "sent $type $seq $prev_seq"
-					#}
-					if {$type in {
-						ack
-						nack
-					}} {
-						my variable _pending_jm_setup
-						if {![info exists _pending_jm_setup]} {
-							set _pending_jm_setup	[dict create]
-						}
-
-						dict for {s ps} $_pending_jm_setup {
-							foreach p [dict keys $ps] {
-								if {$p eq $prev_seq} {
-									log debug "[self] Removing pending flag for ($s), $type prev_seq ($prev_seq) matches ($p)"
-									dict unset _pending_jm_setup $s $p
-									if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
-										dict unset _pending_jm_setup $s
-									}
-								}
-							}
-						}
-					}
-				}
-
-				#>>>
-			}]
-		} elseif {$queue_mode eq "fifo"} {
-			{*}$prefix [string map [list %queueobj% [list $queue]] {
-				oo::objdefine %queueobj% method assign {rawmsg type seq prev_seq} { #<<<
-					return "_fifo"
-				}
-
-				#>>>
-				oo::objdefine %queueobj% method pick {queues} { #<<<
-					return "_fifo"
-				}
-
-				#>>>
-				oo::objdefine %queueobj% method sent {type seq prev_seq} { #<<<
-				}
-
-				#>>>
-			}]
-		} else {
-			error "Invalid queue mode: ($queue_mode)"
-		}
 		set map	{}
 		dict set map %queueobj%		[list $queue]
 		if {$tid eq ""} {
@@ -222,7 +98,6 @@ oo::class create m2::port {
 			dict set map %cb_closed%	[format {%s} [code _closed]]
 		} else {
 			dict set map %cb_got_msg%	[format {
-				#thread::send -async %%s [list %%s [m2::msg::deserialize $raw_msg]]
 				thread::send -async %s [list %s $raw_msg]
 			} [list [thread::id]] [code _got_msg_raw]]
 			dict set map %cb_closed%	[format {thread::send -async %s [list %s]} [list [thread::id]] [code _closed]]

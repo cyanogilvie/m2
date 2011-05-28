@@ -217,95 +217,11 @@ oo::class create m2::api {
 	method _create_con a_uri { #<<<
 		try {
 			set con	[netdgram::connect_uri $a_uri]
-			set queue	[netdgram::queue new]
+			set queue	[m2::queue_fancy new]
 			$queue attach $con
 
 			oo::objdefine $queue forward closed {*}[code _connection_lost]
 			oo::objdefine $queue forward receive {*}[code _got_msg_raw]
-			oo::objdefine $queue method assign {rawmsg type seq prev_seq} { #<<<
-				switch -- $type {
-					rsj_req - req {
-						set seq
-					}
-
-					jm - jm_can {
-						if {$prev_seq eq 0} {
-							set seq
-						} else {
-							my variable _pending_jm_setup
-							#puts stderr "[self] marking pending ($seq), prev_seq ($prev_seq)"
-							dict set _pending_jm_setup $seq $prev_seq 1
-							set prev_seq
-						}
-					}
-
-					default {
-						set prev_seq
-					}
-				}
-			}
-
-			#>>>
-			oo::objdefine $queue method pick {queues} { #<<<
-				my variable _pending_jm_setup
-				if {![info exists _pending_jm_setup]} {
-					set _pending_jm_setup	[dict create]
-				}
-
-				set q		[next $queues]
-				set first	$q
-
-				# Skip queues for jms that were setup in requests for which
-				# we still haven't sent the ack or nack
-				while {[dict exists $_pending_jm_setup $q]} {
-					set q		[next $queues]
-					if {$q eq $first} {
-						set errmsg	"[self] Eeek - all queues have the pending flag set, should never happen.  Queues:"
-						foreach p $queues {
-							if {[dict exists $_pending_jm_setup $p]} {
-								append errmsg "\n\t($p): ([dict get $_pending_jm_setup $p])"
-							} else {
-								append errmsg "\n\t($p): --"
-							}
-						}
-						if {[info commands "dutils::daemon_log"] ne {}} {
-							dutils::daemon_log LOG_ERR $errmsg
-						} else {
-							puts stderr $errmsg
-						}
-						# Should never happen
-						break
-					}
-				}
-
-				return $q
-			}
-
-			#>>>
-			oo::objdefine $queue method sent {type seq prev_seq} { #<<<
-				if {$type in {
-					ack
-					nack
-				}} {
-					my variable _pending_jm_setup
-					if {![info exists _pending_jm_setup]} {
-						set _pending_jm_setup	[dict create]
-					}
-
-					dict for {s ps} $_pending_jm_setup {
-						foreach p [dict keys $ps] {
-							if {$p eq $prev_seq} {
-								dict unset _pending_jm_setup $s $p
-								if {[dict size [dict get $_pending_jm_setup $s]] == 0} {
-									dict unset _pending_jm_setup $s
-								}
-							}
-						}
-					}
-				}
-			}
-
-			#>>>
 
 			$con activate
 		} on error {errmsg options} {
