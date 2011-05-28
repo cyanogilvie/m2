@@ -66,7 +66,7 @@ application "m2_node" { #<<<
 		{cflib 1.8.2}
 		dsl
 		logging
-		evlog
+		{evlog 0.3}
 	}
 
 	files {
@@ -154,6 +154,7 @@ application "authenticatord" { #<<<
 			sqlite3
 			unix_sockets
 			sockopt
+			hash
 		}
 	}
 
@@ -161,6 +162,7 @@ application "authenticatord" { #<<<
 		requires {
 			sqlite3
 			unix_sockets
+			sockopt
 			hash
 		}
 	}
