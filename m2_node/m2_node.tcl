@@ -40,6 +40,7 @@ evlog connect_thread "m2_node [info hostname] [pid]" [cfg get evlog_uri]
 
 logging::logger ::log [cfg get loglevel] \
 		-hook {evlog event log.%level% {$msg}}
+#proc ::log::puts args {}
 
 if {[cfg get debug]} {
 	proc ?? script {uplevel 1 $script}
