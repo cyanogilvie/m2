@@ -23,7 +23,7 @@ package require netdgram 0.6.1
 package require m2
 package require cflib 1.8.2
 package require logging
-package require evlog
+package require evlog 0.3
 
 cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
@@ -36,15 +36,15 @@ cflib::config create cfg $argv {
 	variable io_threads		1
 } /etc/codeforge/m2_node.conf
 
-evlog connect "m2_node [info hostname] [pid]" [cfg get evlog_uri]
+evlog connect_thread "m2_node [info hostname] [pid]" [cfg get evlog_uri]
 
 logging::logger ::log [cfg get loglevel] \
 		-hook {evlog event log.%level% {$msg}}
 
 if {[cfg get debug]} {
-	proc ?? {script} {uplevel 1 $script}
+	proc ?? script {uplevel 1 $script}
 } else {
-	proc ?? {args} {}
+	proc ?? args {}
 }
 
 interp bgerror {} [list apply {

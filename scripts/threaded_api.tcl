@@ -31,7 +31,7 @@ oo::class create m2::threaded_api {
 
 	#>>>
 	method send msg { #<<<
-		evlog event m2.queue_msg {[list to $uri msg $msg]}
+		?? {evlog event m2.queue_msg {[list to $uri msg $msg]}}
 		#thread::send -async $tid [list m2::_enqueue $queue $msg]
 		thread::send -async $tid [list $queue enqueue [m2::msg::serialize $msg] \
 			[dict get $msg type] \
