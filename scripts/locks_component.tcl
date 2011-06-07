@@ -48,75 +48,39 @@ cflib::pclass create m2::locks::component {
 
 	#>>>
 
-	method breaklock {id} { #<<<
-		if {![dict exists $locks $id]} {
-			throw [list no_lock $id] "No lock info for $id"
-		}
-		set jmid	[dict get $locks $id jmid]
-		set holder	[dict get $locks $id userobj]
+	method Aquire_lock {id user} { #<<<
+		my invoke_handlers aquire_lock $user $id
+	}
 
-		[$comp cget -auth] jm_can $jmid ""
-		after cancel [dict get $locks $id heartbeat]
-		dict unset locks $id
+	#>>>
+	method Locked {id user} { #<<<
+		my invoke_handlers lock_aquired $user $id
+	}
 
+	#>>>
+	method Unlocked {id user} { #<<<
 		try {
 			my invoke_handlers lock_released $id
 			my invoke_handlers lock_released_user $holder $id
 		} on error {errmsg options} {
-			log error "error in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
+			log error "error in lock_released handlers for id ($id): [dict get $options -errorinfo]"
 		}
 	}
 
 	#>>>
-	method locked {id} { #<<<
-		dict exists $locks $id
-	}
-
-	#>>>
-	method who_holds {id} { #<<<
-		if {![dict exists $locks $id]} {
-			throw [list no_lock $id] "No lock info for $id"
-		}
-		dict get $locks $id userobj
-	}
-
-	#>>>
-	method held_by {username} { #<<<
-		set ids	{}
-		dict for {id info} $locks {
-			if {[dict get $info username] eq $username} {
-				lappend ids	$id
-			}
+	method Lock_req {op id auth user seq reqdata} { #<<<
+		if {![my handlers_available lock_req_$op]} {
+			log error "no handlers registered for req type ($op)"
+			throw nack "Invalid op: ($op)"
 		}
 
-		return $ids
+		my invoke_handlers lock_req_$op \
+				$id $auth $user $seq $reqdata
 	}
 
 	#>>>
 
-	method _getlock {auth user seq rest} { #<<<
-		set id		$rest
-		
-		if {[dict exists $locks $id]} {
-			set userobj		[dict get $locks $id userobj]
-			set username	[dict get $locks $id username]
-			log notice "request to lock ($id) by ([$user name]) rejected - lock already held by ($username)"
-			$auth nack $seq "Already locked by $username"
-			return
-		}
-
-		try {
-			my invoke_handlers aquire_lock $user $id
-		} trap {response error} {errmsg options} {
-			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
-			$auth nack $seq $errmsg
-			return
-		} on error {errmsg options} {
-			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
-			$auth nack $seq "Lock denied"
-			return
-		}
-
+	method _lock {id user} { #<<<
 		set new_jmid	[$auth unique_id]
 
 		$auth pr_jm $new_jmid $seq ""
@@ -135,7 +99,76 @@ cflib::pclass create m2::locks::component {
 		}
 
 		$auth ack $seq [dict create heartbeat $heartbeat]
-		my invoke_handlers lock_aquired $user $id
+		my Locked $id $user
+	}
+
+	#>>>
+	method _unlock id { #<<<
+		set holder	[dict get $locks $id userobj]
+
+		if {[dict exists $locks $id jmid]} {
+			[$comp cget -auth] jm_can [dict get $locks $id jmid] ""
+		}
+		after cancel [dict get $locks $id heartbeat]
+		dict unset locks $id
+		my Unlocked $id $holder
+	}
+
+	#>>>
+	method breaklock id { #<<<
+		if {![dict exists $locks $id]} {
+			throw [list no_lock $id] "No lock info for $id"
+		}
+		my _unlock $id
+	}
+
+	#>>>
+	method locked id {dict exists $locks $id}
+	method who_holds id { #<<<
+		if {![dict exists $locks $id]} {
+			throw [list no_lock $id] "No lock info for $id"
+		}
+		dict get $locks $id userobj
+	}
+
+	#>>>
+	method held_by username { #<<<
+		set ids	{}
+		dict for {id info} $locks {
+			if {[dict get $info username] eq $username} {
+				lappend ids	$id
+			}
+		}
+
+		set ids
+	}
+
+	#>>>
+
+	method _getlock {auth user seq rest} { #<<<
+		set id		$rest
+		
+		if {[dict exists $locks $id]} {
+			set userobj		[dict get $locks $id userobj]
+			set username	[dict get $locks $id username]
+			log notice "request to lock ($id) by ([$user name]) rejected - lock already held by ($username)"
+			$auth nack $seq "Already locked by $username"
+			return
+		}
+
+		try {
+			my Aquire_lock $id $user
+		} trap {response error} {errmsg options} {
+			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
+			$auth nack $seq $errmsg
+			return
+		} on error {errmsg options} {
+			log notice "request to lock ($id) by ([$user name]) rejected - aquire_lock threw error: $errmsg\n[dict get $options -errorinfo]"
+			$auth nack $seq "Lock denied"
+			return
+		}
+
+		my _lock $id $user
 	}
 
 	#>>>
@@ -147,18 +180,10 @@ cflib::pclass create m2::locks::component {
 					return
 				}
 
-				set holder	[dict get $locks $id userobj]
-
 				?? {log debug "lock on ($id) held by user ($un) cancelled"}
-				after cancel [dict get $locks $id heartbeat]
-				dict unset locks $id
 
-				try {
-					my invoke_handlers lock_released $id
-					my invoke_handlers lock_released_user $holder $id
-				} on error {errmsg options} {
-					log error "\nerror in lock_released handlers for id ($id): $errmsg\n[dict get $options -errorinfo]"
-				}
+				dict unset locks $id jmid
+				my _unlock $id
 				#>>>
 			}
 
@@ -178,13 +203,7 @@ cflib::pclass create m2::locks::component {
 						throw nack "Lock not held anymore"
 					}
 
-					if {![my handlers_available lock_req_$op]} {
-						log error "no handlers registered for req type ($op)"
-						throw nack "Invalid op: ($op)"
-					}
-
-					my invoke_handlers lock_req_$op \
-							$id $auth $user $seq $reqdata
+					my Lock_req $op $id $auth $user $seq $reqdata
 				} trap nack {errmsg} {
 					$auth nack $seq $errmsg
 				} on error {errmsg options} {
