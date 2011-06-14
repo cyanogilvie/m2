@@ -80,7 +80,7 @@ cflib::pclass create m2::locks::component {
 
 	#>>>
 
-	method _lock {id user} { #<<<
+	method _lock {auth seq id user} { #<<<
 		set new_jmid	[$auth unique_id]
 
 		$auth pr_jm $new_jmid $seq ""
@@ -168,7 +168,7 @@ cflib::pclass create m2::locks::component {
 			return
 		}
 
-		my _lock $id $user
+		my _lock $auth $seq $id $user
 	}
 
 	#>>>
