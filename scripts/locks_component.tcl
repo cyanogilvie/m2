@@ -61,7 +61,7 @@ cflib::pclass create m2::locks::component {
 	method Unlocked {id user} { #<<<
 		try {
 			my invoke_handlers lock_released $id
-			my invoke_handlers lock_released_user $holder $id
+			my invoke_handlers lock_released_user $user $id
 		} on error {errmsg options} {
 			log error "error in lock_released handlers for id ($id): [dict get $options -errorinfo]"
 		}
