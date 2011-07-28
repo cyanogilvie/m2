@@ -541,8 +541,35 @@ function array2hash(arr) { //<<<
 }
 
 //>>>
+
+function obj2hash(obj) { //<<<
+	var h, i;
+
+	h = new Hash();
+
+	for (i in obj) {
+		h.setItem(i, obj[i]);
+	}
+
+	return h;
+}
+
+//>>>
 function list2hash(list) { //<<<
 	return array2hash(parse_tcl_list(list));
+}
+
+//>>>
+function dict2list(dict) { //<<<
+	var member, arr;
+	arr = [];
+	for (member in dict) {
+		if (dict.hasOwnProperty(member)) {
+			arr.push(member);
+			arr.push(dict[member]);
+		}
+	}
+	return serialize_tcl_list(arr);
 }
 
 //>>>

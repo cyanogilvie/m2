@@ -418,7 +418,7 @@ oo::class create m2::api2 {
 				#log debug "sending chan key: ([my mungekey $key])"
 				my send [m2::msg::new [list \
 						svc			"" \
-						type		jm \
+						type		pr_jm \
 						seq			$seq \
 						prev_seq	$prev_seq \
 						data		[my crypto encrypt [dict get $e_pending $prev_seq] $key] \

@@ -133,7 +133,8 @@ oo::class create webmodule::authwebmodule {
 	method _module_info {} { #<<<
 		set init_fn			[file join $docroot $init_script]
 		if {[file exists $init_fn]} {
-			set init	[cflib::readfile $init_fn]
+			#set init	[cflib::readfile $init_fn]
+			set init	[my _preprocess $init_fn]
 		} else {
 			set init	""
 		}
@@ -199,6 +200,20 @@ oo::class create webmodule::authwebmodule {
 		}
 
 		return $candidate
+	}
+
+	#>>>
+	method _preprocess fn { #<<<
+		set base		[file dirname [file normalize $fn]]
+		set	contents	[cflib::readfile $fn]
+		set regexp		{^#include\s+<(.*?)>\s*$}
+		while {[regexp -indices -lineanchor $regexp $contents directive_range include_fn_range]} {
+			lassign $directive_range directive_start directive_end
+			lassign $include_fn_range include_start include_end
+			set include_fn	[string range $contents $include_start $include_end]
+			set contents	[string range $contents 0 $directive_start-1][my _preprocess [file join $base $include_fn]][string range $contents $directive_end+2 end][unset contents]
+		}
+		set contents
 	}
 
 	#>>>
