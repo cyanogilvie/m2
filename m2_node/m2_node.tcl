@@ -34,6 +34,7 @@ cflib::config create cfg $argv {
 	variable loglevel		notice
 	variable evlog_uri		""
 	variable io_threads		1
+	variable admin_console	tcp://:5350
 } /etc/codeforge/m2_node.conf
 
 evlog connect_thread "m2_node [info hostname] [pid]" [cfg get evlog_uri]
@@ -57,6 +58,8 @@ interp bgerror {} [list apply {
 	}
 }]
 
+set here	[file dirname [file normalize [info script]]]
+source [file join $here admin_console.tcl]
 
 proc init {} { #<<<
 	try {
@@ -66,6 +69,10 @@ proc init {} { #<<<
 				-upstream	[cfg get upstream] \
 				-queue_mode	[cfg get queue_mode] \
 				-io_threads	[cfg get io_threads]
+
+		if {[cfg @admin_console] ne ""} {
+			Admin_console create admin_console
+		}
 	} on error {errmsg options} {
 		log error "Could not start m2 node: $errmsg"
 		?? {log error [dict get $options -errorinfo]}

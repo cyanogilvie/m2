@@ -1,4 +1,4 @@
-set version	0.42.3
+set version	0.43.0
 
 set summary "m2 messagebus node"
 
@@ -71,6 +71,8 @@ application "m2_node" { #<<<
 
 	files {
 		m2_node/m2_node.tcl
+		m2_node/admin_console.tcl
+		m2_node/admin_cmds.tcl
 	}
 
 	#choose_package {

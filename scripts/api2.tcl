@@ -849,6 +849,7 @@ oo::class create m2::api2 {
 
 	#>>>
 	method _lost_connection {} { #<<<
+		# TODO: nack all outstanding requests
 		set msg	[m2::msg::new {
 			type	jm_can
 			svc		sys
