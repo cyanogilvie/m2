@@ -734,12 +734,14 @@ m2.api.prototype._socket_connected_changed = function(newstate) { //<<<
 	} else {
 		log.warning('server closed connection');
 		try {
+			//log.debug('API setting connected to false');
+			this._signals.getItem('connected').set_state(false);
 			keys = this._svc_signals.keys();
 			for (i=0; i<keys.length; i++) {
 				inf = this._svc_signals.getItem(keys[i]);
 				inf.sig.set_state(false);
 			}
-			//log.debug('API setting connected to false');
+			// TODO: nack all outstanding requests
 			this._jm_prev_seq.forEach(function(seq, prev_seq) {
 				var msg;
 
@@ -753,7 +755,6 @@ m2.api.prototype._socket_connected_changed = function(newstate) { //<<<
 				msg.prev_seq = serialize_tcl_list([prev_seq]);
 				self._jm_can(msg);
 			});
-			this._signals.getItem('connected').set_state(false);
 			this._dispatch_event('connected', false);
 		} catch (e2) {
 			log.error('dispatching disconnected event went badly: '+e2);

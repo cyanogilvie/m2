@@ -193,9 +193,10 @@ namespace eval cmds {
 	namespace ensemble create
 
 	proc ports args {
-		foreach port [_sendcmd ports {*}$args] {
-			aside $port
-		}
+		aside [join [_sendcmd ports {*}$args] \n]
+		#foreach port [_sendcmd ports {*}$args] {
+		#	aside $port\n
+		#}
 	}
 
 	proc connect {{uri ""}} {

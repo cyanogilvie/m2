@@ -11,6 +11,7 @@ application "m2test_backend" { #<<<
 		sop
 		dsl
 		cflib
+		Thread
 	}
 
 	files {
@@ -41,6 +42,7 @@ application "m2test_frontend" { #<<<
 		sop
 		dsl
 		cflib
+		Thread
 	}
 
 	files {
