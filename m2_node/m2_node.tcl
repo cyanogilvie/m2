@@ -51,7 +51,7 @@ if {0} {
 		puts "Loaded $pkg $ver (faked as $fakever) from $latest"
 	}
 } else {
-	package require netdgram 0.9.3
+	package require netdgram 0.9.4
 	package require m2
 }
 package require cflib 1.8.2
