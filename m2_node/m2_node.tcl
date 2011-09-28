@@ -19,8 +19,41 @@ if {![info exists ::tcl::basekit]} {
 
 
 package require Tcl 8.6
-package require netdgram 0.6.1
-package require m2
+if {0} {
+	# Force load the checked out version of m2 and netdgram
+	proc find_latest {match base} {
+		set matches	{}
+		foreach fn [glob -nocomplain -type f [file join $base $match]] {
+			lappend matches [list [file mtime $fn] $fn]
+		}
+		lindex [lsort -index 0 -integer $matches] end 1
+	}
+
+	proc find_ver fn {
+		if {[regexp {.*-(.*).tm$} [file tail $fn] - ver]} {
+			set ver
+		} else {
+			error "Couldn't parse version from $fn"
+		}
+	}
+
+	foreach {pkg basedir fakever} {
+		netdgram		/home/cyan/git/tcl/netdgram/tm/tcl/	0.9.2
+		netdgram::tcp	/home/cyan/git/tcl/netdgram/tm/tcl/	0.9.2
+		m2				/home/cyan/git/m2/tm/tcl/			0.43.2
+	} {
+		set pname_match	[string map {:: /} $pkg]-*.tm
+		set latest		[find_latest $pname_match $basedir]
+		set ver			[find_ver $latest]
+		puts "Sourcing $latest"
+		source $latest
+		package provide $pkg $fakever
+		puts "Loaded $pkg $ver (faked as $fakever) from $latest"
+	}
+} else {
+	package require netdgram 0.9.3
+	package require m2
+}
 package require cflib 1.8.2
 package require logging
 package require evlog 0.3

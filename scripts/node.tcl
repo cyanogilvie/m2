@@ -342,7 +342,11 @@ oo::class create m2::node {
 
 	#>>>
 	method _accept_inbound_pre {con args} { #<<<
+		oo::objdefine $con method received dat {
+			log error "Received msg from con before the port was started properly: $dat (in thread: [thread::id])"
+		}
 		after idle [namespace code [list my _accept_inbound $con {*}$args]]
+		throw dont_activate {}	;# Prevent the netdgram listener code from activating this con until it's been teleported
 	}
 
 	#>>>
@@ -352,6 +356,7 @@ oo::class create m2::node {
 			set queue [m2::queue_fancy new]
 			$queue attach $con
 			m2::port new inbound [list -server [self]] $queue "" $args
+			m2::_activate $con
 		} else {
 			try {
 				set chosen_tid	[my _pick_thread]
