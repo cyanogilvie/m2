@@ -74,6 +74,9 @@ oo::class create m2::api {
 
 	#>>>
 	destructor { #<<<
+		if {[info exists connect_after_id] && $connect_after_id ne ""} {
+			after cancel $connect_after_id; set connect_after_id	""
+		}
 		my _close_con
 		my _destroy
 		if {[self next] ne ""} next

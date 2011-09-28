@@ -24,6 +24,7 @@ package require m2
 package require cflib 1.8.2
 package require logging
 package require evlog 0.3
+package require sop 1.5.1
 
 cflib::config create cfg $argv {
 	variable listen_on		{"tcp://:5300" "jssocket://:5301" "uds:///tmp/m2/5300.socket"}
