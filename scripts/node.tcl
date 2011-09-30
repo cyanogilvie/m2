@@ -372,6 +372,8 @@ oo::class create m2::node {
 			m2::port new inbound [list -server [self]] $queue $chosen_tid $args
 			if {$chosen_tid ne ""} {
 				thread::send $chosen_tid [list m2::_activate $con]
+			} else {
+				$con activate
 			}
 		}
 	}

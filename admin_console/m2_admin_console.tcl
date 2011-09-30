@@ -194,9 +194,6 @@ namespace eval cmds {
 
 	proc ports args {
 		aside [join [_sendcmd ports {*}$args] \n]
-		#foreach port [_sendcmd ports {*}$args] {
-		#	aside $port\n
-		#}
 	}
 
 	proc connect {{uri ""}} {
