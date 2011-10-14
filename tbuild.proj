@@ -1,4 +1,4 @@
-set version	0.43.5
+set version	0.43.6
 
 set summary "m2 messagebus node"
 
@@ -21,7 +21,7 @@ tm "m2" { #<<<
 		{cflib 1.13.0}
 		{sop 1.5.1}
 		{Tcl 8.6}
-		{netdgram 0.9.4}
+		{netdgram 0.9.8}
 		sha1
 		evlog
 	}
@@ -58,10 +58,10 @@ application "m2_node" { #<<<
 
 	requires {
 		m2
-		{netdgram 0.9.4}
-		{netdgram::tcp 0.9.4}
-		{netdgram::jssocket 0.9.4}
-		{netdgram::uds 0.9.4}
+		{netdgram 0.9.8}
+		{netdgram::tcp 0.9.8}
+		{netdgram::jssocket 0.9.8}
+		{netdgram::uds 0.9.8}
 		{sop 1.5.1}
 		{cflib 1.8.2}
 		dsl
