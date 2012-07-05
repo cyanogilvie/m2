@@ -28,6 +28,11 @@ cflib::pclass create m2::connector {
 				::tcl::mathop
 			}]
 		}
+		if {"::oo::Helpers::cflib" ni [namespace path]} {
+			namespace path [concat [namespace path] {
+				::oo::Helpers::cflib
+			}]
+		}
 
 		#set log_cmd	[my code log]	;# Let Refcounted log to us
 
@@ -354,18 +359,26 @@ cflib::pclass create m2::connector {
 	#>>>
 	method _authenticated_changed {newstate} { #<<<
 		if {$newstate} {
-			try {
-				#set pbkey	[crypto::rsa_load_public_key [$auth get_svc_pbkey $svc]]
-				set pbkey_asc	[$auth get_svc_pbkey $svc]
-				set pbkey		[crypto::rsa::load_asn1_pubkey_from_value $pbkey_asc]
-			} on error {errmsg options} {
-				log error "error fetching public key for ($svc):\n[dict get $options -errorinfo]"
-			} on ok {} {
-				$signals(got_svc_pbkey) set_state 1
-			}
+			auth get_svc_pbkey_async $svc [code _get_svc_pbkey_resp]
 		} else {
 			$signals(got_svc_pbkey) set_state 0
 			if {[info exists pbkey]} {unset pbkey}
+		}
+	}
+
+	#>>>
+	method _get_svc_pbkey_resp msg { #<<<
+		switch -exact -- [dict get $msg type] {
+			ack {
+				set pbkey_asc	[dict get $msg data]
+
+				set pbkey		[crypto::rsa::load_asn1_pubkey_from_value $pbkey_asc]
+				$signals(got_svc_pbkey) set_state 1
+			}
+
+			nack {
+				log error "error fetching public key for ($svc):\n[dict get $msg data]"
+			}
 		}
 	}
 

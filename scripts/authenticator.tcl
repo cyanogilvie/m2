@@ -250,6 +250,17 @@ oo::class create m2::authenticator {
 	}
 
 	#>>>
+	method get_svc_pbkey_async {svc cb} { #<<<
+		if {![$signals(authenticated) state]} {
+			error "Not authenticated yet"
+		}
+
+		my rsj_req [lindex $login_chan 0] [list "get_svc_pubkey" $svc] [list apply {
+			{cb msg} {coroutine coro_[incr ::coro_seq] {*}$cb $msg}
+		} $cb]
+	}
+
+	#>>>
 	method connect_svc {svc {objname ""}} { #<<<
 		if {$objname eq ""} {
 			uplevel 1 [list m2::connector new [self] $svc]
