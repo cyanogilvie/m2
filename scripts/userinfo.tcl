@@ -164,6 +164,7 @@ oo::class create m2::userinfo {
 
 	#>>>
 	method _setup_userinfo_chan_resp {msg} { #<<<
+		#?? {log debug "Got userinfo chan resp: ([dict get $msg data])\n[m2::msg::display $msg]"}
 		switch -- [dict get $msg type] {
 			ack { #<<<
 				#>>>

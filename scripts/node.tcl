@@ -307,6 +307,7 @@ oo::class create m2::node {
 		} on ok {con} {
 			if {$io_threads == 0} {
 				set queue	[m2::queue_fancy new]
+				#set queue	[m2::queue_fifo new]
 				$queue attach $con
 				set chosen_tid	""
 			} else {
@@ -315,6 +316,7 @@ oo::class create m2::node {
 					$con teleport $chosen_tid
 				} trap not_teleportable {} {
 					set queue	[m2::queue_fancy new]
+					#set queue	[m2::queue_fifo new]
 					$queue attach $con
 					set chosen_tid	""
 				} on ok {teleported_con} {
@@ -354,6 +356,7 @@ oo::class create m2::node {
 		?? {log debug "node::_accept_inbound: con: ($con) args: ($args)"}
 		if {$io_threads == 0} {
 			set queue [m2::queue_fancy new]
+			#set queue [m2::queue_fifo new]
 			$queue attach $con
 			m2::port new inbound [list -server [self]] $queue "" $args
 			m2::_activate $con
@@ -367,6 +370,7 @@ oo::class create m2::node {
 			} trap not_teleportable {} {
 				set chosen_tid	""
 				set queue [m2::queue_fancy new]
+				#set queue [m2::queue_fifo new]
 				$queue attach $con
 			}
 			m2::port new inbound [list -server [self]] $queue $chosen_tid $args

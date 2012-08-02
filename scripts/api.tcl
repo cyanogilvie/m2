@@ -221,6 +221,7 @@ oo::class create m2::api {
 		try {
 			set con	[netdgram::connect_uri $a_uri]
 			set queue	[m2::queue_fancy new]
+			#set queue	[m2::queue_fifo new]
 			$queue attach $con
 
 			oo::objdefine $queue forward closed {*}[code _connection_lost]
@@ -228,6 +229,9 @@ oo::class create m2::api {
 
 			$con activate
 		} on error {errmsg options} {
+			?? {
+				log error "Error connecting to $a_uri:\n[dict get $options -errorinfo]"
+			}
 			if {[info exists queue] && [info object is object $queue]} {
 				$queue destroy
 				unset queue
