@@ -6,6 +6,7 @@ m2.locks_client = function(params) { //<<<
 	this.heartbeat_afterid = null;
 	this.lock_jmid = null;
 	this.lock_prev_seq = null;
+	this.promise = null;
 
 	if (typeof params != 'undefined') {
 		if (typeof params.tag != 'undefined') {
@@ -56,20 +57,23 @@ m2.locks_client.prototype.signal_ref = function(name) { //<<<
 m2.locks_client.prototype.relock = function() { //<<<
 	var self;
 	if (this._signals.getItem('locked').state()) {
-		throw('Already have a lock');
+		log.warning('Already have a lock');
+		return;
 	}
+	this.promise = new m2.promise();
+	var promise = this.promise;
 	self = this;
 	try {
 		this.connector.req_async(this.tag, this.id, function(msg) {
-				self._lock_cb(msg);
+			self._lock_cb(promise, msg);
 		});
 	} catch(e) {
 		this._signals.getItem('locked').set_state('false');
 		log.error('lock failed, could not get a lock - returned error '+e);
 	}
-	this._signals.getItem('locked').set_state('true');
 
 	//TODO : setup heartbeat
+	return promise;
 };
 
 //>>>
@@ -109,7 +113,7 @@ m2.locks_client.prototype._lock_jm_update = function(data) { //<<<
 };
 
 //>>>
-m2.locks_client.prototype._lock_cb = function(msg) { //<<<
+m2.locks_client.prototype._lock_cb = function(promise, msg) { //<<<
 	var jmid;
 
 	jmid = msg.seq;
@@ -122,6 +126,7 @@ m2.locks_client.prototype._lock_cb = function(msg) { //<<<
 			this.lock_jmid = msg.seq;
 			this.lock_prev_seq = msg.prev_seq;
 			this._signals.getItem('locked').set_state(true);
+			promise.resolve(this);
 			break;
 		case 'jm':
 			this._lock_jm_update(msg.data);
@@ -141,8 +146,16 @@ m2.locks_client.prototype._lock_cb = function(msg) { //<<<
 				log.error('Unknown jmid cancelled: ('+jmid+')');
 			}
 			break;
+		case 'ack':
+			break;
+		case 'nack':
+			// lock failed
+			log.warning('lock failed: '+msg.data);
+			this._signals.getItem('locked').set_state(false);
+			promise.reject(msg.data);
+			break;
 		default:
-			log.error('Unexpected type: '+msg.type);
+			log.error('Unexpected lock cb type: '+msg.type);
 			break;
 	}
 };

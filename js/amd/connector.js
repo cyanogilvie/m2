@@ -3,13 +3,15 @@
 
 define([
 	'dojo/_base/declare',
-	'cf/sop/signalsource',
-	'cf/sop/signal',
-	'cf/sop/gate',
-	'cf/sop/domino',
-	'cf/log',
-	'cf/cfcrypto/cfcrypto',
-	'cf/tcllist/tcllist'
+	'sop/signalsource',
+	'sop/signal',
+	'sop/gate',
+	'sop/domino',
+	'cflib/log',
+	'cfcrypto/csprng',
+	'cfcrypto/crypto',
+	'cfcrypto/blowfish',
+	'tcl/list'
 ], function(
 	declare,
 	Signalsource,
@@ -17,7 +19,9 @@ define([
 	Gate,
 	Domino,
 	log,
-	cfcrypto,
+	csprng,
+	rsa,
+	Blowfish,
 	tcllist
 ){
 "use strict";
@@ -34,11 +38,14 @@ return declare([Signalsource], {
 	_signal_hooks: null,
 
 	constructor: function() {
+		var self = this;
+
 		if (this.auth === null) {
-			throw new Error('Must supply auth');
+			console.log('connector constructor this: arguments:', arguments,', ', this);
+			throw new Error('connector: Must supply auth');
 		}
 		if (this.svc === null) {
-			throw new Error('Must supply svc');
+			throw new Error('connector: Must supply svc');
 		}
 
 		this._signals.available = this.auth.svc_signal(this.svc);
@@ -54,9 +61,15 @@ return declare([Signalsource], {
 		this._signals.connect_ready.attach_input(this._signals.available);
 
 		this._signal_hooks = {};
-		this._signal_hooks.authenticated_changed = this.auth.signal_ref('authenticated').attach_output(this._authenticated_changed);
-		this.dominos.need_reconnect.attach_output(this._reconnect);
-		this._signals.connect_ready.attach_output(this._connect_ready_changed);
+		this._signal_hooks.authenticated_changed = this.auth.signal_ref('authenticated').attach_output(function(newstate){
+			self._authenticated_changed(newstate);
+		});
+		this.dominos.need_reconnect.attach_output(function(){
+			self._reconnect();
+		});
+		this._signals.connect_ready.attach_output(function(newstate){
+			self._connect_ready_changed(newstate);
+		});
 	},
 
 	destroy: function() {
@@ -111,14 +124,12 @@ return declare([Signalsource], {
 	},
 
 	_reconnect: function() {
-		var csprng, skey, cookie, n, e, msg, ks, iv, tail, self;
+		var skey, cookie, n, e, msg, ks, iv, tail, self;
 
 		log.debug('reconnecting to '+this.svc);
 		if (this._signals.connected.state()) {
 			this.disconnect();
 		}
-
-		csprng = new cfcrypto.csprng();
 
 		skey = this.auth.generate_key();
 		cookie = csprng.getbytes(8);
@@ -127,10 +138,10 @@ return declare([Signalsource], {
 		e = this._pbkey.e;
 		//log.debug('n bitlength: '+n.bitLength());
 		//log.debug('Encrypting session key with n: '+n.toString(16)+', e: '+e.toString(16));
-		msg = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, skey, "");
+		msg = rsa.RSAES_OAEP_Encrypt(n, e, skey, "");
 		//log.debug('skey base64: '+Base64.encode(skey));
 		//log.debug('reconnect msg length: '+msg.length+' base64 e_skey: '+Base64.encode(msg));
-		ks = new cfcrypto.blowfish(skey);
+		ks = new Blowfish(skey);
 		iv = csprng.getbytes(8);
 		tail = ks.encrypt_cbc(tcllist.array2list([cookie, this.auth.fqun(), iv]), iv);
 		this._skey = skey;
@@ -233,12 +244,12 @@ return declare([Signalsource], {
 					//log.debug('got public key ascii format for ('+self.svc+'), loading into key ...');
 					try {
 						//log.debug('Attempting to extract public key from: '+self._pbkey_asc);
-						self._pbkey = cfcrypto.rsa.load_asn1_pubkey_from_value(self._pbkey_asc);
+						self._pbkey = rsa.load_asn1_pubkey_from_value(self._pbkey_asc);
 						//log.debug('got public key for ('+self.svc+')');
 						//log.debug('self._pbkey: ', self._pbkey);
 						self._signals.got_svc_pbkey.set_state(true);
 					} catch(e) {
-						log.error('error decoding public key for ('+self.svc+'): '+e);
+						log.error('error decoding public key for ('+self.svc+'): '+e+'\n'+e.stack);
 					}
 				} else {
 					log.error('error fetching public key for ('+self.svc+'): '+data);

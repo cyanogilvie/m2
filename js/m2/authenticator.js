@@ -480,7 +480,7 @@ m2.authenticator.prototype.perm = function(perm) { //<<<
 	if (!this._signals.getItem('got_perms').state()) {
 		throw('Haven\'t received perms yet');
 	}
-	return this.perms.hashItem(perm);
+	return this.perms.hasItem(perm);
 };
 
 //>>>

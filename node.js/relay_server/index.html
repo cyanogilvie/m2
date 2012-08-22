@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>socket.io test</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="cpm/dojo/resources/dojo.css">
+		<link rel="stylesheet" type="text/css" href="cpm/dijit/themes/claro/claro.css">
+		<style type="text/css">
+			BODY {
+				padding: 8px;
+			}
+
+			#responses {
+				margin-top: 25px;
+				border: 1px solid #aaa;
+				padding: 2px;
+			}
+
+			#responses DIV {
+				margin: 5px;
+				border-width: 1px solid #d0d0ee;
+				background: #f0f0ff;
+				padding: 4px;
+				padding-left: 8px;
+				padding-right: 8px;
+				border-radius: 6px;
+				display: inline-block;
+			}
+		</style>
+		<script>
+			var dojoConfig = {
+				locale: 'en',
+				async: true,
+				parseOnLoad: true
+			};
+		</script>
+		<script src="cpm/dojo/dojo.js"></script>
+		<script src="http://localhost:5302/socket.io/socket.io.js"></script>
+		<script>
+		</script>
+		<script>
+			require([
+				'dijit/form/Form',
+				'dijit/form/Textarea',
+				'dijit/form/Button',
+				'dojo/on',
+				'dojo/dom-construct',
+				'dojo/domReady!'
+			], function(
+				Form,
+				Textarea,
+				Button,
+				on,
+				domConstruct
+			) {
+				var f = new Form({});
+				domConstruct.place(f.domNode, 'form');
+				f.startup();
+
+				domConstruct.create('span', {
+					innerHTML: 'Say: '
+				}, f.domNode);
+
+				var e = new Textarea({
+					name: 'msg'
+				});
+				domConstruct.place(e.domNode, f.domNode);
+	  			e.startup();
+
+				var b = new Button({
+					label: 'Send',
+					type: 'submit'
+				});
+				domConstruct.place(b.domNode, f.domNode);
+				b.startup();
+
+				var socket = io.connect('http://localhost:5302');
+
+				on(f, 'Submit', function(e){
+					console.log('form submit: ', f.get('value'));
+					socket.send(f.get('value').msg);
+					f.set('value', {msg: ''});
+					e.preventDefault();
+				});
+
+				socket.on('message', function(data){
+					console.log('Got data: ', data);
+					domConstruct.create('pre', {
+						innerHTML: data
+					}, 'responses');
+					domConstruct.create('br', {}, 'responses');
+				});
+			});
+		</script>
+	</head>
+	<body class="claro">
+		<div id="form"></div>
+		<h2>Responses:</h2>
+		<div id="responses"></div>
+	</body>
+</html>

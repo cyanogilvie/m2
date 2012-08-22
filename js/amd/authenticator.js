@@ -4,20 +4,26 @@
 define([
 	'dojo/_base/declare',
 	'./m2',
-	'cf/sop/signal',
-	'cf/sop/gate',
-	'cf/log',
-	'cf/jsbn/BigInteger',
-	'cf/cfcrypto/cfcrypto',
-	'cf/tcllist/tcllist'
+	'./connector',
+	'sop/signal',
+	'sop/gate',
+	'cflib/log',
+	'dojox/math/BigInteger',
+	'cfcrypto/crypto',
+	'cfcrypto/csprng',
+	'tcl/list',
+
+	'dojox/math/BigInteger-ext'
 ], function(
 	declare,
 	m2,
+	connector,
 	Signal,
 	Gate,
 	log,
 	BigInteger,
-	cfcrypto,
+	rsa,
+	csprng,
 	tcllist
 ){
 "use strict";
@@ -35,9 +41,7 @@ return declare([m2], {
 		if (!this.pbkey) {
 			throw new Error('Must supply pbkey');
 		}
-	},
 
-	destructor: function(){
 		var self;
 		self = this;
 
@@ -145,7 +149,7 @@ return declare([m2], {
 					self._fqun = username;
 					log.debug('Logged in ok, generating key');
 					before = new Date();
-					K = cfcrypto.rsa.RSAKG(512, 0x10001);
+					K = rsa.RSAKG(512, 0x10001);
 					after = new Date();
 					log.debug('512 bit key generation time: '+(after-before)+'ms');
 					pbkey = [
@@ -192,7 +196,7 @@ return declare([m2], {
 										log.debug('jm(session_pbkey_chan): got notifiction to renew session keypair');
 										log.debug('jm(session_pbkey_chan): generating keypair');
 										before = new Date();
-										K = cfcrypto.rsa.RSAKG(512, 0x10001, 16);
+										K = rsa.RSAKG(512, 0x10001, 16);
 										after = new Date();
 										log.debug('512 bit key generation time: '+(after-before)+'ms');
 										pbkey = [
@@ -397,11 +401,11 @@ return declare([m2], {
 	},
 
 	connect_svc: function(svc) {
-		return new m2.connector(this, svc);
+		return new connector({auth: this, svc: svc});
 	},
 
 	decrypt_with_session_prkey: function(data) {
-		return cfcrypto.rsa.RSAES_OAEP_Decrypt(this.session_prkey, data, '');
+		return rsa.RSAES_OAEP_Decrypt(this.session_prkey, data, '');
 	},
 
 	fqun: function() {
@@ -564,11 +568,9 @@ return declare([m2], {
 	},
 
 	generate_key: function(bytes) {
-		var csprng;
 		if (bytes === undefined) {
 			bytes = 56;
 		}
-		csprng = new cfcrypto.csprng();
 		return csprng.getbytes(bytes);
 	},
 
@@ -579,8 +581,8 @@ return declare([m2], {
 
 		n = this._pubkey.n;
 		e = this._pubkey.e;
-		e_key = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, this._keys.main, "");
-		e_cookie = cfcrypto.rsa.RSAES_OAEP_Encrypt(n, e, pending_cookie, "");
+		e_key = rsa.RSAES_OAEP_Encrypt(n, e, this._keys.main, "");
+		e_cookie = rsa.RSAES_OAEP_Encrypt(n, e, pending_cookie, "");
 
 		self = this;
 		tmp = tcllist.array2list(['crypt_setup', e_key, e_cookie]);

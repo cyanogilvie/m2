@@ -3,13 +3,12 @@
 
 define([
 	'dojo/_base/declare',
-	'cf/sop/signalsource',
-	'cf/sop/signal',
-	'cf/sop/gate',
-	'cf/sop/domino',
-	'cf/log',
-	'cf/cfcrypto/cfcrypto',
-	'cf/tcllist/tcllist',
+	'sop/signalsource',
+	'sop/signal',
+	'sop/gate',
+	'sop/domino',
+	'cflib/log',
+	'tcl/list',
 	'./promise',
 ], function(
 	declare,
@@ -18,7 +17,6 @@ define([
 	Gate,
 	Domino,
 	log,
-	cfcrypto,
 	tcllist,
 	Promise
 ){
@@ -33,7 +31,7 @@ return declare([Signalsource], {
 	_heartbeat_afterid: null,
 	_lock_jmid: null,
 	_lock_prev_seq: null,
-	_promise: null;
+	_promise: null,
 
 	constructor: function(){
 		if (this.tag === null) {

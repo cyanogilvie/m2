@@ -1,26 +1,26 @@
-/*global define */
+/*global define, io */
 /*jslint nomen: true, plusplus: true, white: true, browser: true, node: true, newcap: true, continue: true */
 
 define([
 	'dojo/_base/declare',
-	'cf/sop/signalsource',
-	'cf/sop/signal',
-	'cf/log',
-	'cf/jsSocket',
-	'cf/webtoolkit/utf8',
-	'cf/webtoolkit/base64',
-	'cf/cfcrypto/cfcrypto',
-	'cf/tcllist/tcllist',
-	'cf/evlog/evlog'
+	'sop/signalsource',
+	'sop/signal',
+	'cflib/log',
+	'webtoolkit/utf8',
+	'webtoolkit/base64',
+	'cfcrypto/csprng',
+	'cfcrypto/blowfish',
+	'tcl/list',
+	'evlog/evlog'
 ], function(
 	declare,
 	Signalsource,
 	Signal,
 	log,
-	jsSocket,
 	Utf8,
 	Base64,
-	cfcrypto,
+	csprng,
+	Blowfish,
 	tcllist,
 	evlog
 ){
@@ -38,7 +38,6 @@ return declare([Signalsource], {
 	_jm: null,
 	_jm_prev_seq: null,
 	_socket: null,
-	_signals: null,
 	_svcs: null,
 	_svc_signals: null,
 	_defrag_buf: null,
@@ -55,7 +54,7 @@ return declare([Signalsource], {
 			this.host = window.location.hostname;
 		}
 		if (!this.port) {
-			this.port = 5301;
+			this.port = 5302;
 		}
 
 		this._handlers = {};
@@ -64,7 +63,6 @@ return declare([Signalsource], {
 		this._ack_pend = {};
 		this._jm = {};
 		this._jm_prev_seq = {};
-		this._signals = {};
 		this._svcs = {};
 		this._svc_signals = {};
 		this._defrag_buf = {};
@@ -92,16 +90,16 @@ return declare([Signalsource], {
 		log.debug('attempting to connect to m2_node on ('+this.host+') ('+this.port+')');
 		this._signals.connected = new Signal({name: 'connected'});
 
-		this._socket = new jsSocket({
-			host: this.host,
-			port: this.port
-		});
+		this._socket = new io.connect('http://'+this.host+':'+this.port);
 
-		this._socket.received = function(data) {
+		this._socket.on('message', function(data){
 			self._receive_raw(data);
-		};
-		this._socket.signals.connected.attach_output(function(newstate) {
-			self._socket_connected_changed(newstate);
+		});
+		this._socket.on('connect', function(){
+			self._socket_connected_changed(true);
+		});
+		this._socket.on('disconnect', function(data){
+			self._socket_connected_changed(false);
 		});
 	},
 
@@ -144,7 +142,6 @@ return declare([Signalsource], {
 			data:	data
 		});
 
-		window.udata = Utf8.encode(data);
 		this._pending[seq] = cb;
 		this._ack_pend[seq] = 1;
 		this._jm[seq] = 0;
@@ -223,13 +220,12 @@ return declare([Signalsource], {
 	},
 
 	encrypt: function(key, data) {
-		var ks, iv, csprng;
+		var ks, iv;
 
 		if (this._key_schedules[key] === undefined) {
-			this._key_schedules[key] = new cfcrypto.blowfish(key);
+			this._key_schedules[key] = new Blowfish(key);
 		}
 		ks = this._key_schedules[key];
-		csprng = new cfcrypto.csprng();
 		iv = csprng.getbytes(8);
 
 		return iv+ks.encrypt_cbc(data, iv);
@@ -239,7 +235,7 @@ return declare([Signalsource], {
 		var ks, iv, rest;
 
 		if (this._key_schedules[key] === undefined) {
-			this._key_schedules[key] = new cfcrypto.blowfish(key);
+			this._key_schedules[key] = new Blowfish(key);
 		}
 		ks = this._key_schedules[key];
 		iv = data.substr(0, 8);
@@ -286,7 +282,7 @@ return declare([Signalsource], {
 		}
 		pre_raw = msg_raw.substr(0, lineend);
 		pre = tcllist.list2array(pre_raw);
-		fmt = pre[0];
+		fmt = Number(pre[0]);
 		if (fmt !== 1) {
 			throw new Error('Cannot parse m2 message serialization format: ('+fmt+')');
 		}
@@ -311,6 +307,7 @@ return declare([Signalsource], {
 			meta:		hdr[4],
 			oob_type:	hdr[5],
 			oob_data:	hdr[6],
+			//data:		Utf8.decode(data)
 			data:		data
 		};
 		this._got_msg(msg);
@@ -405,7 +402,8 @@ return declare([Signalsource], {
 						//log.debug('Calling callback with: ', msgcopy);
 						cb(msgcopy);
 					} catch (e) {
-						log.error('error calling callback for response type: '+msg.type+': '+e);
+						log.error('error calling callback for response type: '+msg.type+': '+e+'\n'+e.stack);
+						setTimeout(function(){throw e;}, 0);
 					}
 				} else {
 					log.error('No callback registered for prev_seq: '+prev_seq);
@@ -560,7 +558,7 @@ return declare([Signalsource], {
 	},
 
 	_serialize_msg: function(msg) {
-		var hdr, sdata, udata;
+		var hdr, sdata;
 
 		hdr = tcllist.array2list([
 			msg.svc,
@@ -571,16 +569,12 @@ return declare([Signalsource], {
 			msg.oob_type,
 			msg.oob_data
 		]);
-		//log.debug('serialized msg hdr: ('+hdr+'), msg.seq: ('+msg.seq+')');
-		udata = Utf8.encode(msg.data);
-		//udata = msg.data;
-		//window.udata = udata;
 		sdata = tcllist.array2list([
 			'1',
 			hdr.length,
-			udata.length
+			msg.data.length
 		]);
-		sdata += '\n' + hdr + udata;
+		sdata += '\n' + hdr + msg.data;
 
 		return sdata;
 	},
@@ -591,7 +585,7 @@ return declare([Signalsource], {
 		//console.log('Got request to send msg: ', msg);
 		this._set_default_msg_fields(msg);
 		sdata = this._serialize_msg(msg);
-		this._enqueue(sdata, msg);
+		this._enqueue(Utf8.encode(sdata), msg);
 	},
 
 	_receive_fragment: function(msgid, is_tail, frag) {
@@ -614,13 +608,10 @@ return declare([Signalsource], {
 	},
 
 	_receive_raw: function(packet) {
-		//packet = Utf8.decode(packet_base64);
 		//log.debug('_queue_receive_raw: ('+packet+')');
 		var lineend, head, msgid, is_tail, fragment_len, frag, rest;
-		rest = packet;
-		//log.debug('packet.length: '+packet.length);
+		rest = Base64.decode(packet);
 		while (rest.length > 0) {
-			//log.debug('rest.length: '+rest.length);
 			lineend = rest.indexOf("\n");
 			if (lineend === -1) {
 				throw new Error('corrupt fragment header: '+rest);
@@ -633,6 +624,7 @@ return declare([Signalsource], {
 			frag = rest.substr(lineend + 1, fragment_len);
 			//log.debug('fragment_len: '+fragment_len+', frag.length: '+frag.length);
 			if (fragment_len !== frag.length) {
+				debugger;
 				throw new Error('Fragment length mismatch: expecting '+fragment_len+', got: '+frag.length);
 			}
 			//rest = rest.substr(lineend + 1 + fragment_len);
@@ -643,19 +635,6 @@ return declare([Signalsource], {
 
 	_enqueue: function(sdata, msg) {
 		var msgid, payload;
-		/* ----- Queueing requires that we get writable notifications -----
-		var target, msgid, target_queue;
-
-		target = this.assign(msg);
-		msgid = this._msgid_seq++;
-		if (this._queues[target] === undefined) {
-			target_queue = [];
-		} else {
-			target_queue = this._queues[target];
-		}
-		target_queue.push([msgid, sdata]);
-		this._queues[target] = target_queue;
-		*/
 
 		/*
 		log.debug('sending msg:');
@@ -672,8 +651,7 @@ return declare([Signalsource], {
 		msgid = this._msgid_seq++;
 
 		payload = String(msgid)+' 1 '+sdata.length+'\n'+sdata;
-		//payload = Utf8.encode(String(msgid)+'\n'+sdata);
-		this._socket.send(payload);
+		this._socket.send(Base64.encode(payload));
 
 		evlog.event('m2.queue_msg', tcllist.array2list([
 			'to', this.host+':'+this.port,
@@ -701,7 +679,7 @@ return declare([Signalsource], {
 			log.warning('server closed connection');
 			try {
 				//log.debug('API setting connected to false');
-				this._signalsconnected.set_state(false);
+				this._signals.connected.set_state(false);
 				for (e in this._svc_signals) {
 					if (this._svc_signals.hasOwnProperty(e)) {
 						this._svc_signals[e].sig.set_state(false);
