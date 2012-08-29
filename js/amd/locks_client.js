@@ -1,12 +1,10 @@
 /*global define */
-/*jslint nomen: true, plusplus: true, white: true, browser: true, node: true, newcap: true, continue: true */
+/*jslint nomen: true, plusplus: true, white: true, browser: true, node: true, newcap: true, continue: true, unparam: true */
 
 define([
 	'dojo/_base/declare',
 	'sop/signalsource',
 	'sop/signal',
-	'sop/gate',
-	'sop/domino',
 	'cflib/log',
 	'tcl/list',
 	'./promise'
@@ -14,8 +12,6 @@ define([
 	declare,
 	Signalsource,
 	Signal,
-	Gate,
-	Domino,
 	log,
 	tcllist,
 	Promise
@@ -59,7 +55,7 @@ return declare([Signalsource], {
 	relock: function() {
 		var self, promise;
 
-		var promise = this.promise = new Promise();
+		promise = this.promise = new Promise();
 
 		if (this._signals.locked.state()) {
 			return;
@@ -132,7 +128,7 @@ return declare([Signalsource], {
 			case 'ack':
 				break;
 			case 'jm_can':
-				if (this._lock_jmid !== null && jmid == this._lock_jmid) {
+				if (this._lock_jmid !== null && jmid === this._lock_jmid) {
 					this._lock_jmid = null;
 					this._lock_prev_seq = null;
 					this._signals.locked.set_state(false);
