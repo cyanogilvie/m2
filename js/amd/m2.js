@@ -363,7 +363,7 @@ return declare([Signalsource], {
 					try {
 						cb(msg, prev_seq);
 					} catch(e) {
-						log.error('error calling callback for jm_can: '+e);
+						log.error('error calling callback for jm_can: '+e+'\n'+e.stack);
 					}
 				}
 			}
