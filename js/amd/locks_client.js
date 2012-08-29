@@ -9,7 +9,7 @@ define([
 	'sop/domino',
 	'cflib/log',
 	'tcl/list',
-	'./promise',
+	'./promise'
 ], function(
 	declare,
 	Signalsource,
