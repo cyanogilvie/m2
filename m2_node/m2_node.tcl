@@ -54,7 +54,7 @@ if {0} {
 	package require netdgram 0.9.10
 	package require m2
 }
-package require cflib 1.8.2
+package require cflib 1.14.0
 package require logging
 package require evlog 0.3
 package require sop 1.5.1
@@ -82,6 +82,8 @@ if {[cfg get debug]} {
 } else {
 	proc ?? args {}
 }
+
+cflib::termtitle "m2_node"
 
 interp bgerror {} [list apply {
 	{errmsg options} {

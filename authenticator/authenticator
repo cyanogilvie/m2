@@ -28,7 +28,7 @@ proc mungekey {args} {}
 
 set here	[file dirname [file normalize [info script]]]
 
-package require cflib 1.8.2
+package require cflib 1.14.0
 
 cflib::config create cfg $argv {
 	variable uri				tcp://localhost:5300
@@ -66,6 +66,7 @@ if {[cfg get debug]} {
 	proc ?? {args} {}
 }
 
+cflib::termtitle "Authenticator"
 
 source [file join $here crypto.tcl]
 source [file join $here users.tcl]
