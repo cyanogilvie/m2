@@ -52,7 +52,7 @@ if {0} {
 	}
 } else {
 	package require netdgram 0.9.10
-	package require m2
+	package require m2 0.43.9
 }
 package require cflib 1.14.0
 package require logging
