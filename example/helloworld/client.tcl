@@ -1,8 +1,8 @@
 package require m2
 
-m2::api2 create m2 -uri tcp://localhost
+m2::api2 create m2 -uri tcp://
 
-proc resp {msg} {
+proc resp msg {
 	if {[dict get $msg type] ne "ack"} {
 		puts stderr "Request failed: [dict get $msg data]"
 		exit 1

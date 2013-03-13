@@ -7,7 +7,7 @@ proc handle_helloworld {seq data} {
 }
 
 [m2 signal_ref connected] attach_output [list apply {
-	{newstate} {
+	newstate {
 		if {$newstate} {
 			m2 handle_svc helloworld handle_helloworld
 		} else {
