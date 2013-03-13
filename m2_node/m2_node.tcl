@@ -1,8 +1,7 @@
-#!/usr/bin/env tclsh8.6
-
+#!/usr/bin/env cfkit8.6
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-if {![info exists ::tcl::basekit]} {
+if {[file system [info script]] eq "native"} {
 	package require platform
 
 	foreach platform [platform::patterns [platform::identify]] {
@@ -16,7 +15,6 @@ if {![info exists ::tcl::basekit]} {
 		}
 	}
 }
-
 
 package require Tcl 8.6
 if {0} {
