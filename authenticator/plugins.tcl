@@ -201,7 +201,7 @@ oo::class create Plugins {
 					"No plugin registered for \"$plugin_name\""
 		}
 
-		return $fq
+		set fq
 	}
 
 	#>>>

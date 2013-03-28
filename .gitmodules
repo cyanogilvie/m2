@@ -1,0 +1,3 @@
+[submodule "js/amd"]
+	path = js/amd
+	url = lancre:/var/git/js/amd/m2

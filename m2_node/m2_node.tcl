@@ -1,8 +1,7 @@
-#!/usr/bin/env tclsh8.6
-
+#!/usr/bin/env cfkit8.6
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-if {![info exists ::tcl::basekit]} {
+if {[file system [info script]] eq "native"} {
 	package require platform
 
 	foreach platform [platform::patterns [platform::identify]] {
@@ -16,7 +15,6 @@ if {![info exists ::tcl::basekit]} {
 		}
 	}
 }
-
 
 package require Tcl 8.6
 if {0} {
@@ -52,9 +50,9 @@ if {0} {
 	}
 } else {
 	package require netdgram 0.9.10
-	package require m2
+	package require m2 0.43.9
 }
-package require cflib 1.8.2
+package require cflib 1.14.0
 package require logging
 package require evlog 0.3
 package require sop 1.5.1
@@ -82,6 +80,8 @@ if {[cfg get debug]} {
 } else {
 	proc ?? args {}
 }
+
+cflib::termtitle "m2_node"
 
 interp bgerror {} [list apply {
 	{errmsg options} {

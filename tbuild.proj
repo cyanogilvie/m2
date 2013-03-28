@@ -98,6 +98,13 @@ application "m2_node" { #<<<
 		}
 	}
 
+	platform macosx10.7-x86_64 {
+		requires {
+			unix_sockets
+			hash
+		}
+	}
+
 	platform tcl
 }
 
@@ -169,6 +176,13 @@ application "authenticatord" { #<<<
 		}
 	}
 
+	platform macosx10.7-x86_64 {
+		requires {
+			sqlite3
+			unix_sockets
+			hash
+		}
+	}
 }
 
 #>>>

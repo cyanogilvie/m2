@@ -759,9 +759,9 @@ oo::class create m2::port {
 									set allowed	1
 									break
 								}
-							} [list $svcs]
+							}
 						}
-					}
+					} [list $svcs]]
 				}
 				{^allow_out\((.*?)\)$} {
 					set svcs	[split [lindex $matches 1] ,]
