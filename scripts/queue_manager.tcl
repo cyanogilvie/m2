@@ -31,7 +31,7 @@ oo::class create m2::queue_fancy { #<<<
 	method assign {rawmsg type seq prev_seq} { #<<<
 		try {
 			switch -exact -- $type {
-				rsj_req - req - jm - jm_can {set seq}
+				req - jm - jm_can {set seq}
 
 				pr_jm {
 					?? {log debug "Flagging pending $seq $prev_seq"}
