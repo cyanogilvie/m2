@@ -359,7 +359,7 @@ cflib::pclass create m2::connector {
 	#>>>
 	method _authenticated_changed {newstate} { #<<<
 		if {$newstate} {
-			auth get_svc_pbkey_async $svc [code _get_svc_pbkey_resp]
+			$auth get_svc_pbkey_async $svc [code _get_svc_pbkey_resp]
 		} else {
 			$signals(got_svc_pbkey) set_state 0
 			if {[info exists pbkey]} {unset pbkey}
