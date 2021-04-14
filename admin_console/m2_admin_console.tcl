@@ -184,12 +184,9 @@ proc _sendcmd args { #<<<
 		log error "Not connected"
 	}
 	set myseq	[incr cmdseq]
-	puts stderr foo
 	$con send [list cmd $myseq {*}$args]
 	set waiting($myseq) [info coroutine]
-	puts stderr bar
 	lassign [yield] options res
-	puts stderr baz
 	return -options $options $res
 }
 
@@ -198,10 +195,6 @@ proc _sendcmd args { #<<<
 namespace eval cmds {
 	namespace export *
 	namespace ensemble create
-
-	proc test args {
-		aside "got test: $args"
-	}
 
 	proc ports args {
 		aside [join [_sendcmd ports {*}$args] \n]
