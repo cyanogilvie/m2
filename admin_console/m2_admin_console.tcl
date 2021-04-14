@@ -1,6 +1,8 @@
 #!/usr/bin/env tclsh8.6
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
+after 2000
+
 if {[file system [info script]] eq "native"} {
 	package require platform
 
@@ -16,10 +18,12 @@ if {[file system [info script]] eq "native"} {
 	}
 }
 
-package require tclreadline
 package require cflib
 package require logging 0.3
 package require netdgram
+
+set here	[file dirname [file normalize [info script]]]
+source [file join $here tclreadline-1.1.tm]
 
 cflib::config create cfg $argv {
 	variable debug		0
@@ -80,7 +84,7 @@ proc aside_log {level msg} { #<<<
 		LOG_DEBUG -
 		trivia -
 		debug	{
-			set cols	{bright black}
+			set cols	{yellow}
 		}
 
 		notify -
@@ -180,9 +184,12 @@ proc _sendcmd args { #<<<
 		log error "Not connected"
 	}
 	set myseq	[incr cmdseq]
+	puts stderr foo
 	$con send [list cmd $myseq {*}$args]
 	set waiting($myseq) [info coroutine]
+	puts stderr bar
 	lassign [yield] options res
+	puts stderr baz
 	return -options $options $res
 }
 
@@ -191,6 +198,10 @@ proc _sendcmd args { #<<<
 namespace eval cmds {
 	namespace export *
 	namespace ensemble create
+
+	proc test args {
+		aside "got test: $args"
+	}
 
 	proc ports args {
 		aside [join [_sendcmd ports {*}$args] \n]
