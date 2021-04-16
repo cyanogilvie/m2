@@ -1,8 +1,6 @@
 #!/usr/bin/env tclsh8.6
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-after 2000
-
 if {[file system [info script]] eq "native"} {
 	package require platform
 

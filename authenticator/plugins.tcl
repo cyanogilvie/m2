@@ -122,7 +122,7 @@ oo::class create Plugins {
 		$slave alias log log
 		$slave eval [format {
 			set argv	{}
-			load {} trofs
+			catch {load {} trofs}
 			set ::auto_path	%s
 			tcl::tm::path add %s
 		} [list $::auto_path] [tcl::tm::path list]]
