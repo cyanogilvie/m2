@@ -225,8 +225,10 @@ oo::class create m2::api2 {
 				try {
 					dict set outstanding_reqs $m_seq	$msg
 					# FIXME: this leaks session_keys (not unset on ack/nack)
-					dict set session_keys $m_prev_seq	[dict get $jm_keys $m_prev_seq]
-					my register_pending_encrypted $m_seq $m_prev_seq
+					if {[dict exists $jm_keys $m_prev_seq]} {
+						dict set session_keys $m_prev_seq	[dict get $jm_keys $m_prev_seq]
+						my register_pending_encrypted $m_seq $m_prev_seq
+					}
 					if {![dict exists $jm_prev_seq $m_prev_seq]} {
 						error "Cannot find jm_prev_seq($m_prev_seq)"
 					}
@@ -242,11 +244,9 @@ oo::class create m2::api2 {
 						#log debug "no handler for seq: ($m_seq), prev_seq: ($m_prev_seq)"
 					}
 				} on error {errmsg options} {
-					default {
-						log error "error processing jm_req: $errmsg\n[dict get $options -errorinfo]"
-						if {![my answered $m_seq]} {
-							my nack $m_seq "internal error"
-						}
+					log error "error processing jm_req: $errmsg\n[dict get $options -errorinfo]"
+					if {![my answered $m_seq]} {
+						my nack $m_seq "internal error"
 					}
 				}
 				#>>>
