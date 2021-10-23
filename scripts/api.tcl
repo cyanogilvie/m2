@@ -29,6 +29,8 @@ oo::class create m2::api {
 	constructor args { #<<<
 		my _init_props $args
 
+		if {[llength [info commands log]] == 0} {proc log {lvl msg} {puts stderr $msg}}
+
 		if {[self next] ne ""} next
 
 		set unique					0
