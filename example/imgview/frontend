@@ -2,7 +2,7 @@
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-package require Tcl 8.6
+package require Tcl 8.6-
 
 tcl::tm::path add [file normalize [file join [file dirname [info script]] .. .. tm]]
 package require m2

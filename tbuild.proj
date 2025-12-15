@@ -20,7 +20,7 @@ tm "m2" { #<<<
 	requires {
 		{cflib 1.13.0}
 		{sop 1.5.1}
-		{Tcl 8.6}
+		{Tcl 8.6-}
 		{netdgram 0.9.10}
 		sha1
 		evlog

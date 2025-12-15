@@ -16,7 +16,7 @@ if {[file system [info script]] eq "native"} {
 	}
 }
 
-package require Tcl 8.6
+package require Tcl 8.6-
 if {0} {
 	# Force load the checked out version of m2 and netdgram
 	proc find_latest {match base} {

@@ -2,7 +2,7 @@
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
 
-package require Tcl 8.6
+package require Tcl 8.6-
 
 package provide netdgram::tcp 0.1
 package require m2
