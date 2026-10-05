@@ -30,8 +30,8 @@ oo::class create Crypto {
 			lassign $data e_key e_cookie
 
 			set K	[dict with priv_key {list $p $q $dP $dQ $qInv}]
-			set hash	$crypto::rsa::sha1
-			set mgf		$crypto::rsa::MGF
+			set hash	$::crypto::rsa::sha1
+			set mgf		$::crypto::rsa::MGF
 			try {
 				crypto::rsa::RSAES-OAEP-Decrypt $K $e_key {} $hash $mgf
 			} on error {errmsg options} {

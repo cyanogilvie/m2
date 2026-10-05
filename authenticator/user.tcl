@@ -103,7 +103,7 @@ oo::class create User {
 		set svc_pbkey	[svckeys get_pbkey $svc]
 		set n			[dict get $svc_pbkey n]
 		set e			[dict get $svc_pbkey e]
-		set d_e_cookie	[crypto::rsa::RSAES-OAEP-Verify $n $e $e_cookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set d_e_cookie	[crypto::rsa::RSAES-OAEP-Verify $n $e $e_cookie {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
 
 		set pending		[users pending_cookie $cookie_idx]
 		lassign $pending cookie pend_svc

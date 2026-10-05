@@ -233,7 +233,7 @@ cflib::pclass create m2::connector {
 		set cookie	[crypto::blowfish::csprng 8]
 		set n		[dict get $pbkey n]
 		set e		[dict get $pbkey e]
-		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set msg		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $skey {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
 		set ks		[crypto::blowfish::init_key $skey]
 		set iv		[crypto::blowfish::csprng 8]
 		set tail	[crypto::blowfish::encrypt_cbc $ks [encoding convertto utf-8 [list $cookie [$auth fqun] $iv]] $iv]

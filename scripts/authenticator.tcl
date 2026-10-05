@@ -278,7 +278,7 @@ oo::class create m2::authenticator {
 				[dict get $session_prkey dQ] \
 				[dict get $session_prkey qInv] \
 		]
-		crypto::rsa::RSAES-OAEP-Decrypt $K $data {} $crypto::rsa::sha1 $crypto::rsa::MGF
+		crypto::rsa::RSAES-OAEP-Decrypt $K $data {} $::crypto::rsa::sha1 $::crypto::rsa::MGF
 	}
 
 	#>>>
@@ -502,8 +502,8 @@ oo::class create m2::authenticator {
 
 		set n		[dict get $pubkey n]
 		set e		[dict get $pubkey e]
-		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) {} $crypto::rsa::sha1 $crypto::rsa::MGF]
-		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+		set e_key		[crypto::rsa::RSAES-OAEP-Encrypt $n $e $keys(main) {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
+		set e_cookie	[crypto::rsa::RSAES-OAEP-Encrypt $n $e $pending_cookie {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
 		#my req "authenticator" [list crypt_setup \
 		#	[crypto::armour $e_key] \
 		#	[crypto::armour $e_cookie] \

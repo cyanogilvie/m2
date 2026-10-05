@@ -110,7 +110,7 @@ cflib::pclass create m2::component {
 						[dict get $prkey dQ] \
 						[dict get $prkey qInv] \
 				]
-				set skey	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_skey {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+				set skey	[crypto::rsa::RSAES-OAEP-Decrypt $K $e_skey {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
 				#log debug "skey base64: [binary encode base64 $skey]"
 				set ks		[crypto::blowfish::init_key $skey]
 				set tail	[encoding convertfrom utf-8 [crypto::blowfish::decrypt_cbc $ks $e_tail $iv]]
@@ -157,7 +157,7 @@ cflib::pclass create m2::component {
 			set e	[dict get $user_pbkey e]
 			#log debug "Encrypting cookie2 with n: $n, e: $e"
 			#log debug "cookie2: [binary encode base64 $mycookie]"
-			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie {} $crypto::rsa::sha1 $crypto::rsa::MGF]
+			$auth ack $seq [crypto::rsa::RSAES-OAEP-Encrypt $n $e $mycookie {} $::crypto::rsa::sha1 $::crypto::rsa::MGF]
 		}
 	}
 
