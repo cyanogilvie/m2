@@ -29,7 +29,7 @@ namespace eval TclReadLine { #<<<
 	# which will be called in list order.
 	# Initialize with the "open sourced" TCL base handler
 	# taken from the wiki page
-	variable COMPLETION_HANDLERS [list TclReadLine::handleCompletionBase]
+	variable COMPLETION_HANDLERS [list ::TclReadLine::handleCompletionBase]
 
 	#
 	#  This value was determined by measuring 
@@ -55,19 +55,19 @@ namespace eval TclReadLine { #<<<
 }
 
 #>>>
-proc TclReadLine::ESC {} { #<<<
+proc ::TclReadLine::ESC {} { #<<<
 	return "\033"
 }
 
 #>>>
-proc TclReadLine::shift {ls} { #<<<
+proc ::TclReadLine::shift {ls} { #<<<
 	upvar 1 $ls LIST
 	set LIST	[lassign $LIST ret]
 	set ret
 }
 
 #>>>
-proc TclReadLine::readbuf {txt} { #<<<
+proc ::TclReadLine::readbuf {txt} { #<<<
 	upvar 1 $txt STRING
 
 	set ret		[string index $STRING 0]
@@ -76,7 +76,7 @@ proc TclReadLine::readbuf {txt} { #<<<
 }
 
 #>>>
-proc TclReadLine::goto {row {col 1}} { #<<<
+proc ::TclReadLine::goto {row {col 1}} { #<<<
 	switch -- $row {
 		home {set row 1}
 	}
@@ -84,7 +84,7 @@ proc TclReadLine::goto {row {col 1}} { #<<<
 }
 
 #>>>
-proc TclReadLine::gotocol {col} { #<<<
+proc ::TclReadLine::gotocol {col} { #<<<
 	print \r nowait
 	if {$col > 0} {
 		print "[ESC]\[${col}C" nowait
@@ -92,18 +92,18 @@ proc TclReadLine::gotocol {col} { #<<<
 }
 
 #>>>
-proc TclReadLine::clear {} { #<<<
+proc ::TclReadLine::clear {} { #<<<
 	print "[ESC]\[2J" nowait
 	goto home
 }
 
 #>>>
-proc TclReadLine::clearline {} { #<<<
+proc ::TclReadLine::clearline {} { #<<<
 	print "[ESC]\[2K\r" nowait
 }
 
 #>>>
-proc TclReadLine::getColumns {} { #<<<
+proc ::TclReadLine::getColumns {} { #<<<
 	set cols 0
 	try {
 		exec stty -a
@@ -121,10 +121,10 @@ proc TclReadLine::getColumns {} { #<<<
 }
 
 #>>>
-proc TclReadLine::localInfo {args} { #<<<
+proc ::TclReadLine::localInfo {args} { #<<<
 	set v [uplevel _info $args]
 	if {[string equal "script" [lindex $args 0]]} {
-		if {[string equal $v $TclReadLine::ThisScript]} {
+		if {[string equal $v $::TclReadLine::ThisScript]} {
 			return ""
 		}
 	}
@@ -132,7 +132,7 @@ proc TclReadLine::localInfo {args} { #<<<
 }
 
 #>>>
-proc TclReadLine::localPuts {args} { #<<<
+proc ::TclReadLine::localPuts {args} { #<<<
 	set l	[llength $args]
 	if {3 < $l} {
 		return -code error "Error: wrong \# args"
@@ -145,29 +145,29 @@ proc TclReadLine::localPuts {args} { #<<<
 				eval _origPuts $args
 			} else {
 				set str	[lindex $args 1]
-				append TclReadLine::putsString $str ;# no newline...
+				append ::TclReadLine::putsString $str ;# no newline...
 			}
 		} else {
 			# must be a channel
 			eval _origPuts $args
 		}
 	} else {
-		append TclReadLine::putsString [lindex $args 0] "\n"
+		append ::TclReadLine::putsString [lindex $args 0] "\n"
 	}
 }
 
 #>>>
-proc TclReadLine::prompt {{txt ""}} { #<<<
+proc ::TclReadLine::prompt {{txt ""}} { #<<<
 	variable signals
 	if {[$signals(busy) state]} return
 	if {[info var ::tcl_prompt1] ne ""} {
 		rename ::puts ::_origPuts
-		rename TclReadLine::localPuts ::puts
+		rename ::TclReadLine::localPuts ::puts
 		variable putsString
 		set putsString	""
 		eval [set ::tcl_prompt1]
 		set prompt	$putsString
-		rename ::puts TclReadLine::localPuts
+		rename ::puts ::TclReadLine::localPuts
 		rename ::_origPuts ::puts
 	} else {
 		variable PROMPT
@@ -244,7 +244,7 @@ proc TclReadLine::prompt {{txt ""}} { #<<<
 }
 
 #>>>
-proc TclReadLine::print {txt {wait wait}} { #<<<
+proc ::TclReadLine::print {txt {wait wait}} { #<<<
 	# Sends output to stdout chunks at a time.
 	# This is to prevent the terminal from
 	# hanging if we output too much:
@@ -258,12 +258,12 @@ proc TclReadLine::print {txt {wait wait}} { #<<<
 }
 
 #>>>
-proc TclReadLine::unknown {args} { #<<<
+proc ::TclReadLine::unknown {args} { #<<<
 	set name [lindex $args 0]
-	set cmdline $TclReadLine::CMDLINE
+	set cmdline $::TclReadLine::CMDLINE
 	set cmd [string trim [regexp -inline {^\s*[^\s]+} $cmdline]]
-	if {[info exists TclReadLine::ALIASES($cmd)]} {
-		set cmd [regexp -inline {^\s*[^\s]+} $TclReadLine::ALIASES($cmd)]
+	if {[info exists ::TclReadLine::ALIASES($cmd)]} {
+		set cmd [regexp -inline {^\s*[^\s]+} $::TclReadLine::ALIASES($cmd)]
 	}
 
 	set new [auto_execok $name]
@@ -285,20 +285,20 @@ proc TclReadLine::unknown {args} { #<<<
 }
 
 #>>>
-proc TclReadLine::alias {word command} { #<<<
+proc ::TclReadLine::alias {word command} { #<<<
 	variable ALIASES
 	set ALIASES($word) $command
 }
 
 #>>>
-proc TclReadLine::unalias {word} { #<<<
+proc ::TclReadLine::unalias {word} { #<<<
 	variable ALIASES
 	array unset ALIASES $word
 }
 
 #>>>
 # Key bindings
-proc TclReadLine::handleEscapes {} { #<<<
+proc ::TclReadLine::handleEscapes {} { #<<<
 	variable CMDLINE
 	variable CMDLINE_CURSOR
 
@@ -359,7 +359,7 @@ proc TclReadLine::handleEscapes {} { #<<<
 }
 
 #>>>
-proc TclReadLine::handleControls {} { #<<<
+proc ::TclReadLine::handleControls {} { #<<<
 	variable CMDLINE
 	variable CMDLINE_CURSOR
 
@@ -435,7 +435,7 @@ proc TclReadLine::handleControls {} { #<<<
 }
 
 #>>>
-proc TclReadLine::shortMatch {maybe} { #<<<
+proc ::TclReadLine::shortMatch {maybe} { #<<<
 	# Find the shortest matching substring:
 	set maybe		[lsort $maybe]
 	set shortest	[lindex $maybe 0]
@@ -448,25 +448,25 @@ proc TclReadLine::shortMatch {maybe} { #<<<
 }
 
 #>>>
-proc TclReadLine::addCompletionHandler {completion_extension} { #<<<
+proc ::TclReadLine::addCompletionHandler {completion_extension} { #<<<
 	variable COMPLETION_HANDLERS
 	set COMPLETION_HANDLERS [concat [list $completion_extension] $COMPLETION_HANDLERS]
 }
 
 #>>>
-proc TclReadLine::delCompletionHandler {completion_extension} { #<<<
+proc ::TclReadLine::delCompletionHandler {completion_extension} { #<<<
 	variable COMPLETION_HANDLERS
 	set COMPLETION_HANDLERS [lsearch -all -not -inline $COMPLETION_HANDLERS $completion_extension] 
 }
 
 #>>>
-proc TclReadLine::getCompletionHandler {} { #<<<
+proc ::TclReadLine::getCompletionHandler {} { #<<<
 	variable COMPLETION_HANDLERS
 	set COMPLETION_HANDLERS
 }
 
 #>>>
-proc TclReadLine::handleCompletion {} { #<<<
+proc ::TclReadLine::handleCompletion {} { #<<<
 	variable COMPLETION_HANDLERS
 	foreach handler $COMPLETION_HANDLERS {
 		if {[eval $handler] == 1} break
@@ -474,7 +474,7 @@ proc TclReadLine::handleCompletion {} { #<<<
 }
 
 #>>>
-proc TclReadLine::handleCompletionBase {} { #<<<
+proc ::TclReadLine::handleCompletionBase {} { #<<<
 	variable CMDLINE
 	variable CMDLINE_CURSOR
 
@@ -622,7 +622,7 @@ proc TclReadLine::handleCompletionBase {} { #<<<
 }
 
 #>>>
-proc TclReadLine::handleHistory {x} { #<<<
+proc ::TclReadLine::handleHistory {x} { #<<<
 	variable HISTORY_LEVEL
 	variable HISTORY_SIZE
 	variable CMDLINE
@@ -671,7 +671,7 @@ proc TclReadLine::handleHistory {x} { #<<<
 #>>>
 # History handling functions
 
-proc TclReadLine::getHistory {} { #<<<
+proc ::TclReadLine::getHistory {} { #<<<
 	variable HISTORY_SIZE
 
 	set l [list]
@@ -687,7 +687,7 @@ proc TclReadLine::getHistory {} { #<<<
 }
 
 #>>>
-proc TclReadLine::setHistory {hlist} { #<<<
+proc ::TclReadLine::setHistory {hlist} { #<<<
 	foreach event $hlist {
 		history add $event
 	}
@@ -695,21 +695,21 @@ proc TclReadLine::setHistory {hlist} { #<<<
 
 #>>>
 
-proc TclReadLine::rawInput {} { #<<<
+proc ::TclReadLine::rawInput {} { #<<<
 	fconfigure stdin -buffering none -blocking 0
 	fconfigure stdout -buffering none -translation crlf
 	exec stty raw -echo
 }
 
 #>>>
-proc TclReadLine::lineInput {} { #<<<
+proc ::TclReadLine::lineInput {} { #<<<
 	fconfigure stdin -buffering line -blocking 1
 	fconfigure stdout -buffering line
 	exec stty -raw echo
 }
 
 #>>>
-proc TclReadLine::doExit {{code 0}} { #<<<
+proc ::TclReadLine::doExit {{code 0}} { #<<<
 	variable HISTFILE
 	variable HISTORY_SIZE 
 
@@ -721,9 +721,9 @@ proc TclReadLine::doExit {{code 0}} { #<<<
 
 	set hlist [getHistory]
 	#
-	# Get rid of the TclReadLine::doExit, shouldn't be more than one
+	# Get rid of the ::TclReadLine::doExit, shouldn't be more than one
 	#
-	set hlist [lsearch -all -not -inline $hlist "TclReadLine::doExit"]
+	set hlist [lsearch -all -not -inline $hlist "::TclReadLine::doExit"]
 	set hlistlen [llength $hlist]
 	if {$hlistlen > 0} {
 		set f [open $HISTFILE w]
@@ -744,26 +744,26 @@ proc TclReadLine::doExit {{code 0}} { #<<<
 }
 
 #>>>
-proc TclReadLine::restore {} { #<<<
+proc ::TclReadLine::restore {} { #<<<
 	lineInput
-	rename ::unknown TclReadLine::unknown
+	rename ::unknown ::TclReadLine::unknown
 	rename ::_unknown ::unknown
 }
 
 #>>>
-proc TclReadLine::_busy_changed newstate { #<<<
+proc ::TclReadLine::_busy_changed newstate { #<<<
 	if {$newstate} {
 		fileevent stdin readable {}
 	} else {
-		fileevent stdin readable TclReadLine::tclline
-		TclReadLine::prompt
+		fileevent stdin readable ::TclReadLine::tclline
+		::TclReadLine::prompt
 	}
 }
 
 #>>>
-proc TclReadLine::interact {{ns ::}} { #<<<
+proc ::TclReadLine::interact {{ns ::}} { #<<<
 	rename ::unknown ::_unknown
-	rename TclReadLine::unknown ::unknown
+	rename ::TclReadLine::unknown ::unknown
 	variable signals
 
 	variable NS
@@ -802,23 +802,23 @@ proc TclReadLine::interact {{ns ::}} { #<<<
 
 	# This is to restore the environment on exit:
 	# Do not unalias this!
-	alias exit TclReadLine::doExit
+	alias exit ::TclReadLine::doExit
 
 	variable ThisScript [info script]
 
 	tclline ;# emit the first prompt
 
-	$signals(busy) attach_output TclReadLine::_busy_changed
+	$signals(busy) attach_output ::TclReadLine::_busy_changed
 
 	variable forever
-	vwait TclReadLine::forever
-	$signals(busy) detach_output TclReadLine::_busy_changed
+	vwait ::TclReadLine::forever
+	$signals(busy) detach_output ::TclReadLine::_busy_changed
 
 	restore
 }
 
 #>>>
-proc TclReadLine::check_partial_keyseq {buffer} { #<<<
+proc ::TclReadLine::check_partial_keyseq {buffer} { #<<<
 	variable READLINE_LATENCY
 	upvar $buffer keybuffer
 
@@ -844,7 +844,7 @@ namespace eval TclReadLine {
 	array set signals {}
 	sop::signal new signals(busy) -name "tclreadline busy"
 }
-proc TclReadLine::tclline {} { #<<<
+proc ::TclReadLine::tclline {} { #<<<
 	variable COLUMNS
 	variable CMDLINE_CURSOR
 	variable CMDLINE
@@ -886,14 +886,14 @@ proc TclReadLine::tclline {} { #<<<
 				print "\n" nowait
 				uplevel \#0 {
 					# Handle aliases:
-					set cmdline $TclReadLine::CMDLINE
+					set cmdline $::TclReadLine::CMDLINE
 					#
 					# Add the cmd line to history before doing any substitutions
 					# 
 					history add $cmdline
 					set cmd [string trim [regexp -inline {^\s*[^\s]+} $cmdline]]
-					if {[info exists TclReadLine::ALIASES($cmd)]} {
-						regsub -- "(?q)$cmd" $cmdline $TclReadLine::ALIASES($cmd) cmdline
+					if {[info exists ::TclReadLine::ALIASES($cmd)]} {
+						regsub -- "(?q)$cmd" $cmdline $::TclReadLine::ALIASES($cmd) cmdline
 					}
 
 					# Perform glob substitutions:
@@ -933,33 +933,33 @@ proc TclReadLine::tclline {} { #<<<
 					} $cmdline]
 
 					rename ::info ::_info
-					rename TclReadLine::localInfo ::info
+					rename ::TclReadLine::localInfo ::info
 
 					# Reset HISTORY_LEVEL before next command
-					set TclReadLine::HISTORY_LEVEL 0
-					if {[info exists TclReadLine::CMDLINE_PARTIAL]} {
-						unset TclReadLine::CMDLINE_PARTIAL
+					set ::TclReadLine::HISTORY_LEVEL 0
+					if {[info exists ::TclReadLine::CMDLINE_PARTIAL]} {
+						unset ::TclReadLine::CMDLINE_PARTIAL
 					}
 
-					set TclReadLine::CMDLINE ""
-					set TclReadLine::CMDLINE_CURSOR 0
-					set TclReadLine::CMDLINE_LINES {0 0}
+					set ::TclReadLine::CMDLINE ""
+					set ::TclReadLine::CMDLINE_CURSOR 0
+					set ::TclReadLine::CMDLINE_LINES {0 0}
 
 					# Run the command:
-					$TclReadLine::signals(busy) waitfor 0
+					$::TclReadLine::signals(busy) waitfor 0
 					coroutine coro_[incr ::coro_seq] apply {
 						{cmdline} {
 							try {
-								$TclReadLine::signals(busy) set_state 1
+								$::TclReadLine::signals(busy) set_state 1
 								namespace eval $::TclReadLine::NS $cmdline
 							} on ok {res} {
-								TclReadLine::print $res\n
+								::TclReadLine::print $res\n
 							} on error {errmsg options} {
-								TclReadLine::print [dict get $options -errorinfo]\n
+								::TclReadLine::print [dict get $options -errorinfo]\n
 							} finally {
-								rename ::info TclReadLine::localInfo
+								rename ::info ::TclReadLine::localInfo
 								rename ::_info ::info
-								$TclReadLine::signals(busy) set_state 0
+								$::TclReadLine::signals(busy) set_state 0
 							}
 						}
 					} $cmdline
@@ -988,6 +988,6 @@ proc TclReadLine::tclline {} { #<<<
 #
 # Use the following to invoke readline
 #
-# TclReadLine::interact
+# ::TclReadLine::interact
 
 # vim: ft=tcl foldmethod=marker foldmarker=<<<,>>> ts=4 shiftwidth=4
